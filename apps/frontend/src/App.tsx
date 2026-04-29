@@ -95,54 +95,26 @@ interface UploadEntry {
 // ─── Scene config ─────────────────────────────────────────────────────────────
 
 const SCENES = [
-  {
-    id: 'chase-tension',
-    label: 'Chase / Tension',
-    description: 'High arousal, forward motion, rising stakes',
-    color: '#ef4444',
-  },
-  {
-    id: 'emotional-resolution',
-    label: 'Emotional Resolution',
-    description: 'Cathartic release, earned conclusion',
-    color: '#3b82f6',
-  },
-  {
-    id: 'triumph-victory',
-    label: 'Triumph / Victory',
-    description: 'Euphoric energy, peak achievement',
-    color: '#f59e0b',
-  },
-  {
-    id: 'grief-loss',
-    label: 'Grief / Loss',
-    description: 'Low energy, intimate, searching',
-    color: '#8b5cf6',
-  },
-  {
-    id: 'romance-intimacy',
-    label: 'Romance / Intimacy',
-    description: 'Warm, close, unhurried',
-    color: '#ec4899',
-  },
-  {
-    id: 'suspense-dread',
-    label: 'Suspense / Dread',
-    description: 'Uncertainty, foreboding, held breath',
-    color: '#6b7280',
-  },
-  {
-    id: 'montage-transition',
-    label: 'Montage / Transition',
-    description: 'Neutral energy, passage of time',
-    color: '#10b981',
-  },
-  {
-    id: 'opening-closing-title',
-    label: 'Opening / Closing Title',
-    description: 'Establishing tone, bookending the story',
-    color: '#2563eb',
-  },
+  { id: 'chase-tension',           label: 'Chase / Tension',           description: 'High arousal, forward motion, rising stakes',          color: '#ef4444' },
+  { id: 'action-combat',           label: 'Action / Combat',           description: 'Aggressive drive, physical stakes, zero restraint',     color: '#f97316' },
+  { id: 'triumph-victory',         label: 'Triumph / Victory',         description: 'Euphoric energy, peak achievement',                     color: '#eab308' },
+  { id: 'euphoria-celebration',    label: 'Euphoria / Celebration',    description: 'Uninhibited joy, release, peak positive energy',        color: '#84cc16' },
+  { id: 'suspense-dread',          label: 'Suspense / Dread',          description: 'Uncertainty, foreboding, held breath',                  color: '#6366f1' },
+  { id: 'horror-psychological',    label: 'Horror / Psychological',    description: 'Dread without release, existential threat',             color: '#7c3aed' },
+  { id: 'drama-confrontation',     label: 'Drama / Confrontation',     description: 'Interpersonal stakes, emotional weight',                color: '#db2777' },
+  { id: 'urban-gritty',           label: 'Urban / Gritty',            description: 'Street-level tension, rhythmic density',               color: '#64748b' },
+  { id: 'romance-intimacy',        label: 'Romance / Intimacy',        description: 'Warm, close, unhurried',                               color: '#ec4899' },
+  { id: 'heartbreak-separation',   label: 'Heartbreak / Separation',   description: 'Active loss, the moment of leaving',                   color: '#8b5cf6' },
+  { id: 'grief-loss',              label: 'Grief / Loss',              description: 'Low energy, intimate, searching',                      color: '#6b7280' },
+  { id: 'contemplative-reflective', label: 'Contemplative / Reflective', description: 'Internal, memory, unresolved emotion',              color: '#0ea5e9' },
+  { id: 'emotional-resolution',    label: 'Emotional Resolution',      description: 'Cathartic release, earned conclusion',                 color: '#10b981' },
+  { id: 'comedy-light',            label: 'Comedy / Light',            description: 'Playful, socially easy, forward bounce',               color: '#f59e0b' },
+  { id: 'quirky-offbeat',          label: 'Quirky / Offbeat',          description: 'Rhythmic unpredictability, tonal wit',                 color: '#a855f7' },
+  { id: 'montage-transition',      label: 'Montage / Transition',      description: 'Neutral energy, passage of time',                      color: '#94a3b8' },
+  { id: 'opening-closing-title',   label: 'Opening / Closing Title',   description: 'Establishing tone, bookending the story',              color: '#f8fafc' },
+  { id: 'cinematic-epic',          label: 'Cinematic / Epic',          description: 'Scale, orchestral weight, consequential',              color: '#1d4ed8' },
+  { id: 'corporate-aspirational',  label: 'Corporate / Aspirational',  description: 'Forward momentum, optimistic, professional',           color: '#0891b2' },
+  { id: 'nature-pastoral',         label: 'Nature / Pastoral',         description: 'Spacious, organic, unhurried, yields to picture',      color: '#22c55e' },
 ]
 
 // ─── Shared style constants ───────────────────────────────────────────────────
@@ -443,11 +415,11 @@ function SceneCard({
         borderRadius: 12,
         padding: 20,
         cursor: 'pointer',
+        borderTop: '1px solid #334155',
+        borderRight: '1px solid #334155',
+        borderBottom: '1px solid #334155',
         borderLeft: `4px solid ${scene.color}`,
-        border: `1px solid #334155`,
-        borderLeftColor: scene.color,
-        borderLeftWidth: 4,
-        transition: 'border-color 200ms, background 200ms',
+        transition: 'background 200ms',
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLDivElement).style.background = '#253047'
