@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, Dispatch, DragEvent, SetStateAction } from 'react'
+import syncVisionLogo from './assets/syncvision-logo.png'
 
 // ─── Shared types ────────────────────────────────────────────────────────────
 
@@ -82,6 +83,7 @@ interface UploadEntry {
   isrcSource: 'detected' | 'manual' | null
 
   title: string
+  artistName: string
   isrc: string
   ascapWorkId: string
   writerName: string
@@ -248,6 +250,16 @@ function ScoreBar({ label, value, max }: { label: string; value: number; max: nu
 // ─── All-tracks screen ────────────────────────────────────────────────────────
 
 function AllDecisionCard({ track }: { track: RankedTrack }) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+
+  useEffect(() => {
+    const el = audioRef.current
+    if (!el) return
+    el.pause()
+    el.currentTime = 0
+    el.load()
+  }, [track.trackId])
+
   return (
     <div
       style={{
@@ -256,6 +268,14 @@ function AllDecisionCard({ track }: { track: RankedTrack }) {
         paddingTop: 16,
       }}
     >
+      <audio
+        ref={audioRef}
+        controls
+        preload="metadata"
+        src={`/api/tracks/${track.trackId}/audio`}
+        style={{ width: '100%', marginBottom: 16, borderRadius: 6, accentColor: '#2563eb' }}
+      />
+
       <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.6, marginBottom: 20, margin: '0 0 20px' }}>
         {track.explanation}
       </p>
@@ -439,6 +459,16 @@ function SceneCard({
 // ─── Scene match screen ───────────────────────────────────────────────────────
 
 function SceneDecisionCard({ match }: { match: SceneMatch }) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+
+  useEffect(() => {
+    const el = audioRef.current
+    if (!el) return
+    el.pause()
+    el.currentTime = 0
+    el.load()
+  }, [match.trackId])
+
   return (
     <div
       style={{
@@ -447,6 +477,14 @@ function SceneDecisionCard({ match }: { match: SceneMatch }) {
         paddingTop: 16,
       }}
     >
+      <audio
+        ref={audioRef}
+        controls
+        preload="metadata"
+        src={`/api/tracks/${match.trackId}/audio`}
+        style={{ width: '100%', marginBottom: 16, borderRadius: 6, accentColor: '#2563eb' }}
+      />
+
       <p
         style={{
           color: '#f8fafc',
@@ -601,6 +639,25 @@ function SceneMatchCard({
 
 // ─── Upload screen ────────────────────────────────────────────────────────────
 
+const PREVIEWABLE_TYPES = new Set(['audio/wav', 'audio/mpeg'])
+
+function LocalAudioPlayer({ file }: { file: File }) {
+  const [src] = useState(() => URL.createObjectURL(file))
+
+  useEffect(() => {
+    return () => URL.revokeObjectURL(src)
+  }, [src])
+
+  return (
+    <audio
+      controls
+      preload="metadata"
+      src={src}
+      style={{ width: '100%', marginTop: 12, borderRadius: 6, accentColor: '#2563eb' }}
+    />
+  )
+}
+
 function UploadEntryRow({
   entry,
   onChange,
@@ -689,6 +746,10 @@ function UploadEntryRow({
         )}
       </div>
 
+      {PREVIEWABLE_TYPES.has(entry.file.type) && (
+        <LocalAudioPlayer file={entry.file} />
+      )}
+
       {entry.status === 'uploading' && (
         <div style={{ marginTop: 12 }}>
           <div style={{ background: '#0f172a', borderRadius: 4, height: 6, overflow: 'hidden' }}>
@@ -719,6 +780,15 @@ function UploadEntryRow({
               <input
                 value={entry.title}
                 onChange={(e) => onChange(entry.id, { title: e.target.value })}
+                disabled={locked}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>ARTIST NAME</label>
+              <input
+                value={entry.artistName}
+                onChange={(e) => onChange(entry.id, { artistName: e.target.value })}
                 disabled={locked}
                 style={inputStyle}
               />
@@ -937,6 +1007,7 @@ function UploadScreen({
         detectedIsrc: null,
         isrcSource: null,
         title: '',
+        artistName: '',
         isrc: '',
         ascapWorkId: '',
         writerName: '',
@@ -978,6 +1049,7 @@ function UploadScreen({
           {
             filename: entry.serverFilename,
             title: entry.title.trim(),
+            artistName: entry.artistName.trim() || undefined,
             isrc: entry.isrc.trim().toUpperCase(),
             ascapWorkId: entry.ascapWorkId.trim() || undefined,
             writerName: entry.writerName.trim() || undefined,
@@ -1313,20 +1385,18 @@ export default function App() {
           }}
         >
           <div>
-            <h1
+            <img
+              src={syncVisionLogo}
+              alt="SyncVision"
+              onClick={() => setView('scenes')}
               style={{
-                fontSize: 32,
-                fontWeight: 800,
-                margin: 0,
-                letterSpacing: '-0.02em',
-                color: '#f8fafc',
+                height: 52,
+                display: 'block',
+                mixBlendMode: 'screen',
                 cursor: view !== 'scenes' ? 'pointer' : 'default',
               }}
-              onClick={() => setView('scenes')}
-            >
-              SyncVision
-            </h1>
-            <p style={{ color: '#94a3b8', margin: '6px 0 0', fontSize: 14 }}>
+            />
+            <p style={{ color: '#94a3b8', margin: '4px 0 0', fontSize: 14 }}>
               <a
                 href="/api/determinism-report"
                 target="_blank"

@@ -334,6 +334,96 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/tracks/:id/audio — stream the raw audio file with Range support.
+//
+// Serves 206 Partial Content when the client sends a Range header (required for
+// browser <audio> seeking) and 200 otherwise. Never loads the whole file into
+// memory — always pipes a fs.createReadStream.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CONTENT_TYPES: Record<string, string> = {
+  ".wav":  "audio/wav",
+  ".mp3":  "audio/mpeg",
+  ".flac": "audio/flac",
+};
+
+router.get("/tracks/:id/audio", async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    const track = await prisma.track.findUnique({ where: { id } });
+
+    if (!track || !track.audioFilePath) {
+      res.status(404).json({ error: "Track not found or audio unavailable" });
+      return;
+    }
+
+    const filePath = track.audioFilePath;
+
+    if (!fs.existsSync(filePath)) {
+      res.status(404).json({ error: "Audio file not found on disk" });
+      return;
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = CONTENT_TYPES[ext] ?? "application/octet-stream";
+    const fileSize = fs.statSync(filePath).size;
+
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Content-Type", contentType);
+
+    const rangeHeader = req.headers.range;
+
+    if (!rangeHeader) {
+      // Full file — 200
+      res.setHeader("Content-Length", fileSize);
+      res.status(200);
+      fs.createReadStream(filePath).pipe(res as unknown as NodeJS.WritableStream);
+      return;
+    }
+
+    // Parse "bytes=START-END" (suffix form "bytes=-N" also handled)
+    const rangeMatch = rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
+    if (!rangeMatch) {
+      res.status(416).setHeader("Content-Range", `bytes */${fileSize}`).end();
+      return;
+    }
+
+    const rawStart = rangeMatch[1];
+    const rawEnd   = rangeMatch[2];
+
+    let start: number;
+    let end: number;
+
+    if (rawStart === "") {
+      // Suffix range: bytes=-N → last N bytes
+      const suffixLen = parseInt(rawEnd, 10);
+      start = Math.max(0, fileSize - suffixLen);
+      end   = fileSize - 1;
+    } else {
+      start = parseInt(rawStart, 10);
+      end   = rawEnd !== "" ? Math.min(parseInt(rawEnd, 10), fileSize - 1) : fileSize - 1;
+    }
+
+    if (start < 0 || start > end || start >= fileSize) {
+      res.status(416).setHeader("Content-Range", `bytes */${fileSize}`).end();
+      return;
+    }
+
+    const chunkSize = end - start + 1;
+
+    res.status(206);
+    res.setHeader("Content-Range",  `bytes ${start}-${end}/${fileSize}`);
+    res.setHeader("Content-Length", chunkSize);
+
+    fs.createReadStream(filePath, { start, end }).pipe(res as unknown as NodeJS.WritableStream);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/tracks/:id/retry — re-enqueue a track that failed analysis
 // Idempotent: a track already in queued/analyzing/analyzed is a no-op (200 with
 // the current status). Only "failed" or "uploaded" tracks are actually re-enqueued.
