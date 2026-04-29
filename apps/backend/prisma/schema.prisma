@@ -22,6 +22,7 @@ model Track {
   rightsProfile   RightsProfile?
   confidenceScore ConfidenceScore?
 
+  @@unique([isrc])
   @@map("ScoringTrack")
   @@schema("scoring")
 }

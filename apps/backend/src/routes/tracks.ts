@@ -172,7 +172,12 @@ router.post("/tracks/inspect", upload.array("files", 50), async (req: Request, r
           filename: f.filename,                                  // server-side UUID-prefixed name
           originalName: f.originalname,                          // what the user dragged in
           sizeBytes: f.size,
-          detectedTitle: detected.title ?? null,
+          detectedTitle: (() => {
+            const t = detected.title ?? null;
+            // underscores with no spaces = filename, not a real tag — return null
+            if (t && t.includes("_") && !t.includes(" ")) return null;
+            return t;
+          })(),
           detectedIsrc: detected.isrc ?? null,
         };
       })
@@ -316,6 +321,12 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
 
         created.push({ id: track.id, title: track.title, isrc: track.isrc, status: "queued" });
       } catch (e) {
+        // P2002 = unique constraint violation — ISRC already exists
+        const code = (e as Record<string, unknown>).code;
+        if (code === "P2002") {
+          res.status(409).json({ error: `A track with ISRC ${p.isrc} already exists in your catalog.` });
+          return;
+        }
         created.push({
           id: "",
           title: p.title,
@@ -371,6 +382,30 @@ router.post("/tracks/:id/retry", async (req: Request, res: Response) => {
     await enqueueTrack(id);
 
     res.json({ id, trackStatus: "queued" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Internal server error" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/tracks/:id — remove a track and all associated rows
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.delete("/tracks/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const track = await prisma.track.findUnique({ where: { id } });
+    if (!track) {
+      res.status(404).json({ error: `Track not found: ${id}` });
+      return;
+    }
+
+    await prisma.confidenceScore.deleteMany({ where: { trackId: id } });
+    await prisma.rightsProfile.deleteMany({ where: { trackId: id } });
+    await prisma.track.delete({ where: { id } });
+
+    res.json({ deleted: id, title: track.title, isrc: track.isrc });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err instanceof Error ? err.message : "Internal server error" });
