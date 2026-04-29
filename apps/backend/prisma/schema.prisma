@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["scoring"]
+}
+
+model Track {
+  id              String           @id @default(cuid())
+  title           String
+  artistName      String?
+  isrc            String
+  trackStatus     String           @default("uploaded")
+  audioFilePath   String?
+  timeline        Json?
+  tempo           Float?
+  tonalCharacter  String?
+  energyCharacter String?
+  rightsProfile   RightsProfile?
+  confidenceScore ConfidenceScore?
+
+  @@map("ScoringTrack")
+  @@schema("scoring")
+}
+
+model RightsProfile {
+  id                 String   @id @default(cuid())
+  trackId            String   @unique
+  track              Track    @relation(fields: [trackId], references: [id])
+  ascapWorkId        String?
+  masterOwnershipPct Decimal?
+  isOneStop          Boolean?
+  writerName         String?
+  writerIpi          String?
+  publisherName      String?
+  proAffiliation     String?
+
+  @@schema("scoring")
+}
+
+model ConfidenceScore {
+  id                String   @id @default(cuid())
+  trackId           String   @unique
+  track             Track    @relation(fields: [trackId], references: [id])
+  score             Int
+  confidenceLabel   String
+  inputHash         String
+  rightsBreakdown   Int
+  metaBreakdown     Int
+  audioBreakdown    Int
+  sceneFitBreakdown Int
+  explanation       String
+  createdAt         DateTime @default(now())
+
+  @@schema("scoring")
+}

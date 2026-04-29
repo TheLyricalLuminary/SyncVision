@@ -1,0 +1,46 @@
+# ── Secrets ─────────────────────────────────────────────────────────────────
+# Never commit .env files — they contain Neon DB credentials and other secrets.
+.env
+.env.*
+!.env.example
+
+# ── Node / build artefacts ──────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+.cache/
+coverage/
+*.tsbuildinfo
+
+# ── Audio files ─────────────────────────────────────────────────────────────
+# Track audio is large binary content (>200 MB). Use git-lfs or external
+# storage if you want it tracked; for now, keep it out of regular git.
+apps/backend/audio/
+
+# ── Generated / runtime files ───────────────────────────────────────────────
+apps/backend/determinism-report.json
+*.log
+logs/
+pids/
+*.pid
+
+# ── OS / editor noise ───────────────────────────────────────────────────────
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+
+# ── Local Claude / agent state ──────────────────────────────────────────────
+.claude/settings.local.json
