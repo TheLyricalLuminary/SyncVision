@@ -1,3 +1,15 @@
+import os
+
+# Pin all numerical backends to a single thread BEFORE importing numpy/librosa.
+# Multi-threaded BLAS/OpenMP/Numba kernels reorder floating-point reductions
+# non-deterministically across runs, which produces ULP-level drift in
+# librosa's spectral features and breaks the inputHash determinism check.
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["NUMBA_NUM_THREADS"] = "1"
+os.environ["NUMBA_CACHE_DIR"] = "/tmp/numba_cache"
+
 import sys
 import json
 import hashlib
@@ -23,7 +35,9 @@ def analyze(path):
         raw_bytes = f.read()
     input_hash = hashlib.sha256(raw_bytes).hexdigest()
 
-    y, sr = librosa.load(path, sr=22050, mono=True)
+    # dtype=np.float32 is required for determinism — float64 accumulates more
+    # ULP variance through the spectral pipeline.
+    y, sr = librosa.load(path, sr=22050, mono=True, dtype=np.float32)
 
     centroid = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
     rms = librosa.feature.rms(y=y)[0]

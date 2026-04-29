@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ChangeEvent, CSSProperties, Dispatch, DragEvent, SetStateAction } from 'react'
 
 // ─── Shared types ────────────────────────────────────────────────────────────
 
@@ -52,60 +53,68 @@ interface ApiResponse {
   rankedTracks: RankedTrack[]
 }
 
-type View = 'scenes' | 'matches' | 'all'
+type View = 'scenes' | 'matches' | 'all' | 'upload'
 type BannerState = 'ok' | 'violation' | null
+
+// ─── Upload screen types ──────────────────────────────────────────────────────
+
+type UploadStatus =
+  | 'pending'         // file added, /inspect not yet started
+  | 'uploading'       // /inspect upload in progress
+  | 'inspected'       // /inspect succeeded; user can edit metadata + queue
+  | 'inspect-failed'  // /inspect failed
+  | 'queueing'        // /upload in flight
+  | 'queued'          // backend has it; awaiting analysis
+  | 'analyzing'       // backend is analyzing
+  | 'analyzed'        // done
+  | 'failed'          // backend analysis failed
+
+interface UploadEntry {
+  id: string                          // local React key
+  file: File
+  status: UploadStatus
+  uploadProgress: number              // 0–100, valid while status === 'uploading'
+  uploadError: string | null
+
+  serverFilename: string | null       // assigned by backend (UUID-prefixed)
+  detectedTitle: string | null
+  detectedIsrc: string | null
+  isrcSource: 'detected' | 'manual' | null
+
+  title: string
+  isrc: string
+  ascapWorkId: string
+  writerName: string
+  publisherName: string
+  proAffiliation: string
+
+  trackId: string | null              // assigned by /upload
+  errorReason: string | null          // backend errorReason after a failed analysis
+}
 
 // ─── Scene config ─────────────────────────────────────────────────────────────
 
 const SCENES = [
-  {
-    id: 'chase-tension',
-    label: 'Chase / Tension',
-    description: 'High arousal, forward motion, rising stakes',
-    color: '#ef4444',
-  },
-  {
-    id: 'emotional-resolution',
-    label: 'Emotional Resolution',
-    description: 'Cathartic release, earned conclusion',
-    color: '#3b82f6',
-  },
-  {
-    id: 'triumph-victory',
-    label: 'Triumph / Victory',
-    description: 'Euphoric energy, peak achievement',
-    color: '#f59e0b',
-  },
-  {
-    id: 'grief-loss',
-    label: 'Grief / Loss',
-    description: 'Low energy, intimate, searching',
-    color: '#8b5cf6',
-  },
-  {
-    id: 'romance-intimacy',
-    label: 'Romance / Intimacy',
-    description: 'Warm, close, unhurried',
-    color: '#ec4899',
-  },
-  {
-    id: 'suspense-dread',
-    label: 'Suspense / Dread',
-    description: 'Uncertainty, foreboding, held breath',
-    color: '#6b7280',
-  },
-  {
-    id: 'montage-transition',
-    label: 'Montage / Transition',
-    description: 'Neutral energy, passage of time',
-    color: '#10b981',
-  },
-  {
-    id: 'opening-closing-title',
-    label: 'Opening / Closing Title',
-    description: 'Establishing tone, bookending the story',
-    color: '#2563eb',
-  },
+  { id: 'chase-tension',           label: 'Chase / Tension',           description: 'High arousal, forward motion, rising stakes',          color: '#ef4444' },
+  { id: 'action-combat',           label: 'Action / Combat',           description: 'Aggressive drive, physical stakes, zero restraint',     color: '#f97316' },
+  { id: 'triumph-victory',         label: 'Triumph / Victory',         description: 'Euphoric energy, peak achievement',                     color: '#eab308' },
+  { id: 'euphoria-celebration',    label: 'Euphoria / Celebration',    description: 'Uninhibited joy, release, peak positive energy',        color: '#84cc16' },
+  { id: 'suspense-dread',          label: 'Suspense / Dread',          description: 'Uncertainty, foreboding, held breath',                  color: '#6366f1' },
+  { id: 'horror-psychological',    label: 'Horror / Psychological',    description: 'Dread without release, existential threat',             color: '#7c3aed' },
+  { id: 'drama-confrontation',     label: 'Drama / Confrontation',     description: 'Interpersonal stakes, emotional weight',                color: '#db2777' },
+  { id: 'urban-gritty',           label: 'Urban / Gritty',            description: 'Street-level tension, rhythmic density',               color: '#64748b' },
+  { id: 'romance-intimacy',        label: 'Romance / Intimacy',        description: 'Warm, close, unhurried',                               color: '#ec4899' },
+  { id: 'heartbreak-separation',   label: 'Heartbreak / Separation',   description: 'Active loss, the moment of leaving',                   color: '#8b5cf6' },
+  { id: 'grief-loss',              label: 'Grief / Loss',              description: 'Low energy, intimate, searching',                      color: '#6b7280' },
+  { id: 'contemplative-reflective', label: 'Contemplative / Reflective', description: 'Internal, memory, unresolved emotion',              color: '#0ea5e9' },
+  { id: 'emotional-resolution',    label: 'Emotional Resolution',      description: 'Cathartic release, earned conclusion',                 color: '#10b981' },
+  { id: 'comedy-light',            label: 'Comedy / Light',            description: 'Playful, socially easy, forward bounce',               color: '#f59e0b' },
+  { id: 'quirky-offbeat',          label: 'Quirky / Offbeat',          description: 'Rhythmic unpredictability, tonal wit',                 color: '#a855f7' },
+  { id: 'montage-transition',      label: 'Montage / Transition',      description: 'Neutral energy, passage of time',                      color: '#94a3b8' },
+  { id: 'opening-closing-title',   label: 'Opening / Closing Title',   description: 'Establishing tone, bookending the story',              color: '#f8fafc' },
+  { id: 'cinematic-epic',          label: 'Cinematic / Epic',          description: 'Scale, orchestral weight, consequential',              color: '#1d4ed8' },
+  { id: 'corporate-aspirational',  label: 'Corporate / Aspirational',  description: 'Forward momentum, optimistic, professional',           color: '#0891b2' },
+  { id: 'nature-pastoral',         label: 'Nature / Pastoral',         description: 'Spacious, organic, unhurried, yields to picture',      color: '#22c55e' },
 ]
 
 // ─── Shared style constants ───────────────────────────────────────────────────
@@ -128,6 +137,86 @@ const BREAKDOWN_LABELS: Record<keyof Breakdown, string> = {
   metadata: 'Metadata',
   audio: 'Audio',
   sceneFit: 'Scene Fit',
+}
+
+// ─── Upload screen constants + helpers ────────────────────────────────────────
+
+const ISRC_REGEX = /^[A-Z]{2}[A-Z0-9]{3}[0-9]{7}$/
+const ALLOWED_EXTENSIONS = ['.wav', '.mp3'] as const
+const MAX_BATCH_BYTES = 100 * 1024 * 1024 // 100 MB total per batch
+const POLL_INTERVAL_MS = 3000
+
+function fileExt(name: string): string {
+  const m = name.match(/\.[^.]+$/)
+  return m ? m[0].toLowerCase() : ''
+}
+
+function isAllowedFile(file: File): boolean {
+  return (ALLOWED_EXTENSIONS as readonly string[]).includes(fileExt(file.name))
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function stripExt(name: string): string {
+  return name.replace(/\.[^.]+$/, '')
+}
+
+interface InspectResult {
+  filename: string
+  originalName: string
+  sizeBytes: number
+  detectedTitle: string | null
+  detectedIsrc: string | null
+}
+
+function inspectFile(file: File, onProgress: (pct: number) => void): Promise<InspectResult> {
+  return new Promise((resolve, reject) => {
+    const fd = new FormData()
+    fd.append('files', file, file.name)
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', '/api/tracks/inspect')
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
+    }
+    xhr.onload = () => {
+      let data: { files?: InspectResult[]; error?: string } = {}
+      try { data = JSON.parse(xhr.responseText) } catch { /* keep empty */ }
+      if (xhr.status >= 200 && xhr.status < 300 && Array.isArray(data.files) && data.files[0]) {
+        resolve(data.files[0])
+      } else {
+        reject(new Error(data.error ?? `Upload failed (HTTP ${xhr.status})`))
+      }
+    }
+    xhr.onerror = () => reject(new Error('Network error during upload'))
+    xhr.send(fd)
+  })
+}
+
+const STATUS_BADGES: Record<UploadStatus, { label: string; bg: string; color: string }> = {
+  pending:          { label: 'Waiting…',        bg: '#334155', color: '#cbd5e1' },
+  uploading:        { label: 'Uploading',       bg: '#1e3a8a', color: '#bfdbfe' },
+  inspected:        { label: 'Ready to queue',  bg: '#1e40af', color: '#dbeafe' },
+  'inspect-failed': { label: 'Upload failed',   bg: '#7f1d1d', color: '#fee2e2' },
+  queueing:         { label: 'Queueing…',       bg: '#1e3a8a', color: '#bfdbfe' },
+  queued:           { label: 'Queued',          bg: '#92400e', color: '#fef3c7' },
+  analyzing:        { label: 'Analyzing',       bg: '#92400e', color: '#fef3c7' },
+  analyzed:         { label: 'Analyzed',        bg: '#166534', color: '#d1fae5' },
+  failed:           { label: 'Analysis failed', bg: '#991b1b', color: '#fee2e2' },
+}
+
+function isInFlight(status: UploadStatus): boolean {
+  return status === 'queued' || status === 'analyzing'
+}
+
+function newEntryId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 // ─── Shared components ────────────────────────────────────────────────────────
@@ -326,11 +415,11 @@ function SceneCard({
         borderRadius: 12,
         padding: 20,
         cursor: 'pointer',
+        borderTop: '1px solid #334155',
+        borderRight: '1px solid #334155',
+        borderBottom: '1px solid #334155',
         borderLeft: `4px solid ${scene.color}`,
-        border: `1px solid #334155`,
-        borderLeftColor: scene.color,
-        borderLeftWidth: 4,
-        transition: 'border-color 200ms, background 200ms',
+        transition: 'background 200ms',
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLDivElement).style.background = '#253047'
@@ -510,6 +599,532 @@ function SceneMatchCard({
   )
 }
 
+// ─── Upload screen ────────────────────────────────────────────────────────────
+
+function UploadEntryRow({
+  entry,
+  onChange,
+  onRemove,
+  onQueue,
+  onRetry,
+}: {
+  entry: UploadEntry
+  onChange: (id: string, patch: Partial<UploadEntry>) => void
+  onRemove: (id: string) => void
+  onQueue: (id: string) => void
+  onRetry: (id: string) => void
+}) {
+  const badge = STATUS_BADGES[entry.status]
+  const isrcValid = ISRC_REGEX.test(entry.isrc.trim())
+  const titleValid = entry.title.trim().length > 0
+  const isrcMissing = entry.isrc.trim().length === 0
+  const canQueue = entry.status === 'inspected' && isrcValid && titleValid
+  const locked =
+    entry.status === 'queueing' ||
+    entry.status === 'queued' ||
+    entry.status === 'analyzing' ||
+    entry.status === 'analyzed'
+
+  const inputStyle: CSSProperties = {
+    background: '#0f172a',
+    border: '1px solid #334155',
+    borderRadius: 6,
+    padding: '8px 10px',
+    color: '#f8fafc',
+    fontSize: 13,
+    width: '100%',
+    fontFamily: 'inherit',
+  }
+  const labelStyle: CSSProperties = { color: '#94a3b8', fontSize: 11, marginBottom: 4, display: 'block', letterSpacing: '0.03em' }
+
+  return (
+    <div
+      style={{
+        background: '#1e293b',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 12,
+        border: '1px solid #334155',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: '#f8fafc', fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {entry.file.name}
+          </div>
+          <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>{formatBytes(entry.file.size)}</div>
+        </div>
+        <span
+          style={{
+            background: badge.bg,
+            color: badge.color,
+            fontSize: 11,
+            fontWeight: 700,
+            padding: '3px 10px',
+            borderRadius: 4,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+          }}
+        >
+          {badge.label}
+        </span>
+        {entry.status !== 'queueing' && entry.status !== 'queued' && entry.status !== 'analyzing' && (
+          <button
+            onClick={() => onRemove(entry.id)}
+            aria-label="Remove file"
+            style={{
+              background: 'transparent',
+              border: '1px solid #475569',
+              color: '#94a3b8',
+              borderRadius: 6,
+              width: 28,
+              height: 28,
+              cursor: 'pointer',
+              fontSize: 14,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      {entry.status === 'uploading' && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ background: '#0f172a', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+            <div
+              style={{
+                background: '#2563eb',
+                width: `${entry.uploadProgress}%`,
+                height: '100%',
+                transition: 'width 120ms linear',
+              }}
+            />
+          </div>
+          <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 4 }}>{entry.uploadProgress}%</div>
+        </div>
+      )}
+
+      {entry.status === 'inspect-failed' && (
+        <div style={{ color: '#fca5a5', fontSize: 13, marginTop: 12 }}>
+          Upload failed: {entry.uploadError ?? 'unknown error'}
+        </div>
+      )}
+
+      {(entry.status === 'inspected' || entry.status === 'queueing') && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={labelStyle}>TITLE *</label>
+              <input
+                value={entry.title}
+                onChange={(e) => onChange(entry.id, { title: e.target.value })}
+                disabled={locked}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>
+                ISRC *
+                {entry.isrcSource === 'detected' && (
+                  <span style={{ marginLeft: 6, color: '#22c55e', fontSize: 10, fontWeight: 700 }}>
+                    DETECTED FROM ID3
+                  </span>
+                )}
+                {entry.isrcSource === 'manual' && (
+                  <span style={{ marginLeft: 6, color: '#94a3b8', fontSize: 10, fontWeight: 700 }}>
+                    MANUAL
+                  </span>
+                )}
+              </label>
+              <input
+                value={entry.isrc}
+                onChange={(e) => {
+                  const next = e.target.value.toUpperCase()
+                  onChange(entry.id, { isrc: next, isrcSource: 'manual' })
+                }}
+                placeholder="e.g. QZTAW2599999"
+                disabled={locked}
+                style={{
+                  ...inputStyle,
+                  fontFamily: 'monospace',
+                  borderColor: entry.isrc && !isrcValid ? '#dc2626' : inputStyle.border as string,
+                }}
+              />
+              {isrcMissing && (
+                <div style={{ color: '#fca5a5', fontSize: 11, marginTop: 4 }}>
+                  ISRC required before this track can be cleared.
+                </div>
+              )}
+              {!isrcMissing && !isrcValid && (
+                <div style={{ color: '#fca5a5', fontSize: 11, marginTop: 4 }}>
+                  Invalid ISRC format (expected 12 chars, e.g. QZTAW2599999).
+                </div>
+              )}
+            </div>
+            <div>
+              <label style={labelStyle}>ASCAP WORK ID</label>
+              <input
+                value={entry.ascapWorkId}
+                onChange={(e) => onChange(entry.id, { ascapWorkId: e.target.value })}
+                disabled={locked}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>WRITER NAME</label>
+              <input
+                value={entry.writerName}
+                onChange={(e) => onChange(entry.id, { writerName: e.target.value })}
+                disabled={locked}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>PUBLISHER NAME</label>
+              <input
+                value={entry.publisherName}
+                onChange={(e) => onChange(entry.id, { publisherName: e.target.value })}
+                disabled={locked}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>PRO AFFILIATION</label>
+              <input
+                value={entry.proAffiliation}
+                onChange={(e) => onChange(entry.id, { proAffiliation: e.target.value })}
+                placeholder="ASCAP, BMI, SESAC…"
+                disabled={locked}
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          {entry.uploadError && entry.status === 'inspected' && (
+            <div style={{ color: '#fca5a5', fontSize: 12, marginTop: 12 }}>
+              Queue failed: {entry.uploadError}
+            </div>
+          )}
+
+          <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button
+              onClick={() => onQueue(entry.id)}
+              disabled={!canQueue}
+              style={{
+                background: canQueue ? '#2563eb' : '#1e293b',
+                color: canQueue ? '#fff' : '#64748b',
+                border: canQueue ? 'none' : '1px solid #334155',
+                borderRadius: 8,
+                padding: '8px 18px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: canQueue ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {entry.status === 'queueing' ? 'Queueing…' : 'Queue Track'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {entry.status === 'failed' && (
+        <div style={{ marginTop: 12 }}>
+          {entry.errorReason && (
+            <div style={{ color: '#fca5a5', fontSize: 12, marginBottom: 10 }}>
+              Reason: {entry.errorReason}
+            </div>
+          )}
+          <button
+            onClick={() => onRetry(entry.id)}
+            style={{
+              background: '#2563eb',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '8px 16px',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UploadScreen({
+  entries,
+  setEntries,
+  onBack,
+}: {
+  entries: UploadEntry[]
+  setEntries: Dispatch<SetStateAction<UploadEntry[]>>
+  onBack: () => void
+}) {
+  const [dragOver, setDragOver] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function patchEntry(id: string, patch: Partial<UploadEntry>) {
+    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)))
+  }
+
+  function startInspect(entryId: string, file: File) {
+    patchEntry(entryId, { status: 'uploading', uploadProgress: 0, uploadError: null })
+    inspectFile(file, (pct) => {
+      setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, uploadProgress: pct } : e)))
+    })
+      .then((result) => {
+        setEntries((prev) =>
+          prev.map((e) => {
+            if (e.id !== entryId) return e
+            return {
+              ...e,
+              status: 'inspected',
+              uploadProgress: 100,
+              serverFilename: result.filename,
+              detectedTitle: result.detectedTitle,
+              detectedIsrc: result.detectedIsrc,
+              isrcSource: result.detectedIsrc ? 'detected' : null,
+              title: e.title || result.detectedTitle || stripExt(e.file.name),
+              isrc: e.isrc || (result.detectedIsrc ?? ''),
+            }
+          }),
+        )
+      })
+      .catch((err: Error) => {
+        patchEntry(entryId, { status: 'inspect-failed', uploadError: err.message })
+      })
+  }
+
+  function addFiles(fileList: FileList | File[] | null) {
+    if (!fileList) return
+    const incoming = Array.from(fileList)
+    const errors: string[] = []
+    const accepted: UploadEntry[] = []
+
+    const existingNames = new Set(entries.map((e) => e.file.name))
+    let runningBytes = entries.reduce((sum, e) => sum + e.file.size, 0)
+
+    for (const file of incoming) {
+      if (!isAllowedFile(file)) {
+        errors.push(`${file.name}: only WAV and MP3 are accepted.`)
+        continue
+      }
+      if (existingNames.has(file.name)) {
+        errors.push(`${file.name}: a file with this name is already in the batch.`)
+        continue
+      }
+      if (runningBytes + file.size > MAX_BATCH_BYTES) {
+        errors.push(`${file.name}: would exceed the 100 MB batch limit.`)
+        continue
+      }
+      existingNames.add(file.name)
+      runningBytes += file.size
+
+      accepted.push({
+        id: newEntryId(),
+        file,
+        status: 'pending',
+        uploadProgress: 0,
+        uploadError: null,
+        serverFilename: null,
+        detectedTitle: null,
+        detectedIsrc: null,
+        isrcSource: null,
+        title: '',
+        isrc: '',
+        ascapWorkId: '',
+        writerName: '',
+        publisherName: '',
+        proAffiliation: '',
+        trackId: null,
+        errorReason: null,
+      })
+    }
+
+    setValidationErrors(errors)
+
+    if (accepted.length > 0) {
+      setEntries((prev) => [...prev, ...accepted])
+      // Kick off inspect for each new file. The state update above doesn't need to
+      // settle first since startInspect only consults the entry id.
+      for (const entry of accepted) {
+        startInspect(entry.id, entry.file)
+      }
+    }
+  }
+
+  function removeEntry(id: string) {
+    setEntries((prev) => prev.filter((e) => e.id !== id))
+  }
+
+  function queueOne(id: string) {
+    const entry = entries.find((e) => e.id === id)
+    if (!entry || !entry.serverFilename) return
+    if (!ISRC_REGEX.test(entry.isrc) || entry.title.trim().length === 0) return
+
+    patchEntry(id, { status: 'queueing', uploadError: null })
+
+    fetch('/api/tracks/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tracks: [
+          {
+            filename: entry.serverFilename,
+            title: entry.title.trim(),
+            isrc: entry.isrc.trim().toUpperCase(),
+            ascapWorkId: entry.ascapWorkId.trim() || undefined,
+            writerName: entry.writerName.trim() || undefined,
+            publisherName: entry.publisherName.trim() || undefined,
+            proAffiliation: entry.proAffiliation.trim() || undefined,
+          },
+        ],
+      }),
+    })
+      .then(async (r) => {
+        const data = (await r.json().catch(() => ({}))) as {
+          tracks?: Array<{ id: string; status: string; error?: string }>
+          error?: string
+        }
+        if (!r.ok) throw new Error(data.error ?? `HTTP ${r.status}`)
+        const created = data.tracks?.[0]
+        if (!created || created.status === 'error') {
+          throw new Error(created?.error ?? 'Backend rejected the track')
+        }
+        patchEntry(id, { status: 'queued', trackId: created.id, uploadError: null })
+      })
+      .catch((err: Error) => {
+        patchEntry(id, { status: 'inspected', uploadError: err.message })
+      })
+  }
+
+  function retryOne(id: string) {
+    const entry = entries.find((e) => e.id === id)
+    if (!entry?.trackId) return
+    patchEntry(id, { status: 'queued', errorReason: null })
+    fetch(`/api/tracks/${entry.trackId}/retry`, { method: 'POST' })
+      .then(async (r) => {
+        if (!r.ok) {
+          const data = (await r.json().catch(() => ({}))) as { error?: string }
+          throw new Error(data.error ?? `HTTP ${r.status}`)
+        }
+      })
+      .catch((err: Error) => {
+        patchEntry(id, { status: 'failed', errorReason: err.message })
+      })
+  }
+
+  function onDrop(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault()
+    setDragOver(false)
+    addFiles(e.dataTransfer.files)
+  }
+
+  function onPick(e: ChangeEvent<HTMLInputElement>) {
+    addFiles(e.target.files)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const totalBytes = entries.reduce((sum, e) => sum + e.file.size, 0)
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <button
+          onClick={onBack}
+          aria-label="Back to scene selection"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: '#2563eb',
+            fontSize: 20,
+            cursor: 'pointer',
+            padding: 0,
+            lineHeight: 1,
+          }}
+        >
+          ←
+        </button>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#f8fafc' }}>Add Tracks</h2>
+      </div>
+      <p style={{ color: '#94a3b8', fontSize: 14, marginBottom: 24, marginTop: 6 }}>
+        Drop WAV or MP3 files to inspect ID3 tags, fill in rights metadata, and queue for analysis.
+      </p>
+
+      <div
+        onDragOver={(e) => {
+          e.preventDefault()
+          setDragOver(true)
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+        onClick={() => fileInputRef.current?.click()}
+        style={{
+          border: `2px dashed ${dragOver ? '#2563eb' : '#334155'}`,
+          background: dragOver ? '#1e293b' : '#0f172a',
+          borderRadius: 12,
+          padding: '36px 20px',
+          textAlign: 'center',
+          cursor: 'pointer',
+          transition: 'border-color 150ms, background 150ms',
+        }}
+      >
+        <div style={{ color: '#f8fafc', fontWeight: 600, fontSize: 15, marginBottom: 4 }}>
+          Drop files here or click to browse
+        </div>
+        <div style={{ color: '#94a3b8', fontSize: 13 }}>
+          WAV / MP3 · up to 100 MB total per batch · {formatBytes(totalBytes)} used
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".wav,.mp3,audio/wav,audio/mpeg,audio/mp3"
+          onChange={onPick}
+          style={{ display: 'none' }}
+        />
+      </div>
+
+      {validationErrors.length > 0 && (
+        <div
+          style={{
+            background: '#450a0a',
+            border: '1px solid #7f1d1d',
+            borderRadius: 10,
+            padding: 14,
+            marginTop: 16,
+            color: '#fca5a5',
+            fontSize: 13,
+          }}
+        >
+          {validationErrors.map((msg, i) => (
+            <div key={i}>{msg}</div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginTop: 24 }}>
+        {entries.map((entry) => (
+          <UploadEntryRow
+            key={entry.id}
+            entry={entry}
+            onChange={patchEntry}
+            onRemove={removeEntry}
+            onQueue={queueOne}
+            onRetry={retryOne}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Root app ─────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -529,6 +1144,51 @@ export default function App() {
   const [banner, setBanner] = useState<BannerState>(null)
   const prevHashes = useRef<Record<string, string>>({})
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Upload screen state — held at App level so polling continues across nav.
+  const [uploadEntries, setUploadEntries] = useState<UploadEntry[]>([])
+  const hasInFlight = uploadEntries.some((e) => isInFlight(e.status))
+
+  useEffect(() => {
+    if (!hasInFlight) return
+    let cancelled = false
+
+    const tick = () => {
+      fetch('/api/tracks')
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          return r.json() as Promise<{
+            tracks: Array<{ id: string; trackStatus: string; errorReason: string | null }>
+          }>
+        })
+        .then((data) => {
+          if (cancelled) return
+          const byId = new Map(data.tracks.map((t) => [t.id, t]))
+          setUploadEntries((prev) =>
+            prev.map((e) => {
+              if (!e.trackId) return e
+              const t = byId.get(e.trackId)
+              if (!t) return e
+              const newStatus: UploadStatus =
+                t.trackStatus === 'analyzed' ? 'analyzed' :
+                t.trackStatus === 'failed'   ? 'failed' :
+                t.trackStatus === 'analyzing' ? 'analyzing' :
+                'queued'
+              if (e.status === newStatus && e.errorReason === t.errorReason) return e
+              return { ...e, status: newStatus, errorReason: t.errorReason }
+            }),
+          )
+        })
+        .catch(() => { /* swallow — next tick will retry */ })
+    }
+
+    tick()
+    const interval = setInterval(tick, POLL_INTERVAL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [hasInFlight])
 
   function showBanner(state: BannerState) {
     setBanner(state)
@@ -718,7 +1378,22 @@ export default function App() {
               ))}
             </div>
 
-            <div style={{ marginTop: 28, textAlign: 'center' }}>
+            <div style={{ marginTop: 28, display: 'flex', gap: 16, justifyContent: 'center', alignItems: 'center' }}>
+              <button
+                onClick={() => setView('upload')}
+                style={{
+                  background: '#2563eb',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 20px',
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                }}
+              >
+                + Add Tracks
+              </button>
               <button
                 onClick={() => setView('all')}
                 style={{
@@ -806,6 +1481,15 @@ export default function App() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── Screen: upload ── */}
+        {view === 'upload' && (
+          <UploadScreen
+            entries={uploadEntries}
+            setEntries={setUploadEntries}
+            onBack={() => setView('scenes')}
+          />
         )}
 
         {/* ── Screen: all tracks ── */}

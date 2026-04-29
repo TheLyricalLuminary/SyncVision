@@ -15,6 +15,7 @@ model Track {
   trackStatus     String           @default("uploaded")
   audioFilePath   String?
   timeline        Json?
+  errorReason     String?
   tempo           Float?
   tonalCharacter  String?
   energyCharacter String?

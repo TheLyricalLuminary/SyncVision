@@ -93,15 +93,20 @@ export async function startConsumer(signal?: AbortSignal): Promise<void> {
         // Fail loudly on missing audio path. A placeholder fallback would produce
         // real-looking scores from fake input — that is fraudulent output.
         if (!track.audioFilePath) {
-          console.error(
-            `Consumer: track ${trackId} has null audioFilePath — cannot process track without a real audio file`
-          );
-          await prisma.track.update({ where: { id: trackId }, data: { trackStatus: "failed" } });
+          const reason = "audioFilePath is null — cannot process track without a real audio file";
+          console.error(`Consumer: track ${trackId} → ${reason}`);
+          await prisma.track.update({
+            where: { id: trackId },
+            data: { trackStatus: "failed", errorReason: reason },
+          });
           await redis.xack(STREAM, GROUP, msgId);
           continue;
         }
 
-        await prisma.track.update({ where: { id: trackId }, data: { trackStatus: "analyzing" } });
+        await prisma.track.update({
+          where: { id: trackId },
+          data: { trackStatus: "analyzing", errorReason: null },
+        });
 
         const workerResult = await runWorker(track.audioFilePath);
 
@@ -120,11 +125,15 @@ export async function startConsumer(signal?: AbortSignal): Promise<void> {
               tempo: data.tempo ?? null,
               tonalCharacter: data.tonalCharacter ?? null,
               energyCharacter: data.energyCharacter ?? null,
+              errorReason: null,
             },
           });
         } else {
           console.error(`Consumer: worker failed for ${trackId}: ${workerResult.error}`);
-          await prisma.track.update({ where: { id: trackId }, data: { trackStatus: "failed" } });
+          await prisma.track.update({
+            where: { id: trackId },
+            data: { trackStatus: "failed", errorReason: workerResult.error.slice(0, 1000) },
+          });
         }
 
         // Always ack regardless of outcome
