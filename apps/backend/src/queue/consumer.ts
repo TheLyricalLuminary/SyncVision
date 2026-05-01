@@ -1,6 +1,7 @@
 import "dotenv/config";
 import path from "path";
 import { spawn } from "child_process";
+import { isFeatureVector } from "../types/featureVector";
 import Redis from "ioredis";
 import prisma from "../lib/prisma";
 
@@ -111,21 +112,23 @@ export async function startConsumer(signal?: AbortSignal): Promise<void> {
         const workerResult = await runWorker(track.audioFilePath);
 
         if (workerResult.success) {
-          const data = workerResult.data as {
-            timeline: number[][];
-            tempo?: number;
-            tonalCharacter?: string;
-            energyCharacter?: string;
-          };
+          const raw = workerResult.data as Record<string, unknown>;
+          if (!isFeatureVector(raw)) {
+            console.error(`Consumer: worker output failed FeatureVector validation for ${trackId}`, raw);
+          }
           await prisma.track.update({
             where: { id: trackId },
             data: {
-              trackStatus: "analyzed",
-              timeline: data.timeline as never,
-              tempo: data.tempo ?? null,
-              tonalCharacter: data.tonalCharacter ?? null,
-              energyCharacter: data.energyCharacter ?? null,
-              errorReason: null,
+              trackStatus:      "analyzed",
+              timeline:         (raw.timeline as never) ?? null,
+              tempo:            typeof raw.tempo === "number" ? raw.tempo : null,
+              tonalCharacter:   typeof raw.tonalCharacter === "string" ? raw.tonalCharacter : null,
+              energyCharacter:  typeof raw.energyCharacter === "string" ? raw.energyCharacter : null,
+              modelVersion:     typeof raw.modelVersion === "string" ? raw.modelVersion : null,
+              spectralCentroid: typeof raw.spectralCentroid === "number" ? raw.spectralCentroid : null,
+              rmsEnergy:        typeof raw.rmsEnergy === "number" ? raw.rmsEnergy : null,
+              zeroCrossingRate: typeof raw.zeroCrossingRate === "number" ? raw.zeroCrossingRate : null,
+              errorReason:      null,
             },
           });
         } else {

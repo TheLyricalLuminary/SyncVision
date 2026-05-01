@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, Dispatch, DragEvent, SetStateAction } from 'react'
 
+// Singleton so only one track plays at a time across all cards
+const currentAudio: { el: HTMLAudioElement | null } = { el: null }
+
 // ─── Shared types ────────────────────────────────────────────────────────────
 
 interface Breakdown {
@@ -53,7 +56,7 @@ interface ApiResponse {
   rankedTracks: RankedTrack[]
 }
 
-type View = 'scenes' | 'matches' | 'all' | 'upload'
+type View = 'scenes' | 'matches' | 'all' | 'upload' | 'analytics' | 'verification'
 type BannerState = 'ok' | 'violation' | null
 
 // ─── Upload screen types ──────────────────────────────────────────────────────
@@ -87,6 +90,11 @@ interface UploadEntry {
   writerName: string
   publisherName: string
   proAffiliation: string
+
+  masterOwnedBy: string
+  masterOwnershipType: string         // '' | 'SELF_OWNED' | 'LABEL' | 'CO_OWNED' | 'WORK_FOR_HIRE'
+  masterVerificationSource: string
+  masterOwnershipSplits: Array<{ owner: string; pct: string }>
 
   trackId: string | null              // assigned by /upload
   errorReason: string | null          // backend errorReason after a failed analysis
@@ -247,6 +255,59 @@ function ScoreBar({ label, value, max }: { label: string; value: number; max: nu
 
 // ─── All-tracks screen ────────────────────────────────────────────────────────
 
+function PlayButton({ trackId }: { trackId: string }) {
+  const [playing, setPlaying] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!audioRef.current) {
+      const el = new Audio(`/api/tracks/${trackId}/audio`)
+      el.onended = () => setPlaying(false)
+      el.onpause = () => setPlaying(false)
+      el.onplay  = () => setPlaying(true)
+      audioRef.current = el
+    }
+    const el = audioRef.current
+    if (playing) {
+      el.pause()
+    } else {
+      if (currentAudio.el && currentAudio.el !== el) {
+        currentAudio.el.pause()
+      }
+      currentAudio.el = el
+      el.play().catch(() => {})
+    }
+  }
+
+  useEffect(() => {
+    return () => { audioRef.current?.pause() }
+  }, [])
+
+  return (
+    <button
+      onClick={toggle}
+      title={playing ? 'Pause' : 'Play'}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 36,
+        height: 36,
+        borderRadius: '50%',
+        background: playing ? '#1d4ed8' : '#0f172a',
+        border: '1px solid #334155',
+        color: '#f8fafc',
+        cursor: 'pointer',
+        flexShrink: 0,
+        fontSize: 14,
+      }}
+    >
+      {playing ? '⏸' : '▶'}
+    </button>
+  )
+}
+
 function AllDecisionCard({ track }: { track: RankedTrack }) {
   return (
     <div
@@ -338,6 +399,8 @@ function TrackCard({
         >
           {track.rank}
         </div>
+
+        <PlayButton trackId={track.trackId} />
 
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -539,6 +602,8 @@ function SceneMatchCard({
         >
           {match.rank}
         </div>
+
+        <PlayButton trackId={match.trackId} />
 
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -801,6 +866,106 @@ function UploadEntryRow({
             </div>
           </div>
 
+          {/* ── Master Ownership ────────────────────────────────────────── */}
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #1e293b' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.08em', marginBottom: 10 }}>
+              MASTER OWNERSHIP
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>MASTER OWNER <span style={{ color: '#ef4444' }}>*</span></label>
+                <input
+                  value={entry.masterOwnedBy}
+                  onChange={(e) => onChange(entry.id, { masterOwnedBy: e.target.value })}
+                  placeholder="Legal name of master rights holder"
+                  disabled={locked}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>OWNERSHIP TYPE <span style={{ color: '#ef4444' }}>*</span></label>
+                <select
+                  value={entry.masterOwnershipType}
+                  onChange={(e) => onChange(entry.id, { masterOwnershipType: e.target.value })}
+                  disabled={locked}
+                  style={{ ...inputStyle, appearance: 'none' as const }}
+                >
+                  <option value="">— Select —</option>
+                  <option value="SELF_OWNED">Self-Owned</option>
+                  <option value="LABEL">Label</option>
+                  <option value="CO_OWNED">Co-Owned</option>
+                  <option value="WORK_FOR_HIRE">Work-for-Hire</option>
+                </select>
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>VERIFICATION SOURCE</label>
+                <input
+                  value={entry.masterVerificationSource}
+                  onChange={(e) => onChange(entry.id, { masterVerificationSource: e.target.value })}
+                  placeholder="self-attested, contract, label agreement…"
+                  disabled={locked}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            {entry.masterOwnershipType === 'CO_OWNED' && (
+              <div style={{ marginTop: 12 }}>
+                <label style={labelStyle}>CO-OWNER SPLITS</label>
+                {entry.masterOwnershipSplits.map((split, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                    <input
+                      value={split.owner}
+                      onChange={(e) => {
+                        const splits = entry.masterOwnershipSplits.map((s, i) => i === idx ? { ...s, owner: e.target.value } : s)
+                        onChange(entry.id, { masterOwnershipSplits: splits })
+                      }}
+                      placeholder="Owner name"
+                      disabled={locked}
+                      style={{ ...inputStyle, flex: 2 }}
+                    />
+                    <input
+                      value={split.pct}
+                      onChange={(e) => {
+                        const splits = entry.masterOwnershipSplits.map((s, i) => i === idx ? { ...s, pct: e.target.value } : s)
+                        onChange(entry.id, { masterOwnershipSplits: splits })
+                      }}
+                      placeholder="%"
+                      disabled={locked}
+                      style={{ ...inputStyle, flex: 1, textAlign: 'right' as const }}
+                    />
+                    <button
+                      onClick={() => {
+                        const splits = entry.masterOwnershipSplits.filter((_, i) => i !== idx)
+                        onChange(entry.id, { masterOwnershipSplits: splits })
+                      }}
+                      disabled={locked}
+                      style={{ background: 'transparent', border: '1px solid #334155', color: '#94a3b8', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}
+                    >✕</button>
+                  </div>
+                ))}
+                {(() => {
+                  const total = entry.masterOwnershipSplits.reduce((sum, s) => sum + (parseFloat(s.pct) || 0), 0)
+                  const allFilled = entry.masterOwnershipSplits.length > 0
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <button
+                        onClick={() => onChange(entry.id, { masterOwnershipSplits: [...entry.masterOwnershipSplits, { owner: '', pct: '' }] })}
+                        disabled={locked}
+                        style={{ background: 'transparent', border: '1px solid #334155', color: '#94a3b8', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}
+                      >+ Add owner</button>
+                      {allFilled && (
+                        <span style={{ fontSize: 11, color: Math.abs(total - 100) < 0.01 ? '#4ade80' : '#fca5a5' }}>
+                          Total: {total.toFixed(1)}% {Math.abs(total - 100) < 0.01 ? '✓' : '(must equal 100)'}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+          </div>
+
           {entry.uploadError && entry.status === 'inspected' && (
             <div style={{ color: '#fca5a5', fontSize: 12, marginTop: 12 }}>
               Queue failed: {entry.uploadError}
@@ -942,6 +1107,10 @@ function UploadScreen({
         writerName: '',
         publisherName: '',
         proAffiliation: '',
+        masterOwnedBy: '',
+        masterOwnershipType: '',
+        masterVerificationSource: '',
+        masterOwnershipSplits: [],
         trackId: null,
         errorReason: null,
       })
@@ -983,6 +1152,10 @@ function UploadScreen({
             writerName: entry.writerName.trim() || undefined,
             publisherName: entry.publisherName.trim() || undefined,
             proAffiliation: entry.proAffiliation.trim() || undefined,
+            masterOwnedBy: entry.masterOwnedBy.trim() || undefined,
+            masterOwnershipType: entry.masterOwnershipType || undefined,
+            masterVerificationSource: entry.masterVerificationSource.trim() || undefined,
+            masterOwnershipSplits: entry.masterOwnershipSplits.length > 0 ? entry.masterOwnershipSplits : undefined,
           },
         ],
       }),
@@ -1121,6 +1294,425 @@ function UploadScreen({
           />
         ))}
       </div>
+    </div>
+  )
+}
+
+// ─── Determinism Verification view ───────────────────────────────────────────
+
+interface DeterminismReport {
+  runCount: number
+  hashesMatch: boolean
+  rankingStable: boolean
+  violations: { trackId: string; detail: string }[]
+  verifiedAt: string
+}
+
+function DeterminismVerificationView({ onBack }: { onBack: () => void }) {
+  const [report, setReport] = useState<DeterminismReport | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/determinism-report')
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json() as Promise<DeterminismReport>
+      })
+      .then((d) => { setReport(d); setLoading(false) })
+      .catch((e: Error) => { setError(e.message); setLoading(false) })
+  }, [])
+
+  const passing = report && report.hashesMatch && report.rankingStable && report.violations.length === 0
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+        <button
+          onClick={onBack}
+          style={{ background: 'transparent', border: 'none', color: '#2563eb', fontSize: 20, cursor: 'pointer', padding: 0 }}
+          aria-label="Back"
+        >
+          ←
+        </button>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#f8fafc' }}>
+          Deterministic Music Rights Verification
+        </h2>
+      </div>
+
+      {loading && (
+        <div style={{ color: '#94a3b8', textAlign: 'center', padding: '60px 0', fontSize: 15 }}>
+          Loading report…
+        </div>
+      )}
+
+      {error && (
+        <div style={{ background: '#450a0a', border: '1px solid #7f1d1d', borderRadius: 10, padding: 20, color: '#fca5a5' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
+
+      {report && (
+        <>
+          {/* Status banner */}
+          <div
+            style={{
+              background: passing ? '#052e16' : '#450a0a',
+              border: `1px solid ${passing ? '#166534' : '#7f1d1d'}`,
+              borderRadius: 12,
+              padding: '20px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 16,
+              marginBottom: 24,
+            }}
+          >
+            <span style={{ fontSize: 32 }}>{passing ? '✅' : '❌'}</span>
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: passing ? '#4ade80' : '#fca5a5' }}>
+                {passing ? 'All checks passed' : 'Verification failure detected'}
+              </div>
+              <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
+                Verified {new Date(report.verifiedAt).toLocaleString()} · {report.runCount} run{report.runCount !== 1 ? 's' : ''}
+              </div>
+            </div>
+          </div>
+
+          {/* Check rows */}
+          {[
+            { label: 'Input hashes match across runs', ok: report.hashesMatch },
+            { label: 'Track ranking is stable', ok: report.rankingStable },
+            { label: 'No violations recorded', ok: report.violations.length === 0 },
+          ].map(({ label, ok }) => (
+            <div
+              key={label}
+              style={{
+                background: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: 10,
+                padding: '14px 20px',
+                marginBottom: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span style={{ fontSize: 14, color: '#cbd5e1' }}>{label}</span>
+              <span style={{
+                fontSize: 12,
+                fontWeight: 700,
+                padding: '3px 10px',
+                borderRadius: 20,
+                background: ok ? '#052e16' : '#450a0a',
+                color: ok ? '#4ade80' : '#fca5a5',
+                border: `1px solid ${ok ? '#166534' : '#7f1d1d'}`,
+              }}>
+                {ok ? 'PASS' : 'FAIL'}
+              </span>
+            </div>
+          ))}
+
+          {/* Violations */}
+          {report.violations.length > 0 && (
+            <div style={{ background: '#1e293b', border: '1px solid #7f1d1d', borderRadius: 10, padding: 20, marginTop: 8 }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: '#fca5a5' }}>
+                Violations ({report.violations.length})
+              </h3>
+              {report.violations.map((v, i) => (
+                <div key={i} style={{ marginBottom: 8, fontSize: 13, color: '#94a3b8' }}>
+                  <span style={{ color: '#f1f5f9', fontFamily: 'monospace' }}>{v.trackId}</span>
+                  {v.detail && <span style={{ marginLeft: 8 }}>{v.detail}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Analytics dashboard ──────────────────────────────────────────────────────
+
+interface BriefCoverageRow {
+  briefId: string
+  label: string
+  passCount: number
+  totalAnalyzed: number
+  passPct: number
+}
+
+interface WeakTrack {
+  trackId: string
+  title: string
+  artistName?: string | null  // not included in API response; renders as '—'
+  maxSceneFit: number
+  bestBriefId: string
+  bestBriefLabel: string
+}
+
+interface AnalyticsData {
+  catalogSize: number
+  analyzedCount: number
+  clearedCount: number
+  briefCoverage: BriefCoverageRow[]
+  rightsDistribution: Record<string, number>
+  scoreBuckets: Record<string, number>
+  weakTracks: WeakTrack[]
+}
+
+const RIGHTS_STATE_COLORS: Record<string, string> = {
+  CLEAR: '#16a34a',
+  PARTIALLY_CLEAR: '#ca8a04',
+  UNVERIFIED: '#9333ea',
+  INGESTED: '#2563eb',
+  BLOCKED: '#dc2626',
+}
+
+function CatalogAnalyticsDashboard({ onBack }: { onBack: () => void }) {
+  const [data, setData] = useState<AnalyticsData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/analytics/catalog')
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+        return r.json() as Promise<AnalyticsData>
+      })
+      .then((d) => { setData(d); setLoading(false) })
+      .catch((e: Error) => { setError(e.message); setLoading(false) })
+  }, [])
+
+  const card: CSSProperties = {
+    background: '#1e293b',
+    border: '1px solid #334155',
+    borderRadius: 12,
+    padding: 24,
+    marginBottom: 24,
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+        <button
+          onClick={onBack}
+          style={{ background: 'transparent', border: 'none', color: '#2563eb', fontSize: 20, cursor: 'pointer', padding: 0 }}
+          aria-label="Back to scene selection"
+        >
+          ←
+        </button>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#f8fafc' }}>
+          Catalog Analytics
+        </h2>
+      </div>
+
+      {loading && (
+        <div style={{ color: '#94a3b8', textAlign: 'center', padding: '60px 0', fontSize: 15 }}>
+          Loading analytics…
+        </div>
+      )}
+
+      {error && (
+        <div style={{ background: '#450a0a', border: '1px solid #7f1d1d', borderRadius: 10, padding: 20, color: '#fca5a5', textAlign: 'center' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
+
+      {data && (
+        <>
+          {/* Summary stats */}
+          <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Total Tracks', value: data.catalogSize },
+              { label: 'Analyzed', value: data.analyzedCount },
+              { label: 'Cleared', value: data.clearedCount },
+              { label: 'Weak Tracks', value: data.weakTracks.length },
+            ].map(({ label, value }) => (
+              <div
+                key={label}
+                style={{ ...card, marginBottom: 0, flex: '1 1 120px', textAlign: 'center', padding: '16px 20px' }}
+              >
+                <div style={{ fontSize: 28, fontWeight: 800, color: '#f8fafc' }}>{value}</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Brief coverage heatmap */}
+          <div style={card}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>
+              Brief Coverage
+              <span style={{ fontWeight: 400, fontSize: 12, color: '#64748b', marginLeft: 8 }}>
+                % of catalog scoring ≥70 sceneFit — sorted weakest first
+              </span>
+            </h3>
+            {data.briefCoverage.map((row) => {
+              const pct = Math.round(row.passPct)
+              const barColor = pct >= 50 ? '#16a34a' : pct >= 25 ? '#ca8a04' : '#dc2626'
+              return (
+                <div key={row.briefId} style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, color: '#cbd5e1' }}>{row.label}</span>
+                    <span style={{ fontSize: 13, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                      {row.passCount}/{row.totalAnalyzed} ({pct}%)
+                    </span>
+                  </div>
+                  <div style={{ height: 6, background: '#0f172a', borderRadius: 3, overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${pct}%`,
+                        background: barColor,
+                        borderRadius: 3,
+                        transition: 'width 0.4s ease',
+                      }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Rights state distribution */}
+          <div style={card}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>
+              Rights State Distribution
+            </h3>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {Object.entries(data.rightsDistribution).map(([state, count]) => (
+                <div
+                  key={state}
+                  style={{
+                    background: '#0f172a',
+                    border: `1px solid ${RIGHTS_STATE_COLORS[state] ?? '#475569'}`,
+                    borderRadius: 8,
+                    padding: '10px 16px',
+                    minWidth: 100,
+                    textAlign: 'center',
+                  }}
+                >
+                  <div style={{ fontSize: 22, fontWeight: 700, color: RIGHTS_STATE_COLORS[state] ?? '#f8fafc' }}>
+                    {count}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                    {state.replace(/_/g, ' ')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Score distribution */}
+          <div style={card}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>
+              Score Distribution
+              <span style={{ fontWeight: 400, fontSize: 12, color: '#64748b', marginLeft: 8 }}>
+                confidence scores across catalog
+              </span>
+            </h3>
+            {(() => {
+              const BUCKETS = ['90-100', '70-89', '50-69', '0-49'] as const
+              const bucketColors: Record<string, string> = {
+                '90-100': '#16a34a',
+                '70-89':  '#2563eb',
+                '50-69':  '#ca8a04',
+                '0-49':   '#dc2626',
+              }
+              const total = BUCKETS.reduce((s, k) => s + (data.scoreBuckets[k] ?? 0), 0) || 1
+              return BUCKETS.map((label) => {
+                const count = data.scoreBuckets[label] ?? 0
+                const pct = Math.round((count / total) * 100)
+                return (
+                  <div key={label} style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, color: '#cbd5e1' }}>{label}</span>
+                      <span style={{ fontSize: 13, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                        {count} tracks ({pct}%)
+                      </span>
+                    </div>
+                    <div style={{ height: 8, background: '#0f172a', borderRadius: 4, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${pct}%`,
+                          background: bucketColors[label],
+                          borderRadius: 4,
+                          transition: 'width 0.4s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )
+              })
+            })()}
+          </div>
+
+          {/* Weak tracks */}
+          {data.weakTracks.length > 0 && (
+            <div style={card}>
+              <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>
+                Weak Tracks
+              </h3>
+              <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px' }}>
+                Tracks that never score ≥70 sceneFit on any brief — candidates for re-upload or removal.
+              </p>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {['Title', 'Artist', 'Best Brief', 'Max SceneFit'].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          textAlign: 'left',
+                          fontSize: 11,
+                          color: '#64748b',
+                          fontWeight: 600,
+                          paddingBottom: 8,
+                          borderBottom: '1px solid #334155',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.06em',
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.weakTracks.map((t) => (
+                    <tr key={t.trackId}>
+                      <td style={{ fontSize: 13, color: '#f1f5f9', padding: '10px 8px 10px 0' }}>{t.title}</td>
+                      <td style={{ fontSize: 13, color: '#94a3b8', padding: '10px 8px' }}>{t.artistName ?? '—'}</td>
+                      <td style={{ fontSize: 13, color: '#94a3b8', padding: '10px 8px' }}>{t.bestBriefLabel}</td>
+                      <td style={{ fontSize: 13, padding: '10px 0', fontVariantNumeric: 'tabular-nums' }}>
+                        <span
+                          style={{
+                            background: '#450a0a',
+                            color: '#fca5a5',
+                            borderRadius: 4,
+                            padding: '2px 7px',
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {t.maxSceneFit}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {data.weakTracks.length === 0 && (
+            <div style={{ ...card, textAlign: 'center', color: '#16a34a', fontSize: 14 }}>
+              All analyzed tracks pass ≥70 sceneFit on at least one brief.
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -1327,14 +1919,21 @@ export default function App() {
               SyncVision
             </h1>
             <p style={{ color: '#94a3b8', margin: '6px 0 0', fontSize: 14 }}>
-              <a
-                href="/api/determinism-report"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: '#94a3b8', textDecoration: 'none', borderBottom: '1px solid #475569' }}
+              <button
+                onClick={() => setView('verification')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  color: '#94a3b8',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  borderBottom: '1px solid #475569',
+                  lineHeight: 1.4,
+                }}
               >
                 Deterministic Music Rights Verification
-              </a>
+              </button>
             </p>
           </div>
           {view === 'all' && (
@@ -1407,6 +2006,20 @@ export default function App() {
                 }}
               >
                 View All Tracks
+              </button>
+              <button
+                onClick={() => setView('analytics')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#2563eb',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0,
+                }}
+              >
+                Catalog Analytics
               </button>
             </div>
           </div>
@@ -1490,6 +2103,16 @@ export default function App() {
             setEntries={setUploadEntries}
             onBack={() => setView('scenes')}
           />
+        )}
+
+        {/* ── Screen: analytics ── */}
+        {view === 'analytics' && (
+          <CatalogAnalyticsDashboard onBack={() => setView('scenes')} />
+        )}
+
+        {/* ── Screen: determinism verification ── */}
+        {view === 'verification' && (
+          <DeterminismVerificationView onBack={() => setView('scenes')} />
         )}
 
         {/* ── Screen: all tracks ── */}

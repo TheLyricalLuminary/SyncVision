@@ -219,6 +219,10 @@ interface UploadEntry {
   proAffiliation?: unknown;
   isOneStop?: unknown;
   masterOwnershipPct?: unknown;
+  masterOwnedBy?: unknown;
+  masterOwnershipType?: unknown;
+  masterVerificationSource?: unknown;
+  masterOwnershipSplits?: unknown;
 }
 
 function asString(v: unknown): string | null {
@@ -249,6 +253,10 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
       proAffiliation: string | null;
       isOneStop: boolean;
       masterOwnershipPct: number | null;
+      masterOwnedBy: string | null;
+      masterOwnershipType: string | null;
+      masterVerificationSource: string | null;
+      masterOwnershipSplits: unknown[] | null;
     }> = [];
 
     for (let i = 0; i < entries.length; i++) {
@@ -282,6 +290,10 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
         proAffiliation: asString(e.proAffiliation),
         isOneStop: e.isOneStop === true,
         masterOwnershipPct: masterOwnershipPct !== null && !isNaN(masterOwnershipPct) ? masterOwnershipPct : null,
+        masterOwnedBy: asString(e.masterOwnedBy),
+        masterOwnershipType: asString(e.masterOwnershipType),
+        masterVerificationSource: asString(e.masterVerificationSource),
+        masterOwnershipSplits: Array.isArray(e.masterOwnershipSplits) && e.masterOwnershipSplits.length > 0 ? e.masterOwnershipSplits : null,
       });
     }
 
@@ -307,6 +319,10 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
                 writerIpi: p.writerIpi,
                 publisherName: p.publisherName,
                 proAffiliation: p.proAffiliation,
+                masterOwnedBy: p.masterOwnedBy,
+                masterOwnershipType: p.masterOwnershipType,
+                masterVerifiedAt: p.masterOwnershipType ? new Date() : null,
+                masterOwnershipSplits: p.masterOwnershipSplits ?? undefined,
               },
             },
           },
@@ -374,6 +390,152 @@ router.post("/tracks/:id/retry", async (req: Request, res: Response) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err instanceof Error ? err.message : "Internal server error" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/tracks/:id/audio — stream audio file with Range support for seeking
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get("/tracks/:id/audio", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const track = await prisma.track.findUnique({
+      where: { id },
+      select: { audioFilePath: true },
+    });
+
+    if (!track) {
+      res.status(404).json({ error: "Track not found" });
+      return;
+    }
+    if (!track.audioFilePath || !fs.existsSync(track.audioFilePath)) {
+      res.status(404).json({ error: "Audio file not found on disk" });
+      return;
+    }
+
+    const filePath = track.audioFilePath;
+    const stat = fs.statSync(filePath);
+    const fileSize = stat.size;
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = ext === ".mp3" ? "audio/mpeg" : "audio/wav";
+
+    const rangeHeader = req.headers.range;
+    if (rangeHeader) {
+      const [startStr, endStr] = rangeHeader.replace(/bytes=/, "").split("-");
+      const start = parseInt(startStr, 10);
+      const end = endStr ? parseInt(endStr, 10) : fileSize - 1;
+      const chunkSize = end - start + 1;
+
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": chunkSize,
+        "Content-Type": contentType,
+      });
+      fs.createReadStream(filePath, { start, end }).pipe(res);
+    } else {
+      res.writeHead(200, {
+        "Content-Length": fileSize,
+        "Accept-Ranges": "bytes",
+        "Content-Type": contentType,
+      });
+      fs.createReadStream(filePath).pipe(res);
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/tracks/:id/rights-report — structured rights chain for print/export
+// Returns every rights field with human-readable labels, state machine verdict,
+// and verification hash. Designed for the one-page clearance document.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { computeRightsState } from "../scoring/rightsStateMachine";
+import { requirePlan } from "../middleware/auth";
+
+router.get("/tracks/:id/rights-report", requirePlan("AGENCY"), async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const track = await prisma.track.findUnique({
+      where: { id },
+      include: { rightsProfile: true, confidenceScore: true },
+    });
+
+    if (!track) {
+      res.status(404).json({ error: "Track not found" });
+      return;
+    }
+
+    const rp = track.rightsProfile;
+    const cs = track.confidenceScore;
+    const rightsState = computeRightsState(rp);
+
+    const OWNERSHIP_LABELS: Record<string, string> = {
+      SELF_OWNED: "Self-Owned (artist controls master)",
+      LABEL: "Label-Owned",
+      CO_OWNED: "Co-Owned",
+      WORK_FOR_HIRE: "Work-for-Hire",
+    };
+
+    const STATE_LABELS: Record<string, string> = {
+      CLEAR: "CLEAR — all clearance conditions met",
+      PARTIALLY_CLEAR: "PARTIALLY CLEAR — some conditions met",
+      UNVERIFIED: "UNVERIFIED — rights profile present but unverified",
+      INGESTED: "INGESTED — no rights profile on file",
+      BLOCKED: "BLOCKED — ownership disputed",
+    };
+
+    const report = {
+      generatedAt: new Date().toISOString(),
+      track: {
+        id: track.id,
+        title: track.title,
+        artistName: track.artistName ?? null,
+        isrc: track.isrc,
+        modelVersion: track.modelVersion ?? null,
+      },
+      rightsState: {
+        verdict: rightsState,
+        label: STATE_LABELS[rightsState] ?? rightsState,
+      },
+      publishing: {
+        ascapWorkId: rp?.ascapWorkId ?? null,
+        bmiWorkId: rp?.bmiWorkId ?? null,
+        writerName: rp?.writerName ?? null,
+        writerIpi: rp?.writerIpi ?? null,
+        publisherName: rp?.publisherName ?? null,
+        proAffiliation: rp?.proAffiliation ?? null,
+        isOneStop: rp?.isOneStop ?? false,
+      },
+      master: {
+        masterOwnedBy: rp?.masterOwnedBy ?? null,
+        ownershipType: rp?.masterOwnershipType ?? null,
+        ownershipTypeLabel: rp?.masterOwnershipType
+          ? OWNERSHIP_LABELS[rp.masterOwnershipType] ?? rp.masterOwnershipType
+          : null,
+        ownershipPct: rp?.masterOwnershipPct ?? null,
+        verifiedAt: rp?.masterVerifiedAt ?? null,
+        ownershipSplits: rp?.masterOwnershipSplits ?? null,
+      },
+      confidence: cs
+        ? {
+            score: cs.score,
+            label: cs.confidenceLabel,
+            hashVersion: cs.hashVersion,
+            inputHash: cs.inputHash,
+            scoredAt: cs.createdAt,
+          }
+        : null,
+    };
+
+    res.json(report);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

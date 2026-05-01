@@ -4,6 +4,14 @@ import { createHash } from "crypto";
 import { join } from "path";
 import prisma from "../lib/prisma";
 import { calculateConfidenceScore } from "../scoring/confidenceScore";
+import { computeRightsState, logRightsDisagreement } from "../scoring/rightsStateMachine";
+import { BRIEF_WEIGHTS, validateWeights } from "../scoring/briefWeights";
+import { computeSyncVisionScoreV2 } from "../scoring/scoringV2";
+import { NARRATIVE_DICTIONARY, type Verdict } from "../scoring/narratives";
+import { requirePlan } from "../middleware/auth";
+
+// Fail fast on startup if any weight profile doesn't sum to 1.0
+validateWeights();
 
 const router = Router();
 
@@ -157,304 +165,59 @@ function computeMetadataCompleteness(track: TrackForMeta): number {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Per-brief narrative vocabulary pools
+// Narrative — 6-verdict system backed by NARRATIVE_DICTIONARY (narratives.ts)
 //
-// Selection is deterministic: hash(trackId + briefId) % pool.length.
-// Tiers: high (sceneFit >= 70), maybe (50–69), low (< 50).
+// Verdict thresholds (sceneFit, 0–100):
+//   PASS_STRONG ≥ 80 | PASS_SOFT 70–79 | MAYBE_HIGH 60–69
+//   MAYBE_LOW   50–59 | FAIL_CLOSE 40–49 | FAIL_HARD < 40
+//
+// Selection is deterministic: SHA-256(trackId + briefId) mod 3.
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface NarrativePool {
-  high: string[];
-  maybe: string[];
-  low: string[];
-}
-
-const GENERIC_POOL: NarrativePool = {
-  high: [
-    "Sits inside the emotional target zone for this brief — recommended for placement.",
-    "Acoustic profile lands cleanly within the brief's PAD envelope. Strong candidate.",
-    "PAD trajectory aligns with what supervisors typically want here — promote.",
-    "Mood vector matches the brief tightly across valence, arousal, and dominance.",
-    "Reads as a confident match. The track's emotional centre of gravity hits the target.",
-    "Inside the brief's emotional box on all three axes. Worth a hard look.",
-  ],
-  maybe: [
-    "Adjacent to the target zone — would work with edit support or a tight cue point.",
-    "Partial overlap with the brief's PAD range. Consider for an alt cut.",
-    "Marginal acoustic alignment. Works in some scene contexts, not a clean match.",
-    "Drifts outside the brief on one axis — usable but not first-call.",
-    "Sits at the boundary of the brief's emotional envelope. Reserve for B-list.",
-    "Close enough to be plausible, far enough to require justification.",
-  ],
-  low: [
-    "Emotionally outside this brief's target zone — pass.",
-    "PAD profile contradicts the brief's intent. Not recommended.",
-    "Wrong emotional posture for this scene type — skip unless re-cut.",
-    "Mood vector is too far from the target box. Decline.",
-    "The track's energy and tone diverge from what the brief asks for.",
-    "Acoustic centre lands outside the brief's range on multiple axes — pass.",
-  ],
-};
-
-const NARRATIVE_POOLS: Record<string, NarrativePool> = {
-  "chase-tension": {
-    high: [
-      "Forward propulsion with rising stakes — sits cleanly inside the chase profile.",
-      "Drives into the target zone for chase cues with the right arousal and dominance.",
-      "High kinetic energy with restrained valence — exactly the chase posture.",
-      "Tight rhythmic forward motion. Reads as pursuit with held tension.",
-      "Aggressive forward push and assertive bottom end — prime chase material.",
-      "Lands in the chase target box across all three axes. Recommend.",
-    ],
-    maybe: [
-      "Moves with intent but valence drifts brighter than the chase target asks for.",
-      "Energy is there; dominance reads softer than the chase profile prefers.",
-      "Adjacent to the chase zone — useful as a build but not a sustained pursuit cue.",
-      "Forward motion present, mood slightly off-axis. B-list for chase.",
-      "Gets close on arousal but the emotional centre is too neutral for chase.",
-      "Could work as a chase opener; loses traction during sustained pursuit.",
-    ],
-    low: [
-      "Lacks the forward arousal a chase needs. Pass.",
-      "Tonally too bright, too composed for pursuit cues. Decline.",
-      "Energy doesn't sit where chase scenes live. Skip.",
-      "Reads as resolution, not pursuit — not a chase candidate.",
-      "Wrong emotional posture for chase — too soft on arousal and dominance.",
-      "Mood vector is opposite the chase target. Pass.",
-    ],
-  },
-
-  "emotional-resolution": {
-    high: [
-      "Earned-conclusion energy with warm valence — sits in the resolution zone.",
-      "Lands in the cathartic-release pocket: mid arousal, warm valence, settled dominance.",
-      "Reads as exhalation rather than peak — exactly what resolution cues want.",
-      "Warm and settled, with enough lift to feel earned. Strong resolution match.",
-      "Cathartic mid-energy posture — fits the resolution profile cleanly.",
-      "Hits the resolution target across PAD: not too high, not too low, warm centre.",
-    ],
-    maybe: [
-      "Warm enough to read as resolution but slightly too active for a quiet ending.",
-      "Settles into resolution territory in places, runs hotter elsewhere.",
-      "Could work for an upbeat resolution, less so for a quiet one.",
-      "Tonally on-target; arousal sits a touch above the resolution band.",
-      "Adjacent to resolution — a tight edit could land it.",
-      "Borderline match: warm but the energy reads more transitional than conclusive.",
-    ],
-    low: [
-      "Too restless for resolution — energy is still climbing, not landing.",
-      "Tonally off — resolution wants warmth, this reads cooler and harder.",
-      "Lacks the settled quality a resolution cue needs. Skip.",
-      "Wrong posture for an ending — too aggressive on arousal.",
-      "Reads as confrontation, not resolution. Pass.",
-      "Outside the resolution band on valence and dominance. Decline.",
-    ],
-  },
-
-  "triumph-victory": {
-    high: [
-      "Peak-arousal high-valence posture — sits squarely in the triumph zone.",
-      "Confident, bright, and forward — exactly the victory profile.",
-      "Reads as celebration with assertive bottom end. Strong triumph match.",
-      "Hits the triumph target across all three axes. Recommended.",
-      "Euphoric energy with dominant posture — prime victory cue.",
-      "High-arousal high-valence material with the dominance the brief asks for.",
-    ],
-    maybe: [
-      "Bright and forward but doesn't quite reach the arousal triumph wants.",
-      "Triumph-adjacent — works for the build, less so for the peak.",
-      "High valence in place; dominance reads softer than victory cues prefer.",
-      "Could carry an early triumph beat; loses lift at the apex.",
-      "Adjacent to the triumph zone on arousal — borderline match.",
-      "Bright posture but the energy doesn't crest where triumph cues do.",
-    ],
-    low: [
-      "Wrong emotional posture for triumph — too restrained.",
-      "Tonally too dark or too cool for victory placement. Pass.",
-      "Lacks the lift triumph requires. Decline.",
-      "Reads as confrontation or contemplation, not victory. Skip.",
-      "Outside the triumph band on valence and arousal. Pass.",
-      "Energy sits well below what triumph cues need.",
-    ],
-  },
-
-  "grief-loss": {
-    high: [
-      "Low arousal with cool valence and yielding dominance — sits in the grief profile.",
-      "Quiet, intimate, searching — exactly what grief cues want.",
-      "Reads as restraint and absence. Strong grief match.",
-      "Hits the grief target box across all three axes — recommended.",
-      "Sparse energy with vulnerable posture — prime grief material.",
-      "Cool tonal centre and held breath — lands in the grief zone cleanly.",
-    ],
-    maybe: [
-      "Quiet enough for grief in places, too active in others. Tight edit needed.",
-      "Tonally adjacent to grief but the arousal reads slightly too forward.",
-      "Could carry a grief opener; loses the intimacy at full energy.",
-      "Borderline grief match — works for the breath, not the silence.",
-      "Cool valence in place; dominance reads firmer than grief cues prefer.",
-      "Adjacent to grief but not centred in the brief's emotional core.",
-    ],
-    low: [
-      "Far too forward for grief — wrong emotional posture entirely.",
-      "Tonally too bright or too kinetic for grief placement. Pass.",
-      "Lacks the restraint grief cues require. Decline.",
-      "Reads as celebration or motion, not loss. Skip.",
-      "Outside the grief band on arousal and dominance. Pass.",
-      "Energy sits well above what grief cues can absorb.",
-    ],
-  },
-
-  "romance-intimacy": {
-    high: [
-      "Warm, close, unhurried — sits in the romance pocket on all three axes.",
-      "Soft arousal with high valence and yielding dominance — prime romance.",
-      "Reads as proximity and warmth. Strong intimacy match.",
-      "Hits the romance target box across PAD — recommended.",
-      "Tender posture with the warmth the brief asks for.",
-      "Lands cleanly in the intimacy zone — slow, warm, unguarded.",
-    ],
-    maybe: [
-      "Warm enough for romance but the arousal runs slightly too active.",
-      "Tonally on-target; energy reads more dance than dinner.",
-      "Could work for an upbeat romance moment; loses the closeness at higher arousal.",
-      "Adjacent to the intimacy zone — usable with a softer mix.",
-      "Borderline romance — warm but not yielding enough on dominance.",
-      "Romance-adjacent in valence; arousal sits above the brief's preferred band.",
-    ],
-    low: [
-      "Wrong posture for intimacy — too forward, too dominant.",
-      "Tonally too dark or too aggressive for romance placement. Pass.",
-      "Lacks the warmth and softness romance cues require. Decline.",
-      "Reads as confrontation or pursuit, not closeness. Skip.",
-      "Outside the romance band on valence and dominance. Pass.",
-      "Energy sits well above what intimacy cues can carry.",
-    ],
-  },
-
-  "suspense-dread": {
-    high: [
-      "Held arousal with low valence — sits cleanly in the dread profile.",
-      "Reads as foreboding and uncertainty. Strong suspense match.",
-      "Cool valence and contained dominance — prime dread material.",
-      "Hits the suspense target across all three axes — recommended.",
-      "Restrained but charged — exactly what suspense wants.",
-      "Lands in the dread zone with the right held-breath posture.",
-    ],
-    maybe: [
-      "Cool valence in place but the arousal sits a touch above the dread band.",
-      "Suspense-adjacent — works for tension build, less so for sustained dread.",
-      "Borderline dread match — too kinetic for the held-breath moments.",
-      "Adjacent to the suspense zone on valence; dominance reads too firm.",
-      "Reads as anxiety more than dread — close but not centred.",
-      "Could open a suspense cue; loses the restraint at higher arousal.",
-    ],
-    low: [
-      "Too bright or too released for suspense — wrong emotional posture.",
-      "Tonally too warm for dread placement. Pass.",
-      "Lacks the cool restraint suspense cues require. Decline.",
-      "Reads as triumph or romance, not dread. Skip.",
-      "Outside the suspense band on valence. Pass.",
-      "Energy too forward and too positive for held-breath dread.",
-    ],
-  },
-
-  "montage-transition": {
-    high: [
-      "Neutral mid-energy with balanced valence — exactly the montage posture.",
-      "Sits in the transition pocket: not too hot, not too cold.",
-      "Reads as passage of time without imposing a specific mood — strong montage match.",
-      "Hits the montage target across PAD — recommended.",
-      "Mid-arousal with balanced dominance — prime montage material.",
-      "Lands cleanly in the transition zone — neutral but present.",
-    ],
-    maybe: [
-      "Adjacent to the montage zone — usable but tilts toward a specific mood.",
-      "Energy is montage-appropriate; valence reads brighter or darker than neutral.",
-      "Could carry a montage beat but imposes its own emotional flavour.",
-      "Borderline montage — slightly too defined emotionally for neutral passage.",
-      "Mid-energy in place; dominance leans firmer than transition cues prefer.",
-      "Montage-adjacent — works for some passages, not a universal fit.",
-    ],
-    low: [
-      "Too emotionally specific for montage — imposes a mood the cue can't carry.",
-      "Either too hot or too cold for neutral transition. Pass.",
-      "Reads as a destination, not a passage. Skip.",
-      "Wrong posture for montage — too dramatic or too sparse.",
-      "Outside the transition band on arousal. Pass.",
-      "Energy doesn't sit where montage cues live.",
-    ],
-  },
-
-  "opening-closing-title": {
-    high: [
-      "Establishing posture with mid-high arousal and balanced valence — sits in the title zone.",
-      "Reads as a frame around the story — strong opening/closing match.",
-      "Confident dominance with the lift a title sequence needs.",
-      "Hits the title target across all three axes — recommended.",
-      "Bookend energy: present, settled, declarative — prime title material.",
-      "Lands cleanly in the opening/closing zone with the right gravitas.",
-    ],
-    maybe: [
-      "Title-adjacent — works for an opening, less convincing as a closer (or vice versa).",
-      "Has the gravitas but arousal reads slightly above or below the title band.",
-      "Could carry a title sequence with a tight edit.",
-      "Borderline match — the posture is right, the centre of gravity drifts.",
-      "Mid-arousal in place; valence sits outside the title zone.",
-      "Adjacent to the title profile — usable but not first-call.",
-    ],
-    low: [
-      "Wrong emotional posture for a title sequence — too kinetic or too sparse.",
-      "Lacks the declarative quality title cues require. Pass.",
-      "Reads as a beat inside the story, not a frame around it. Skip.",
-      "Outside the title band on arousal and dominance. Pass.",
-      "Energy doesn't establish — it punctuates. Wrong cue type.",
-      "Tonally too specific for the neutral gravitas of an opening or closing title.",
-    ],
-  },
-};
-
-function pickPhrase(pool: string[], trackId: string, briefId: string): string {
-  const h = createHash("sha256").update(`${trackId}:${briefId}`).digest("hex");
-  const idx = parseInt(h.slice(0, 8), 16) % pool.length;
-  return pool[idx];
-}
-
-interface DspContext {
-  tempo: number | null;
-  tonalCharacter: string | null;
-  energyCharacter: string | null;
-}
-
-function dspSuffix(track: DspContext): string {
-  const tone = track.tonalCharacter ?? "";
-  const energy = track.energyCharacter ?? "";
-  const bpm = track.tempo != null ? `${Math.round(track.tempo)} BPM` : "";
-  const parts = [tone, energy, bpm].filter((s) => s.length > 0);
-  return parts.length > 0 ? `(${parts.join(", ")})` : "";
+function verdictFor(sceneFit: number): Verdict {
+  if (sceneFit >= 80) return "PASS_STRONG";
+  if (sceneFit >= 70) return "PASS_SOFT";
+  if (sceneFit >= 60) return "MAYBE_HIGH";
+  if (sceneFit >= 50) return "MAYBE_LOW";
+  if (sceneFit >= 40) return "FAIL_CLOSE";
+  return "FAIL_HARD";
 }
 
 function buildBriefNarrative(
   trackId: string,
   briefId: string,
   sceneFit: number,
-  track: DspContext
+  track: { tempo: number | null; tonalCharacter: string | null; energyCharacter: string | null }
 ): string {
-  const pool = NARRATIVE_POOLS[briefId] ?? GENERIC_POOL;
-  const tier: keyof NarrativePool =
-    sceneFit >= 70 ? "high" : sceneFit >= 50 ? "maybe" : "low";
-  const phrase = pickPhrase(pool[tier], trackId, briefId);
-  const dsp = dspSuffix(track);
-  return dsp ? `${phrase} ${dsp}` : phrase;
+  const brief = NARRATIVE_DICTIONARY[briefId];
+  if (!brief) {
+    // Should never happen — all 20 briefs are in the dictionary
+    return `sceneFit=${sceneFit} — brief narrative unavailable for "${briefId}"`;
+  }
+  const verdict = verdictFor(sceneFit);
+  const pool = brief[verdict];
+  const h = createHash("sha256").update(`${trackId}:${briefId}:${verdict}`).digest("hex");
+  const phrase = pool[parseInt(h.slice(0, 8), 16) % 3];
+
+  const parts = [
+    track.tonalCharacter ?? "",
+    track.energyCharacter ?? "",
+    track.tempo != null ? `${Math.round(track.tempo)} BPM` : "",
+  ].filter(Boolean);
+  const dsp = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+
+  return `${phrase}${dsp}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // /api/scores — brief-agnostic ranking (rights + metadata clarity)
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get("/scores", async (_req: Request, res: Response) => {
+router.get("/scores", requirePlan("COMPOSER"), async (req: Request, res: Response) => {
+  const catalogFilter = req.query.catalogId ? { catalogId: req.query.catalogId as string } : {};
   try {
     const tracks = await prisma.track.findMany({
+      where: catalogFilter,
       include: {
         rightsProfile: true,
         confidenceScore: true,
@@ -468,6 +231,8 @@ router.get("/scores", async (_req: Request, res: Response) => {
       const profile = rp ?? {};
 
       const result = calculateConfidenceScore(trackScalars, profile);
+      const rightsState = computeRightsState(rp);
+      logRightsDisagreement(track.id, rightsState, result.breakdown.confidenceLabel);
 
       if (track.confidenceScore) {
         if (track.confidenceScore.inputHash !== result.inputHash) {
@@ -508,6 +273,7 @@ router.get("/scores", async (_req: Request, res: Response) => {
         },
         inputHash: result.inputHash,
         explanation: result.breakdown.explanation,
+        rightsState,
         tempo: track.tempo ?? null,
         tonalCharacter: track.tonalCharacter ?? null,
         energyCharacter: track.energyCharacter ?? null,
@@ -528,11 +294,12 @@ router.get("/scores", async (_req: Request, res: Response) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// /api/scores/scene/:sceneId — brief-aware ranking
-//   matchScore = 0.50 * sceneFit + 0.30 * rightsClarity + 0.20 * metadataCompleteness
+// /api/scores/scene/:sceneId — brief-aware ranking (hashVersion 2)
+//   matchScore = sceneFit * w.sceneFit + rightsClarity * w.rightsClarity + metadata * w.metadata
+//   Weights are per-brief; see src/scoring/briefWeights.ts
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get("/scores/scene/:sceneId", async (req: Request, res: Response) => {
+router.get("/scores/scene/:sceneId", requirePlan("SUPERVISOR"), async (req: Request, res: Response) => {
   const { sceneId } = req.params;
 
   if (!(sceneId in BRIEFS)) {
@@ -543,9 +310,11 @@ router.get("/scores/scene/:sceneId", async (req: Request, res: Response) => {
   }
 
   const brief = BRIEFS[sceneId];
+  const catalogFilter = req.query.catalogId ? { catalogId: req.query.catalogId as string } : {};
 
   try {
     const tracks = await prisma.track.findMany({
+      where: catalogFilter,
       include: {
         rightsProfile: true,
         confidenceScore: true,
@@ -559,15 +328,18 @@ router.get("/scores/scene/:sceneId", async (req: Request, res: Response) => {
 
       // Brief-agnostic confidence score still validated for determinism
       const conf = calculateConfidenceScore(trackScalars, rp ?? {});
+      const rightsState = computeRightsState(rp);
+      logRightsDisagreement(track.id, rightsState, conf.breakdown.confidenceLabel);
+
       if (cs && cs.inputHash !== conf.inputHash) {
         console.error(`DETERMINISM VIOLATION: track ${track.id}`);
         res.status(500).json({ error: `DETERMINISM VIOLATION: track ${track.id}` });
         return;
       }
 
-      // SyncVision Score components
-      const sceneFit = calculateSceneFit(track.timeline, brief.pad);                  // 0–100
-      const rightsClarity = computeRightsClarity(rp);                                 // 0–100
+      // SyncVision Score v2 — explicit weighted dot product
+      const sceneFit = calculateSceneFit(track.timeline, brief.pad);     // 0–100
+      const rightsClarity = computeRightsClarity(rp);                    // 0–100
       const metaComplete = computeMetadataCompleteness({
         isrc: track.isrc,
         title: track.title,
@@ -576,10 +348,15 @@ router.get("/scores/scene/:sceneId", async (req: Request, res: Response) => {
         tonalCharacter: track.tonalCharacter ?? null,
         energyCharacter: track.energyCharacter ?? null,
         audioFilePath: track.audioFilePath ?? null,
-      });                                                                             // 0–100
+      });                                                                  // 0–100
 
-      const matchScore = parseFloat(
-        (sceneFit * 0.50 + rightsClarity * 0.30 + metaComplete * 0.20).toFixed(1)
+      const briefWeights = BRIEF_WEIGHTS[sceneId];
+      const v2 = computeSyncVisionScoreV2(
+        sceneId,
+        { sceneFit, rightsClarity, metadata: metaComplete },
+        briefWeights,
+        rightsState,
+        track.modelVersion ?? null,
       );
 
       const isOneStop = rp?.isOneStop ?? false;
@@ -604,13 +381,18 @@ router.get("/scores/scene/:sceneId", async (req: Request, res: Response) => {
         isrc: track.isrc,
         ascapWorkId,
         confidenceScore: conf.score,
-        matchScore,
+        matchScore: v2.matchScore,
         sceneFit,
         rightsClarity,
         metadataCompleteness: metaComplete,
         isOneStop,
         clearanceStatement,
+        // v1 hash kept for determinism cross-check; v2 hash covers feature vector + weights
         inputHash: conf.inputHash,
+        v2InputHash: v2.inputHash,
+        hashVersion: v2.hashVersion,
+        briefWeights: v2.briefWeights,
+        rightsState,
         breakdown: {
           // Rights and metadata kept on the legacy 65/20/10/5 scale so the
           // existing frontend bars render without changes.
@@ -634,7 +416,18 @@ router.get("/scores/scene/:sceneId", async (req: Request, res: Response) => {
 
     const rankedMatches = matches.map((m, i) => ({ rank: i + 1, ...m }));
 
-    res.json({ sceneId, sceneLabel: brief.label, rankedMatches });
+    // Calibration check: flag if >30% of tracks score ≥90 for this brief.
+    const highScoreCount = matches.filter((m) => (m.matchScore as number) >= 90).length;
+    const highScorePct = matches.length > 0 ? highScoreCount / matches.length : 0;
+    let calibrationWarning: string | null = null;
+    if (highScorePct > 0.30) {
+      calibrationWarning =
+        `CALIBRATION: ${highScoreCount}/${matches.length} tracks (${Math.round(highScorePct * 100)}%) ` +
+        `score ≥90 for "${brief.label}" — brief weights or catalog rights data may need review.`;
+      console.warn(`[calibration] ${calibrationWarning}`);
+    }
+
+    res.json({ sceneId, sceneLabel: brief.label, rankedMatches, calibrationWarning });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -646,6 +439,129 @@ router.get("/scores/scene/:sceneId", async (req: Request, res: Response) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const REPORT_PATH = join(__dirname, "../../determinism-report.json");
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/analytics/catalog — per-catalog analytics for the dashboard
+//
+// Requires SUPERVISOR+. Computes in one DB round-trip + in-process PAD math.
+//
+// Response shape:
+//   briefCoverage:      briefId → { label, passCount, totalAnalyzed, passPct }
+//   rightsDistribution: state → count
+//   weakTracks:         tracks that scored < 70 on every brief
+//   catalogSize:        total track count
+//   analyzedCount:      tracks with PAD timeline
+//   clearedCount:       tracks with rightsState === CLEAR
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get("/analytics/catalog", requirePlan("SUPERVISOR"), async (req: Request, res: Response) => {
+  const catalogFilter = req.query.catalogId ? { catalogId: req.query.catalogId as string } : {};
+  try {
+    const tracks = await prisma.track.findMany({
+      where: catalogFilter,
+      include: { rightsProfile: true, confidenceScore: true },
+    });
+
+    const PASS_THRESHOLD = 70;
+
+    // Per-brief pass counts (only for tracks with PAD data)
+    const briefPassCount: Record<string, number> = {};
+    const briefTotalAnalyzed: Record<string, number> = {};
+    for (const id of Object.keys(BRIEFS)) {
+      briefPassCount[id] = 0;
+      briefTotalAnalyzed[id] = 0;
+    }
+
+    // Rights state distribution
+    const rightsDistribution: Record<string, number> = {
+      CLEAR: 0, PARTIALLY_CLEAR: 0, UNVERIFIED: 0, INGESTED: 0, BLOCKED: 0,
+    };
+
+    // Score distribution buckets (brief-agnostic confidence score)
+    const scoreBuckets = { "90-100": 0, "70-89": 0, "50-69": 0, "0-49": 0 };
+
+    // Per-track max sceneFit across all briefs (to find weak tracks)
+    const trackMaxSceneFit: Array<{
+      trackId: string;
+      title: string;
+      isrc: string;
+      maxSceneFit: number;
+      bestBriefId: string;
+      bestBriefLabel: string;
+      rightsState: string;
+      confidenceScore: number | null;
+    }> = [];
+
+    for (const track of tracks) {
+      const rp = track.rightsProfile;
+      const state = computeRightsState(rp);
+      rightsDistribution[state] = (rightsDistribution[state] ?? 0) + 1;
+
+      // Confidence score bucket
+      const cs = track.confidenceScore?.score ?? null;
+      if (cs !== null) {
+        if (cs >= 90) scoreBuckets["90-100"]++;
+        else if (cs >= 70) scoreBuckets["70-89"]++;
+        else if (cs >= 50) scoreBuckets["50-69"]++;
+        else scoreBuckets["0-49"]++;
+      }
+
+      const pad = meanPAD(track.timeline);
+      let trackMax = 0;
+      let trackBestId = "";
+
+      for (const [briefId, brief] of Object.entries(BRIEFS)) {
+        if (!pad) continue;
+        briefTotalAnalyzed[briefId]++;
+        const sf = calculateSceneFit(track.timeline, brief.pad);
+        if (sf >= PASS_THRESHOLD) briefPassCount[briefId]++;
+        if (sf > trackMax) { trackMax = sf; trackBestId = briefId; }
+      }
+
+      trackMaxSceneFit.push({
+        trackId: track.id,
+        title: track.title,
+        isrc: track.isrc,
+        maxSceneFit: trackMax,
+        bestBriefId: trackBestId,
+        bestBriefLabel: trackBestId ? BRIEFS[trackBestId].label : "—",
+        rightsState: state,
+        confidenceScore: cs,
+      });
+    }
+
+    // Brief coverage sorted ascending by passPct (worst performing first)
+    const briefCoverage = Object.entries(BRIEFS).map(([id, def]) => ({
+      briefId: id,
+      label: def.label,
+      passCount: briefPassCount[id],
+      totalAnalyzed: briefTotalAnalyzed[id],
+      passPct: briefTotalAnalyzed[id] > 0
+        ? Math.round((briefPassCount[id] / briefTotalAnalyzed[id]) * 100)
+        : 0,
+    })).sort((a, b) => a.passPct - b.passPct);
+
+    // Tracks that never pass any brief
+    const weakTracks = trackMaxSceneFit
+      .filter((t) => t.maxSceneFit < PASS_THRESHOLD)
+      .sort((a, b) => b.maxSceneFit - a.maxSceneFit);
+
+    const analyzedCount = trackMaxSceneFit.filter((t) => t.maxSceneFit > 0 || t.bestBriefId !== "").length;
+
+    res.json({
+      catalogSize: tracks.length,
+      analyzedCount,
+      clearedCount: rightsDistribution["CLEAR"],
+      briefCoverage,
+      rightsDistribution,
+      scoreBuckets,
+      weakTracks,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 router.get("/determinism-report", (_req: Request, res: Response) => {
   try {

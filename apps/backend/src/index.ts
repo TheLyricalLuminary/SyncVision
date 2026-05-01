@@ -2,7 +2,10 @@ import "dotenv/config";
 import express from "express";
 import scoresRouter from "./routes/scores";
 import tracksRouter from "./routes/tracks";
+import authRouter from "./routes/auth";
+import catalogsRouter from "./routes/catalogs";
 import { startConsumer } from "./queue/consumer";
+import { attachAuth } from "./middleware/auth";
 
 const app = express();
 const port = process.env.PORT ?? 3001;
@@ -10,6 +13,11 @@ const port = process.env.PORT ?? 3001;
 // Larger JSON body cap for /api/tracks/upload — multiple tracks of metadata
 app.use(express.json({ limit: "1mb" }));
 
+// Attach auth context to every request (non-blocking — routes enforce tiers)
+app.use(attachAuth);
+
+app.use("/api", authRouter);
+app.use("/api", catalogsRouter);
 app.use("/api", scoresRouter);
 app.use("/api", tracksRouter);
 

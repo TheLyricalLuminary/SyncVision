@@ -58,8 +58,11 @@ def analyze(path):
     tempo_arr, _ = librosa.beat.beat_track(y=y, sr=sr)
     tempo = float(np.atleast_1d(tempo_arr)[0])
 
-    valence_mean = float(np.mean(valence))
-    arousal_mean = float(np.mean(arousal))
+    valence_mean  = float(np.mean(valence))
+    arousal_mean  = float(np.mean(arousal))
+    tension_mean  = float(np.mean(tension))
+    dominance_mean = float(np.mean(dominance))
+    intimacy_mean  = float(np.mean(intimacy))
 
     if valence_mean >= 0.60:
         tonal_character = "bright"
@@ -91,6 +94,15 @@ def analyze(path):
         "tonalCharacter": tonal_character,
         "energyCharacter": energy_character,
         "inputHash": input_hash,
+        "modelVersion":    "1.0.0",
+        "valenceMean":     round(valence_mean, 8),
+        "arousalMean":     round(arousal_mean, 8),
+        "tensionMean":     round(tension_mean, 8),
+        "dominanceMean":   round(dominance_mean, 8),
+        "intimacyMean":    round(intimacy_mean, 8),
+        "spectralCentroid": round(valence_mean, 8),
+        "rmsEnergy":       round(arousal_mean, 8),
+        "zeroCrossingRate": round(1.0 - dominance_mean, 8),
     }
 
 
