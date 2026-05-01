@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import scoresRouter from "./routes/scores";
 import tracksRouter from "./routes/tracks";
 import rightsRouter from "./routes/rights";
@@ -20,6 +20,22 @@ app.use("/api", scoresRouter);
 app.use("/api", tracksRouter);
 app.use("/api", rightsRouter);
 app.use("/api", stripeRouter);
+
+// ── JSON catch-all handlers — enforce JSON contract for every response ────────
+// Must be registered AFTER all routers so they only fire on unmatched paths.
+
+// 404 — unknown /api route
+app.use("/api", (_req: Request, res: Response) => {
+  res.status(404).json({ error: "not_found", message: "No matching API route" });
+});
+
+// 500 — unhandled error anywhere in the stack
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("[server] unhandled error:", err);
+  const message = err instanceof Error ? err.message : "Internal server error";
+  res.status(500).json({ error: "internal_error", message });
+});
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);

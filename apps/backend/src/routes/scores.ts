@@ -219,7 +219,9 @@ router.get("/scores", async (_req: Request, res: Response) => {
 
     for (const track of tracks) {
       const { rightsProfile: rp, confidenceScore: _cs, ...trackScalars } = track;
-      const profile = rp ?? {};
+      // Normalize Decimal → number so sortedJson produces the same hash as the scene route
+      const rpNorm = rp ? { ...rp, masterOwnershipPct: toNum(rp.masterOwnershipPct) } : null;
+      const profile = rpNorm ?? {};
 
       const result = calculateConfidenceScore(trackScalars, profile);
 
@@ -287,7 +289,7 @@ router.get("/scores", async (_req: Request, res: Response) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.get("/scores/scene/:sceneId", async (req: Request, res: Response) => {
-  const { sceneId } = req.params;
+  const sceneId = req.params.sceneId as string;
 
   if (!(sceneId in BRIEFS)) {
     res.status(400).json({
@@ -310,9 +312,11 @@ router.get("/scores/scene/:sceneId", async (req: Request, res: Response) => {
 
     for (const track of tracks) {
       const { rightsProfile: rp, confidenceScore: cs, ...trackScalars } = track;
+      // Normalize Prisma Decimal → number for scoring functions
+      const rpNorm = rp ? { ...rp, masterOwnershipPct: toNum(rp.masterOwnershipPct) } : null;
 
       // Brief-agnostic confidence score still validated for determinism
-      const conf = calculateConfidenceScore(trackScalars, rp ?? {});
+      const conf = calculateConfidenceScore(trackScalars, rpNorm ?? {});
       if (cs && cs.inputHash !== conf.inputHash) {
         console.error(`DETERMINISM VIOLATION: track ${track.id}`);
         res.status(500).json({ error: `DETERMINISM VIOLATION: track ${track.id}` });
@@ -321,7 +325,7 @@ router.get("/scores/scene/:sceneId", async (req: Request, res: Response) => {
 
       // SyncVision Score components
       const sceneFit = calculateSceneFit(track.timeline, brief.pad);                  // 0–100
-      const rightsClarity = computeRightsClarity(rp);                                 // 0–100
+      const rightsClarity = computeRightsClarity(rpNorm);                             // 0–100
       const metaComplete = computeMetadataCompleteness({
         isrc: track.isrc,
         title: track.title,

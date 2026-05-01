@@ -16,9 +16,18 @@ import Stripe from "stripe";
 
 const router = Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
-  apiVersion: "2026-04-22.dahlia",
-});
+// Stripe is instantiated lazily so that a missing STRIPE_SECRET_KEY does
+// not crash the server on startup — routes return 503 when unconfigured.
+let _stripe: InstanceType<typeof Stripe> | null = null;
+function getStripe(): InstanceType<typeof Stripe> | null {
+  if (!process.env.STRIPE_SECRET_KEY) return null;
+  if (!_stripe) {
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2026-04-22.dahlia",
+    });
+  }
+  return _stripe;
+}
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:5174";
 
@@ -118,7 +127,8 @@ router.post("/stripe/checkout", async (req: Request, res: Response) => {
     return;
   }
 
-  if (!process.env.STRIPE_SECRET_KEY) {
+  const stripe = getStripe();
+  if (!stripe) {
     res.status(503).json({ error: "Stripe is not configured (STRIPE_SECRET_KEY missing)" });
     return;
   }
@@ -168,6 +178,12 @@ router.post("/stripe/webhook", async (req: Request, res: Response) => {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stripe = getStripe();
+  if (!stripe) {
+    res.status(503).json({ error: "Stripe is not configured (STRIPE_SECRET_KEY missing)" });
+    return;
+  }
+
   let event: any;
   try {
     event = stripe.webhooks.constructEvent(req.body as Buffer, sig, secret);
