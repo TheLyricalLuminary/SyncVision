@@ -2,16 +2,24 @@ import "dotenv/config";
 import express from "express";
 import scoresRouter from "./routes/scores";
 import tracksRouter from "./routes/tracks";
+import rightsRouter from "./routes/rights";
+import stripeRouter from "./routes/stripe";
 import { startConsumer } from "./queue/consumer";
 
 const app = express();
 const port = process.env.PORT ?? 3001;
 
-// Larger JSON body cap for /api/tracks/upload — multiple tracks of metadata
+// Stripe webhook needs the raw body BEFORE express.json() parses it.
+// Mount it on the exact path so only this route gets raw bytes.
+app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
+
+// All other routes get JSON parsing
 app.use(express.json({ limit: "1mb" }));
 
 app.use("/api", scoresRouter);
 app.use("/api", tracksRouter);
+app.use("/api", rightsRouter);
+app.use("/api", stripeRouter);
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);

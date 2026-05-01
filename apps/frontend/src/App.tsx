@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, Dispatch, DragEvent, SetStateAction } from 'react'
 import syncVisionLogo from './assets/syncvision-logo.png'
 import { RoiCalculator } from './RoiCalculator'
+import { PricingPage } from './PricingPage'
 
 // ─── Shared types ────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ interface ApiResponse {
   rankedTracks: RankedTrack[]
 }
 
-type View = 'scenes' | 'matches' | 'all' | 'upload' | 'roi'
+type View = 'scenes' | 'matches' | 'all' | 'upload' | 'roi' | 'pricing'
 type BannerState = 'ok' | 'violation' | null
 
 // ─── Upload screen types ──────────────────────────────────────────────────────
@@ -1493,6 +1494,20 @@ export default function App() {
               >
                 ROI Calculator
               </button>
+              <button
+                onClick={() => setView('pricing')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#64748b',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0,
+                }}
+              >
+                Pricing
+              </button>
             </div>
           </div>
         )}
@@ -1636,6 +1651,11 @@ export default function App() {
         {/* ── Screen: roi ── */}
         {view === 'roi' && (
           <RoiCalculator onBack={() => setView('scenes')} />
+        )}
+
+        {/* ── Screen: pricing ── */}
+        {view === 'pricing' && (
+          <PricingPage onBack={() => setView('scenes')} />
         )}
       </div>
     </div>
