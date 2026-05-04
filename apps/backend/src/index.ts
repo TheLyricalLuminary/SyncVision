@@ -43,19 +43,23 @@ app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
 });
 
-// Run the analysis consumer in-process so a single `npm run` boots the
-// whole pipeline. The signal/abort plumbing below lets the process exit
-// cleanly on SIGINT/SIGTERM rather than orphaning the consumer loop.
+// Run the analysis consumer only when Redis is available. Missing REDIS_URL
+// is normal in dev/staging — routes stay functional without it.
 const consumerAbort = new AbortController();
-startConsumer(consumerAbort.signal).catch((e) => {
-  console.error("Consumer crashed:", e);
-});
+
+if (process.env.REDIS_URL) {
+  startConsumer(consumerAbort.signal).catch((e) => {
+    console.error("Consumer crashed:", e);
+  });
+} else {
+  console.warn("REDIS_URL not set — skipping consumer startup");
+}
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, () => {
     console.log(`Received ${sig}, stopping consumer…`);
     consumerAbort.abort();
-    setTimeout(() => process.exit(0), 6_000); // give the BLOCK 5000 a moment to drain
+    setTimeout(() => process.exit(0), 6_000);
   });
 }
 app.use('/audio', express.static(path.join(process.cwd(), 'apps/backend/audio')));

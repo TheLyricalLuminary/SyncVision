@@ -47,8 +47,17 @@ function runWorker(audioFilePath: string): Promise<{ success: true; data: unknow
 }
 
 export async function startConsumer(signal?: AbortSignal): Promise<void> {
+  if (!process.env.REDIS_URL) {
+    console.warn("REDIS_URL not set — consumer disabled");
+    return;
+  }
+
   // Use a dedicated ioredis client so we can disconnect cleanly on stop
-  const redis = new Redis(process.env.REDIS_URL!);
+  const redis = new Redis(process.env.REDIS_URL, { lazyConnect: true });
+  await redis.connect().catch((e) => {
+    redis.disconnect();
+    throw new Error(`Redis connection failed: ${e instanceof Error ? e.message : e}`);
+  });
 
   // Create consumer group (MKSTREAM creates the stream if absent)
   try {
