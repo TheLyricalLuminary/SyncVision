@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: syncvision-backend
+    env: node
+    rootDir: apps/backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
