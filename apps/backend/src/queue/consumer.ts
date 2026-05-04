@@ -54,10 +54,22 @@ export async function startConsumer(signal?: AbortSignal): Promise<void> {
 
   // Use a dedicated ioredis client so we can disconnect cleanly on stop
   const redis = new Redis(process.env.REDIS_URL, { lazyConnect: true });
-  await redis.connect().catch((e) => {
-    redis.disconnect();
-    throw new Error(`Redis connection failed: ${e instanceof Error ? e.message : e}`);
+
+  // Prevent unhandled 'error' events from crashing the process
+  redis.on("error", (e) => {
+    console.error("Redis client error:", e.message);
   });
+
+  const connected = await redis.connect().then(() => true).catch((e) => {
+    console.error(`Redis connection failed: ${e instanceof Error ? e.message : e}`);
+    redis.disconnect();
+    return false;
+  });
+
+  if (!connected) {
+    console.warn("Redis disabled - skipping consumer");
+    return;
+  }
 
   // Create consumer group (MKSTREAM creates the stream if absent)
   try {

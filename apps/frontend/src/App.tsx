@@ -951,6 +951,10 @@ function UploadScreen({
       setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, uploadProgress: pct } : e)))
     })
       .then((result) => {
+        if (!result.filename) {
+          patchEntry(entryId, { status: 'inspect-failed', uploadError: 'Server did not return a filename' })
+          return
+        }
         setEntries((prev) =>
           prev.map((e) => {
             if (e.id !== entryId) return e
@@ -1038,8 +1042,24 @@ function UploadScreen({
 
   function queueOne(id: string) {
     const entry = entries.find((e) => e.id === id)
-    if (!entry || !entry.serverFilename) return
-    if (!ISRC_REGEX.test(entry.isrc) || entry.title.trim().length === 0) return
+    if (!entry) return
+
+    if (entry.status !== 'inspected') {
+      patchEntry(id, { uploadError: `Cannot queue: track is not ready (status: ${entry.status})` })
+      return
+    }
+    if (!entry.serverFilename) {
+      patchEntry(id, { uploadError: 'Cannot queue: file was not successfully uploaded to the server' })
+      return
+    }
+    if (entry.title.trim().length === 0) {
+      patchEntry(id, { uploadError: 'Cannot queue: title is required' })
+      return
+    }
+    if (!ISRC_REGEX.test(entry.isrc)) {
+      patchEntry(id, { uploadError: 'Cannot queue: ISRC is missing or invalid' })
+      return
+    }
 
     patchEntry(id, { status: 'queueing', uploadError: null })
 
