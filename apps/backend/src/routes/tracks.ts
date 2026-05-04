@@ -348,7 +348,7 @@ const CONTENT_TYPES: Record<string, string> = {
 };
 
 router.get("/tracks/:id/audio", async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params['id'] as string;
 
   try {
     const track = await prisma.track.findUnique({ where: { id } });
@@ -430,7 +430,7 @@ router.get("/tracks/:id/audio", async (req: Request, res: Response) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.post("/tracks/:id/retry", async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params['id'] as string;
   try {
     const track = await prisma.track.findUnique({ where: { id } });
     if (!track) {

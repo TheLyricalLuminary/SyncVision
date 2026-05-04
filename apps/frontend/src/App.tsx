@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, Dispatch, DragEvent, SetStateAction } from 'react'
 import syncVisionLogo from './assets/syncvision-logo.png'
 
+const API_BASE = import.meta.env.VITE_API_URL ?? ''
+
 // ─── Shared types ────────────────────────────────────────────────────────────
 
 interface Breakdown {
@@ -180,7 +182,7 @@ function inspectFile(file: File, onProgress: (pct: number) => void): Promise<Ins
     const fd = new FormData()
     fd.append('files', file, file.name)
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', '/api/tracks/inspect')
+    xhr.open('POST', `${API_BASE}/api/tracks/inspect`)
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
     }
@@ -272,7 +274,7 @@ function AllDecisionCard({ track }: { track: RankedTrack }) {
         ref={audioRef}
         controls
         preload="metadata"
-        src={`/api/tracks/${track.trackId}/audio`}
+        src={`${API_BASE}/api/tracks/${track.trackId}/audio`}
         style={{ width: '100%', marginBottom: 16, borderRadius: 6, accentColor: '#2563eb' }}
       />
 
@@ -481,7 +483,7 @@ function SceneDecisionCard({ match }: { match: SceneMatch }) {
         ref={audioRef}
         controls
         preload="metadata"
-        src={`/api/tracks/${match.trackId}/audio`}
+        src={`${API_BASE}/api/tracks/${match.trackId}/audio`}
         style={{ width: '100%', marginBottom: 16, borderRadius: 6, accentColor: '#2563eb' }}
       />
 
@@ -1041,7 +1043,7 @@ function UploadScreen({
 
     patchEntry(id, { status: 'queueing', uploadError: null })
 
-    fetch('/api/tracks/upload', {
+    fetch(`${API_BASE}/api/tracks/upload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1080,7 +1082,7 @@ function UploadScreen({
     const entry = entries.find((e) => e.id === id)
     if (!entry?.trackId) return
     patchEntry(id, { status: 'queued', errorReason: null })
-    fetch(`/api/tracks/${entry.trackId}/retry`, { method: 'POST' })
+    fetch(`${API_BASE}/api/tracks/${entry.trackId}/retry`, { method: 'POST' })
       .then(async (r) => {
         if (!r.ok) {
           const data = (await r.json().catch(() => ({}))) as { error?: string }
@@ -1226,7 +1228,7 @@ export default function App() {
     let cancelled = false
 
     const tick = () => {
-      fetch('/api/tracks')
+      fetch(`${API_BASE}/api/tracks`)
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`)
           return r.json() as Promise<{
@@ -1271,7 +1273,7 @@ export default function App() {
   function loadScores(isRerun = false) {
     setLoading(true)
     setError(null)
-    fetch('/api/scores')
+    fetch(`${API_BASE}/api/scores`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json() as Promise<ApiResponse>
@@ -1310,7 +1312,7 @@ export default function App() {
     setSceneError(null)
     setSceneLoading(true)
     setView('matches')
-    fetch(`/api/scores/scene/${sceneId}`)
+    fetch(`${API_BASE}/api/scores/scene/${sceneId}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json() as Promise<SceneResponse>
