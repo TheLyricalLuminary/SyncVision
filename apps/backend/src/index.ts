@@ -35,7 +35,7 @@ const clientDist = path.join(__dirname, "../../frontend/dist");
 app.use(express.static(clientDist));
 
 // Catch-all: let React Router handle client-side navigation
-app.get("*", (_req: Request, res: Response) => {
+app.get("/{*path}", (_req: Request, res: Response) => {
   res.sendFile(path.join(clientDist, "index.html"));
 });
 
