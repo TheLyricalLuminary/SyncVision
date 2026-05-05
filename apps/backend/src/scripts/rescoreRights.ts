@@ -63,7 +63,7 @@ async function main() {
         id: rp.id,
         trackId: rp.trackId,
         ascapWorkId: rp.ascapWorkId,
-        masterOwnershipPct: rp.masterOwnershipPct,
+        masterOwnershipPct: rp.masterOwnershipPct != null ? Number(rp.masterOwnershipPct) : null,
         isOneStop: rp.isOneStop,
         writerName: rp.writerName,
         writerIpi: rp.writerIpi,
