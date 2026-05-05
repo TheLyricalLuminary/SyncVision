@@ -1,3 +1,5 @@
+import express from 'express';
+import path from 'path';
 import "dotenv/config";
 import express from "express";
 import scoresRouter from "./routes/scores";
@@ -32,3 +34,4 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     setTimeout(() => process.exit(0), 6_000); // give the BLOCK 5000 a moment to drain
   });
 }
+app.use('/audio', express.static(path.join(process.cwd(), 'apps/backend/audio')));
