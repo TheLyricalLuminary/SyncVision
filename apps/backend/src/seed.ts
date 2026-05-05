@@ -18,7 +18,7 @@ async function main() {
   console.log("Seeding 20 deterministic briefs...");
 
   for (const brief of briefs) {
-    await prisma.scoringTrack.create({
+    await prisma.track.create({
       data: {
         title: brief.title,
         artistName: "SyncVision Core",

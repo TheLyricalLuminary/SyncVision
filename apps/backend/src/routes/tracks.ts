@@ -317,7 +317,16 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
           },
         });
 
-        await enqueueTrack(track.id);
+        try {
+          await enqueueTrack(track.id);
+        } catch (enqueueErr) {
+          // Rollback: remove the DB row and the uploaded file so nothing is left orphaned
+          await prisma.confidenceScore.deleteMany({ where: { trackId: track.id } });
+          await prisma.rightsProfile.deleteMany({ where: { trackId: track.id } });
+          await prisma.track.delete({ where: { id: track.id } });
+          try { fs.unlinkSync(p.audioPath); } catch { /* file may not exist */ }
+          throw enqueueErr;
+        }
 
         created.push({ id: track.id, title: track.title, isrc: track.isrc, status: "queued" });
       } catch (e) {
@@ -483,7 +492,7 @@ router.post("/tracks/:id/retry", async (req: Request, res: Response) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.delete("/tracks/:id", async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params['id'] as string;
   try {
     const track = await prisma.track.findUnique({ where: { id } });
     if (!track) {

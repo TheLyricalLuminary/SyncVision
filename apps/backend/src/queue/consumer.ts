@@ -105,8 +105,8 @@ export async function startConsumer(signal?: AbortSignal): Promise<void> {
           continue;
         }
 
-        // Idempotency: already terminal, nothing to do
-        if (track.trackStatus === "analyzed" || track.trackStatus === "failed") {
+        // Idempotency: already terminal or in-flight, nothing to do
+        if (track.trackStatus === "analyzed" || track.trackStatus === "failed" || track.trackStatus === "analyzing") {
           await redis.xack(STREAM, GROUP, msgId);
           continue;
         }
