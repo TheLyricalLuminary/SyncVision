@@ -116,6 +116,7 @@ export async function startConsumer(signal?: AbortSignal): Promise<void> {
             tempo?: number;
             tonalCharacter?: string;
             energyCharacter?: string;
+            confidence?: number;
           };
           await prisma.track.update({
             where: { id: trackId },
@@ -126,6 +127,9 @@ export async function startConsumer(signal?: AbortSignal): Promise<void> {
               tonalCharacter: data.tonalCharacter ?? null,
               energyCharacter: data.energyCharacter ?? null,
               errorReason: null,
+              isSynthetic: false,
+              processedAt: new Date(),
+              confidence: data.confidence ?? null,
             },
           });
         } else {
