@@ -1,4 +1,3 @@
-import express from 'express';
 import path from 'path';
 import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
@@ -22,19 +21,23 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // Larger JSON body cap for /api/tracks/upload — multiple tracks of metadata
 app.use(express.json({ limit: "1mb" }));
 
-// Health / test endpoints (Phase 3 diagnostic boundary)
-app.get("/", (_req: Request, res: Response) => {
-  res.json({ status: "ok" });
-});
 app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok", ts: Date.now() });
-});
-app.get("/test", (_req: Request, res: Response) => {
-  res.json({ ok: true });
 });
 
 app.use("/api", scoresRouter);
 app.use("/api", tracksRouter);
+
+app.use("/audio", express.static(path.join(process.cwd(), "apps/backend/audio")));
+
+// Serve Vite production build
+const clientDist = path.join(__dirname, "../../frontend/dist");
+app.use(express.static(clientDist));
+
+// Catch-all: let React Router handle client-side navigation
+app.get("*", (_req: Request, res: Response) => {
+  res.sendFile(path.join(clientDist, "index.html"));
+});
 
 // Global error interceptor — catches any unhandled throw from route handlers
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
@@ -66,4 +69,3 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     setTimeout(() => process.exit(0), 6_000);
   });
 }
-app.use('/audio', express.static(path.join(process.cwd(), 'apps/backend/audio')));
