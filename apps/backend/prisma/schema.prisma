@@ -11,7 +11,7 @@ model Track {
   id              String           @id @default(cuid())
   title           String
   artistName      String?
-  isrc            String
+  isrc            String           @unique
   trackStatus     String           @default("uploaded")
   audioFilePath   String?
   timeline        Json?
@@ -21,6 +21,7 @@ model Track {
   energyCharacter String?
   rightsProfile   RightsProfile?
   confidenceScore ConfidenceScore?
+
 
   @@map("ScoringTrack")
   @@schema("scoring")

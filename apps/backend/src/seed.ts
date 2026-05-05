@@ -1,53 +1,34 @@
-import prisma from "./lib/prisma";
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
 
-async function seed() {
-  await prisma.confidenceScore.deleteMany();
-  await prisma.rightsProfile.deleteMany();
-  await prisma.track.deleteMany();
-
-  const tracks = [
-    {
-      title: "Never Letting Go",
-      isrc: "QZRP52418558",
-      rights: { ascapWorkId: "928218454" },
-    },
-    {
-      title: "Where We Belong",
-      isrc: "QZTB72567824",
-      rights: { ascapWorkId: "930167043" },
-    },
-    {
-      title: "Breaking Chains",
-      isrc: "QZTB72565415",
-      rights: { ascapWorkId: "928212151" },
-    },
+async function main() {
+  const briefs = [
+    { title: "Triumph / Victory" }, { title: "Somber Reflection" },
+    { title: "High-Octane Chase" }, { title: "Intimate Romance" },
+    { title: "Corporate Growth" }, { title: "Mysterious Intrigue" },
+    { title: "Playful Comedy" }, { title: "Epic Adventure" },
+    { title: "Gritty Tension" }, { title: "Ethereal Calm" },
+    { title: "Aggressive Sports" }, { title: "Nostalgic Journey" },
+    { title: "Urban Swagger" }, { title: "Heartfelt Drama" },
+    { title: "Whimsical Wonder" }, { title: "Futuristic Tech" },
+    { title: "Dark Suspense" }, { title: "Uplifting Pop" },
+    { title: "Rustic Folk" }, { title: "Majestic Cinematic" }
   ];
 
-  for (const t of tracks) {
-    const created = await prisma.track.create({
+  console.log("Seeding 20 deterministic briefs...");
+
+  for (const brief of briefs) {
+    await prisma.scoringTrack.create({
       data: {
-        title: t.title,
-        isrc: t.isrc,
-        rightsProfile: {
-          create: {
-            ascapWorkId: t.rights.ascapWorkId,
-            masterOwnershipPct: 100,
-            isOneStop: true,
-            writerName: "Mark William Amigoni",
-            writerIpi: "1272656440",
-            publisherName: "The Lyrical Luminary",
-            proAffiliation: "ASCAP",
-          },
-        },
+        title: brief.title,
+        artistName: "SyncVision Core",
+        isrc: "SEED-" + brief.title.toUpperCase().replace(/\s+/g, '-'),
       },
     });
-    console.log(`Created: ${created.title} (${created.id})`);
   }
-
-  await prisma.$disconnect();
+  console.log("Successfully seeded 20 briefs.");
 }
 
-seed().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main()
+  .catch((e) => { console.error(e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });
