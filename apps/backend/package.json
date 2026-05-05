@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "tsx src/scoring/confidenceScore.test.ts",
-    "process-audio": "tsx src/scripts/processAudio.ts"
+    "process-audio": "tsx src/scripts/processAudio.ts",
+    "start": "tsx src/index.ts"
   },
   "keywords": [],
   "author": "",
