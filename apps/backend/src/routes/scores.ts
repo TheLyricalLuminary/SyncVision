@@ -465,6 +465,11 @@ router.get("/scores", async (_req: Request, res: Response) => {
     const results: Array<Record<string, unknown>> = [];
 
     for (const track of tracks) {
+      // Hard gate — only score tracks backed by a real MIR-derived timeline
+      if (!track.timeline || !Array.isArray(track.timeline) || (track.timeline as unknown[]).length !== 512) continue;
+      if (track.isSynthetic || !track.processedAt) continue;
+      if (track.confidence == null || track.confidence < 0.8) continue;
+
       const { rightsProfile: rp, confidenceScore: _cs, ...trackScalars } = track;
       const profile = rp ?? {};
 
@@ -556,6 +561,11 @@ router.get("/scores/scene/:sceneId", async (req: Request, res: Response) => {
     const matches: Array<Record<string, unknown>> = [];
 
     for (const track of tracks) {
+      // Hard gate — only score tracks backed by a real MIR-derived timeline
+      if (!track.timeline || !Array.isArray(track.timeline) || (track.timeline as unknown[]).length !== 512) continue;
+      if (track.isSynthetic || !track.processedAt) continue;
+      if (track.confidence == null || track.confidence < 0.8) continue;
+
       const { rightsProfile: rp, confidenceScore: cs, ...trackScalars } = track;
 
       // Brief-agnostic confidence score still validated for determinism
