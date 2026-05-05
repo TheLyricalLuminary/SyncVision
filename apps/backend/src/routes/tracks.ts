@@ -224,6 +224,8 @@ interface UploadEntry {
   proAffiliation?: unknown;
   isOneStop?: unknown;
   masterOwnershipPct?: unknown;
+  label?: unknown;
+  upc?: unknown;
 }
 
 function asString(v: unknown): string | null {
@@ -254,6 +256,8 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
       proAffiliation: string | null;
       isOneStop: boolean;
       masterOwnershipPct: number | null;
+      label: string | null;
+      upc: string | null;
     }> = [];
 
     for (let i = 0; i < entries.length; i++) {
@@ -287,6 +291,8 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
         proAffiliation: asString(e.proAffiliation),
         isOneStop: e.isOneStop === true,
         masterOwnershipPct: masterOwnershipPct !== null && !isNaN(masterOwnershipPct) ? masterOwnershipPct : null,
+        label: asString(e.label),
+        upc: asString(e.upc),
       });
     }
 
@@ -312,6 +318,8 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
                 writerIpi: p.writerIpi,
                 publisherName: p.publisherName,
                 proAffiliation: p.proAffiliation,
+                label: p.label,
+                upc: p.upc,
               },
             },
           },

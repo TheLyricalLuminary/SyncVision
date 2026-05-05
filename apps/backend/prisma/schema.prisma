@@ -42,6 +42,8 @@ model RightsProfile {
   writerIpi          String?
   publisherName      String?
   proAffiliation     String?
+  label              String?
+  upc                String?
 
   @@schema("scoring")
 }
