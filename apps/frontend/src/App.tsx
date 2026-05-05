@@ -253,8 +253,10 @@ function ScoreBar({ label, value, max }: { label: string; value: number; max: nu
 
 function AllDecisionCard({ track }: { track: RankedTrack }) {
   const audioRef = useRef<HTMLAudioElement>(null)
+  const [audioError, setAudioError] = useState(false)
 
   useEffect(() => {
+    setAudioError(false)
     const el = audioRef.current
     if (!el) return
     el.pause()
@@ -270,13 +272,16 @@ function AllDecisionCard({ track }: { track: RankedTrack }) {
         paddingTop: 16,
       }}
     >
-      <audio
-        ref={audioRef}
-        controls
-        preload="metadata"
-        src={`${API_BASE}/api/tracks/${track.trackId}/audio`}
-        style={{ width: '100%', marginBottom: 16, borderRadius: 6, accentColor: '#2563eb' }}
-      />
+      {!audioError && (
+        <audio
+          ref={audioRef}
+          controls
+          preload="metadata"
+          src={`${API_BASE}/api/tracks/${track.trackId}/audio`}
+          style={{ width: '100%', marginBottom: 16, borderRadius: 6, accentColor: '#2563eb' }}
+          onError={() => setAudioError(true)}
+        />
+      )}
 
       <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.6, marginBottom: 20, margin: '0 0 20px' }}>
         {track.explanation}
@@ -462,8 +467,10 @@ function SceneCard({
 
 function SceneDecisionCard({ match }: { match: SceneMatch }) {
   const audioRef = useRef<HTMLAudioElement>(null)
+  const [audioError, setAudioError] = useState(false)
 
   useEffect(() => {
+    setAudioError(false)
     const el = audioRef.current
     if (!el) return
     el.pause()
@@ -479,13 +486,16 @@ function SceneDecisionCard({ match }: { match: SceneMatch }) {
         paddingTop: 16,
       }}
     >
-      <audio
-        ref={audioRef}
-        controls
-        preload="metadata"
-        src={`${API_BASE}/api/tracks/${match.trackId}/audio`}
-        style={{ width: '100%', marginBottom: 16, borderRadius: 6, accentColor: '#2563eb' }}
-      />
+      {!audioError && (
+        <audio
+          ref={audioRef}
+          controls
+          preload="metadata"
+          src={`${API_BASE}/api/tracks/${match.trackId}/audio`}
+          style={{ width: '100%', marginBottom: 16, borderRadius: 6, accentColor: '#2563eb' }}
+          onError={() => setAudioError(true)}
+        />
+      )}
 
       <p
         style={{
