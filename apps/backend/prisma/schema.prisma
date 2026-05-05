@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
@@ -11,10 +12,13 @@ model Track {
   id              String           @id @default(cuid())
   title           String
   artistName      String?
-  isrc            String
+  isrc            String           @unique
   trackStatus     String           @default("uploaded")
   audioFilePath   String?
   timeline        Json?
+  isSynthetic     Boolean   @default(true)
+  processedAt     DateTime?
+  confidence      Float?
   errorReason     String?
   tempo           Float?
   tonalCharacter  String?
@@ -22,6 +26,7 @@ model Track {
   rightsProfile   RightsProfile?
   confidenceScore ConfidenceScore?
 
+  
   @@map("ScoringTrack")
   @@schema("scoring")
 }

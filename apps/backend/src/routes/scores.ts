@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
+import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma";
 import { calculateConfidenceScore, RightsProfile as ConfidenceRightsProfile } from "../scoring/confidenceScore";
 import { selectNarrative } from "../scoring/narrativeDictionary";
@@ -218,6 +219,11 @@ router.get("/scores", async (_req: Request, res: Response) => {
     const results: Array<Record<string, unknown>> = [];
 
     for (const track of tracks) {
+      // Hard gate — only score tracks backed by a real MIR-derived timeline
+      if (!track.timeline || !Array.isArray(track.timeline) || (track.timeline as unknown[]).length !== 512) continue;
+      if (track.isSynthetic || !track.processedAt) continue;
+      if (track.confidence == null || track.confidence < 0.8) continue;
+
       const { rightsProfile: rp, confidenceScore: _cs, ...trackScalars } = track;
       const profile = (rp ?? {}) as ConfidenceRightsProfile;
 
@@ -322,6 +328,11 @@ router.get("/scores/scene/:sceneId", async (req: Request, res: Response) => {
     const matches: Array<Record<string, unknown>> = [];
 
     for (const track of tracks) {
+      // Hard gate — only score tracks backed by a real MIR-derived timeline
+      if (!track.timeline || !Array.isArray(track.timeline) || (track.timeline as unknown[]).length !== 512) continue;
+      if (track.isSynthetic || !track.processedAt) continue;
+      if (track.confidence == null || track.confidence < 0.8) continue;
+
       const { rightsProfile: rp, confidenceScore: cs, ...trackScalars } = track;
 
       // Brief-agnostic confidence score still validated for determinism
@@ -433,6 +444,68 @@ router.get("/determinism-report", (_req: Request, res: Response) => {
     res.status(status).json(report);
   } catch {
     res.status(404).json({ error: "Determinism report not found. Run verification first." });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/tracks — track intake
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.post("/tracks", async (req: Request, res: Response) => {
+  const { title, isrc, artistName, audioFilePath, rightsProfile } = req.body as {
+    title?: string;
+    isrc?: string;
+    artistName?: string;
+    audioFilePath?: string;
+    rightsProfile?: {
+      ascapWorkId?: string;
+      masterOwnershipPct?: number;
+      isOneStop?: boolean;
+      writerName?: string;
+      writerIpi?: string;
+      publisherName?: string;
+      proAffiliation?: string;
+    };
+  };
+
+  if (!title || !isrc) {
+    res.status(400).json({ error: "Missing required fields", fields: ["title", "isrc"] });
+    return;
+  }
+
+  if (!ISRC_RE.test(isrc)) {
+    res.status(400).json({ error: "Invalid ISRC format", field: "isrc" });
+    return;
+  }
+
+  try {
+    const track = await prisma.track.create({
+      data: {
+        title,
+        isrc,
+        artistName: artistName ?? null,
+        audioFilePath: audioFilePath ?? null,
+        ...(rightsProfile && {
+          rightsProfile: { create: rightsProfile },
+        }),
+      },
+    });
+    res.status(201).json(track);
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002" &&
+      Array.isArray((error.meta as { target?: string[] })?.target) &&
+      (error.meta as { target: string[] }).target.includes("isrc")
+    ) {
+      res.status(409).json({
+        error: "Unique constraint violation",
+        message: "A track with this ISRC is already in the system.",
+        field: "isrc",
+      });
+      return;
+    }
+    throw error;
   }
 });
 

@@ -53,6 +53,13 @@ def analyze(path):
 
     timeline = np.stack([valence, arousal, tension, dominance, intimacy], axis=1)
 
+    # Signal stability confidence: mean std across 5 dims, normalised so that
+    # a signal with mean_std >= 0.12 scores ≥ 1.0 (capped). Flat/synthetic
+    # signals have std ≈ 0, real MIR signals typically land 0.12–0.25.
+    # Gate threshold in the API is 0.8, which corresponds to mean_std ≥ 0.096.
+    stds = [float(np.std(d)) for d in [valence, arousal, tension, dominance, intimacy]]
+    confidence = round(min(1.0, float(np.mean(stds)) / 0.12), 4)
+
     duration = float(len(y)) / sr
 
     tempo_arr, _ = librosa.beat.beat_track(y=y, sr=sr)
@@ -91,6 +98,7 @@ def analyze(path):
         "tonalCharacter": tonal_character,
         "energyCharacter": energy_character,
         "inputHash": input_hash,
+        "confidence": confidence,
     }
 
 
