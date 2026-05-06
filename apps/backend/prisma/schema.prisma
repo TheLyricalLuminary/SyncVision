@@ -7,6 +7,44 @@ datasource db {
   schemas  = ["scoring"]
 }
 
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  planLevel    String   @default("COMPOSER") // COMPOSER | SUPERVISOR | AGENCY | ENTERPRISE
+  createdAt    DateTime @default(now())
+
+  ownedCatalogs  Catalog[]       @relation("CatalogOwner")
+  catalogMembers CatalogMember[]
+
+  @@schema("scoring")
+}
+
+model Catalog {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String
+  owner     User     @relation("CatalogOwner", fields: [ownerId], references: [id])
+  createdAt DateTime @default(now())
+
+  members CatalogMember[]
+  tracks  Track[]
+
+  @@schema("scoring")
+}
+
+model CatalogMember {
+  id        String  @id @default(cuid())
+  catalogId String
+  catalog   Catalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String  // CATALOG_OWNER | SUPERVISOR | ADMIN
+
+  @@unique([catalogId, userId])
+  @@schema("scoring")
+}
+
 model Track {
   id              String           @id @default(cuid())
   title           String
@@ -16,13 +54,19 @@ model Track {
   audioFilePath   String?
   timeline        Json?
   errorReason     String?
-  tempo           Float?
-  tonalCharacter  String?
-  energyCharacter String?
+  tempo             Float?
+  tonalCharacter    String?
+  energyCharacter   String?
+  modelVersion      String?
+  spectralCentroid  Float?
+  rmsEnergy         Float?
+  zeroCrossingRate  Float?
+  catalogId       String?
+  catalog         Catalog?         @relation(fields: [catalogId], references: [id])
   rightsProfile   RightsProfile?
   confidenceScore ConfidenceScore?
 
-
+  @@unique([catalogId, isrc])
   @@map("ScoringTrack")
   @@schema("scoring")
 }
@@ -32,12 +76,17 @@ model RightsProfile {
   trackId            String   @unique
   track              Track    @relation(fields: [trackId], references: [id])
   ascapWorkId        String?
+  bmiWorkId          String?
   masterOwnershipPct Decimal?
   isOneStop          Boolean?
   writerName         String?
   writerIpi          String?
   publisherName      String?
   proAffiliation     String?
+  masterOwnedBy         String?
+  masterOwnershipType   String?
+  masterVerifiedAt      DateTime?
+  masterOwnershipSplits Json?
 
   @@schema("scoring")
 }
@@ -55,6 +104,7 @@ model ConfidenceScore {
   sceneFitBreakdown Int
   explanation       String
   createdAt         DateTime @default(now())
+  hashVersion       Int      @default(1)
 
   @@schema("scoring")
 }

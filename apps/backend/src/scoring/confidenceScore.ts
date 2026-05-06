@@ -13,6 +13,7 @@ export interface RightsProfile {
   id?: string;
   trackId?: string;
   ascapWorkId?: string | null;
+  bmiWorkId?: string | null;
   masterOwnershipPct?: number | string | null; // Prisma Decimal arrives as string over JSON
   isOneStop?: boolean | null;
   writerName?: string | null;
@@ -25,8 +26,8 @@ export interface RightsProfile {
 export interface ScoreBreakdown {
   rightsAndProvenance: number; // 0–65
   metadataCompleteness: number; // 0–20
-  audioQuality: number; // always 10 (placeholder)
-  sceneFit: number; // always 5 (placeholder)
+  audioQuality: number; // 0–10, based on actual audio feature presence
+  sceneFit: number; // 0–5, PAD versatility (distance from emotional centre, inverted)
   total: number; // 0–100
   confidenceLabel: "HIGH" | "MEDIUM" | "LOW";
   explanation: string;
@@ -123,9 +124,49 @@ export function calculateConfidenceScore(
   const metadataCompleteness =
     writerNamePoints + writerIpiPoints + publisherPoints + proPoints;
 
-  // ── Placeholders ────────────────────────────────────────────────────────
-  const audioQuality = 10;
-  const sceneFit = 5;
+  // ── Audio Analysis Quality (0–10) ───────────────────────────────────────
+  // Points awarded for actual audio feature presence, not field placeholders.
+  //   +4  tempo detected
+  //   +3  tonal character classified
+  //   +3  spectral centroid AND rms energy measured
+  const hasTempo =
+    typeof track.tempo === "number" && !isNaN(track.tempo as number);
+  const hasTonal =
+    typeof track.tonalCharacter === "string" &&
+    (track.tonalCharacter as string).length > 0;
+  const hasSpectral =
+    typeof track.spectralCentroid === "number" &&
+    !isNaN(track.spectralCentroid as number) &&
+    typeof track.rmsEnergy === "number" &&
+    !isNaN(track.rmsEnergy as number);
+
+  const audioQuality =
+    (hasTempo ? 4 : 0) + (hasTonal ? 3 : 0) + (hasSpectral ? 3 : 0);
+
+  // ── PAD Versatility (0–5) ────────────────────────────────────────────────
+  // Measures how emotionally centred the track is across the PAD cube.
+  // A mean PAD of [0.5, 0.5, 0.5] is maximally versatile (useful for any
+  // brief); extreme emotional profiles score lower.
+  // Max distance from centre to any corner = sqrt(3)/2 ≈ 0.866.
+  let sceneFit = 0;
+  const timeline = Array.isArray(track.timeline)
+    ? (track.timeline as number[][])
+    : null;
+  if (timeline && timeline.length > 0) {
+    let vSum = 0, aSum = 0, dSum = 0;
+    for (const row of timeline) {
+      vSum += row[0] ?? 0;
+      aSum += row[1] ?? 0;
+      dSum += row[3] ?? 0;
+    }
+    const n = timeline.length;
+    const dv = vSum / n - 0.5;
+    const da = aSum / n - 0.5;
+    const dd = dSum / n - 0.5;
+    const distFromCentre = Math.sqrt(dv * dv + da * da + dd * dd);
+    const maxDist = Math.sqrt(3) / 2;
+    sceneFit = Math.round((1 - Math.min(1, distFromCentre / maxDist)) * 5);
+  }
 
   // ── Totals and label ────────────────────────────────────────────────────
   const total = rightsAndProvenance + metadataCompleteness + audioQuality + sceneFit;

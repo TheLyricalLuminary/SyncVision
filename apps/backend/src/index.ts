@@ -1,4 +1,3 @@
-import express from 'express';
 import path from 'path';
 import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
@@ -6,7 +5,10 @@ import scoresRouter from "./routes/scores";
 import tracksRouter from "./routes/tracks";
 import rightsRouter from "./routes/rights";
 import stripeRouter from "./routes/stripe";
+import authRouter from "./routes/auth";
+import catalogsRouter from "./routes/catalogs";
 import { startConsumer } from "./queue/consumer";
+import { attachAuth } from "./middleware/auth";
 
 const app = express();
 const port = process.env.PORT ?? 3001;
@@ -18,6 +20,11 @@ app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 // All other routes get JSON parsing
 app.use(express.json({ limit: "1mb" }));
 
+// Attach auth context to every request (non-blocking — routes enforce tiers)
+app.use(attachAuth);
+
+app.use("/api", authRouter);
+app.use("/api", catalogsRouter);
 app.use("/api", scoresRouter);
 app.use("/api", tracksRouter);
 app.use("/api", rightsRouter);

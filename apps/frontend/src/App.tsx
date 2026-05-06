@@ -4,6 +4,9 @@ import syncVisionLogo from './assets/syncvision-logo.png'
 import { RoiCalculator } from './RoiCalculator'
 import { PricingPage } from './PricingPage'
 
+// Singleton so only one track plays at a time across all cards
+const currentAudio: { el: HTMLAudioElement | null } = { el: null }
+
 // ─── Shared types ────────────────────────────────────────────────────────────
 
 interface Breakdown {
@@ -132,6 +135,11 @@ interface UploadEntry {
   writerName: string
   publisherName: string
   proAffiliation: string
+
+  masterOwnedBy: string
+  masterOwnershipType: string         // '' | 'SELF_OWNED' | 'LABEL' | 'CO_OWNED' | 'WORK_FOR_HIRE'
+  masterVerificationSource: string
+  masterOwnershipSplits: Array<{ owner: string; pct: string }>
 
   trackId: string | null              // assigned by /upload
   errorReason: string | null          // backend errorReason after a failed analysis
@@ -292,6 +300,59 @@ function ScoreBar({ label, value, max }: { label: string; value: number; max: nu
 
 // ─── All-tracks screen ────────────────────────────────────────────────────────
 
+function PlayButton({ trackId }: { trackId: string }) {
+  const [playing, setPlaying] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!audioRef.current) {
+      const el = new Audio(`/api/tracks/${trackId}/audio`)
+      el.onended = () => setPlaying(false)
+      el.onpause = () => setPlaying(false)
+      el.onplay  = () => setPlaying(true)
+      audioRef.current = el
+    }
+    const el = audioRef.current
+    if (playing) {
+      el.pause()
+    } else {
+      if (currentAudio.el && currentAudio.el !== el) {
+        currentAudio.el.pause()
+      }
+      currentAudio.el = el
+      el.play().catch(() => {})
+    }
+  }
+
+  useEffect(() => {
+    return () => { audioRef.current?.pause() }
+  }, [])
+
+  return (
+    <button
+      onClick={toggle}
+      title={playing ? 'Pause' : 'Play'}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 36,
+        height: 36,
+        borderRadius: '50%',
+        background: playing ? '#1d4ed8' : '#0f172a',
+        border: '1px solid #334155',
+        color: '#f8fafc',
+        cursor: 'pointer',
+        flexShrink: 0,
+        fontSize: 14,
+      }}
+    >
+      {playing ? '⏸' : '▶'}
+    </button>
+  )
+}
+
 function AllDecisionCard({ track }: { track: RankedTrack }) {
   const audioRef = useRef<HTMLAudioElement>(null)
 
@@ -401,6 +462,8 @@ function TrackCard({
         >
           {track.rank}
         </div>
+
+        <PlayButton trackId={track.trackId} />
 
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -620,6 +683,8 @@ function SceneMatchCard({
         >
           {match.rank}
         </div>
+
+        <PlayButton trackId={match.trackId} />
 
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -914,6 +979,106 @@ function UploadEntryRow({
             </div>
           </div>
 
+          {/* ── Master Ownership ────────────────────────────────────────── */}
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #1e293b' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.08em', marginBottom: 10 }}>
+              MASTER OWNERSHIP
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>MASTER OWNER <span style={{ color: '#ef4444' }}>*</span></label>
+                <input
+                  value={entry.masterOwnedBy}
+                  onChange={(e) => onChange(entry.id, { masterOwnedBy: e.target.value })}
+                  placeholder="Legal name of master rights holder"
+                  disabled={locked}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>OWNERSHIP TYPE <span style={{ color: '#ef4444' }}>*</span></label>
+                <select
+                  value={entry.masterOwnershipType}
+                  onChange={(e) => onChange(entry.id, { masterOwnershipType: e.target.value })}
+                  disabled={locked}
+                  style={{ ...inputStyle, appearance: 'none' as const }}
+                >
+                  <option value="">— Select —</option>
+                  <option value="SELF_OWNED">Self-Owned</option>
+                  <option value="LABEL">Label</option>
+                  <option value="CO_OWNED">Co-Owned</option>
+                  <option value="WORK_FOR_HIRE">Work-for-Hire</option>
+                </select>
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>VERIFICATION SOURCE</label>
+                <input
+                  value={entry.masterVerificationSource}
+                  onChange={(e) => onChange(entry.id, { masterVerificationSource: e.target.value })}
+                  placeholder="self-attested, contract, label agreement…"
+                  disabled={locked}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            {entry.masterOwnershipType === 'CO_OWNED' && (
+              <div style={{ marginTop: 12 }}>
+                <label style={labelStyle}>CO-OWNER SPLITS</label>
+                {entry.masterOwnershipSplits.map((split, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                    <input
+                      value={split.owner}
+                      onChange={(e) => {
+                        const splits = entry.masterOwnershipSplits.map((s, i) => i === idx ? { ...s, owner: e.target.value } : s)
+                        onChange(entry.id, { masterOwnershipSplits: splits })
+                      }}
+                      placeholder="Owner name"
+                      disabled={locked}
+                      style={{ ...inputStyle, flex: 2 }}
+                    />
+                    <input
+                      value={split.pct}
+                      onChange={(e) => {
+                        const splits = entry.masterOwnershipSplits.map((s, i) => i === idx ? { ...s, pct: e.target.value } : s)
+                        onChange(entry.id, { masterOwnershipSplits: splits })
+                      }}
+                      placeholder="%"
+                      disabled={locked}
+                      style={{ ...inputStyle, flex: 1, textAlign: 'right' as const }}
+                    />
+                    <button
+                      onClick={() => {
+                        const splits = entry.masterOwnershipSplits.filter((_, i) => i !== idx)
+                        onChange(entry.id, { masterOwnershipSplits: splits })
+                      }}
+                      disabled={locked}
+                      style={{ background: 'transparent', border: '1px solid #334155', color: '#94a3b8', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}
+                    >✕</button>
+                  </div>
+                ))}
+                {(() => {
+                  const total = entry.masterOwnershipSplits.reduce((sum, s) => sum + (parseFloat(s.pct) || 0), 0)
+                  const allFilled = entry.masterOwnershipSplits.length > 0
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <button
+                        onClick={() => onChange(entry.id, { masterOwnershipSplits: [...entry.masterOwnershipSplits, { owner: '', pct: '' }] })}
+                        disabled={locked}
+                        style={{ background: 'transparent', border: '1px solid #334155', color: '#94a3b8', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}
+                      >+ Add owner</button>
+                      {allFilled && (
+                        <span style={{ fontSize: 11, color: Math.abs(total - 100) < 0.01 ? '#4ade80' : '#fca5a5' }}>
+                          Total: {total.toFixed(1)}% {Math.abs(total - 100) < 0.01 ? '✓' : '(must equal 100)'}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+          </div>
+
           {entry.uploadError && entry.status === 'inspected' && (
             <div style={{ color: '#fca5a5', fontSize: 12, marginTop: 12 }}>
               Queue failed: {entry.uploadError}
@@ -1060,6 +1225,10 @@ function UploadScreen({
         writerName: '',
         publisherName: '',
         proAffiliation: '',
+        masterOwnedBy: '',
+        masterOwnershipType: '',
+        masterVerificationSource: '',
+        masterOwnershipSplits: [],
         trackId: null,
         errorReason: null,
       })
@@ -1118,6 +1287,10 @@ function UploadScreen({
             writerName: entry.writerName.trim() || undefined,
             publisherName: entry.publisherName.trim() || undefined,
             proAffiliation: entry.proAffiliation.trim() || undefined,
+            masterOwnedBy: entry.masterOwnedBy.trim() || undefined,
+            masterOwnershipType: entry.masterOwnershipType || undefined,
+            masterVerificationSource: entry.masterVerificationSource.trim() || undefined,
+            masterOwnershipSplits: entry.masterOwnershipSplits.length > 0 ? entry.masterOwnershipSplits : undefined,
           },
         ],
       }),
@@ -1712,7 +1885,7 @@ export default function App() {
                 style={{ color: '#94a3b8', textDecoration: 'none', borderBottom: '1px solid #475569' }}
               >
                 Deterministic Music Rights Verification
-              </a>
+              </button>
             </p>
           </div>
           {view === 'all' && (
@@ -1910,6 +2083,16 @@ export default function App() {
             setEntries={setUploadEntries}
             onBack={() => setView('scenes')}
           />
+        )}
+
+        {/* ── Screen: analytics ── */}
+        {view === 'analytics' && (
+          <CatalogAnalyticsDashboard onBack={() => setView('scenes')} />
+        )}
+
+        {/* ── Screen: determinism verification ── */}
+        {view === 'verification' && (
+          <DeterminismVerificationView onBack={() => setView('scenes')} />
         )}
 
         {/* ── Screen: all tracks ── */}

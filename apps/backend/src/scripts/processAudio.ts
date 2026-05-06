@@ -19,6 +19,15 @@ interface AnalysisResult {
   tonalCharacter: string;
   energyCharacter: string;
   inputHash: string;
+  modelVersion: string;
+  valenceMean: number;
+  arousalMean: number;
+  tensionMean: number;
+  dominanceMean: number;
+  intimacyMean: number;
+  spectralCentroid: number;
+  rmsEnergy: number;
+  zeroCrossingRate: number;
 }
 
 async function main() {

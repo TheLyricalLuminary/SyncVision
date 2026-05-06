@@ -51,9 +51,9 @@ export interface PADValues {
 
 const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   // -------------------------------------------------------------------------
-  // 1. CHASE_TENSION — High stakes pursuit, sustained threat, no resolution
+  // 1. CHASE / TENSION — High stakes pursuit, sustained threat, no resolution
   // -------------------------------------------------------------------------
-  chase_tension: {
+  "chase-tension": {
     PASS: [
       "Sixteenth-note ostinato in the low strings holds steady from the cold open through the bridge — drives the cut without dictating it, and the absence of harmonic resolution keeps the pursuit unresolved through the act break. Viable for episodic placement and clears cleanly under foot-chase coverage.",
       "Bass pulse enters at 0:08 and never lets up; the arrangement withholds the downbeat resolution every eight bars, which lets the editor land hard cuts on the suspended beat. Dominance reads cold and procedural — the track stalks the picture rather than chasing it.",
@@ -81,9 +81,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 2. ACTION_PEAK — Climactic fight or set piece, maximum arousal
+  // 2. ACTION / COMBAT — Climactic fight or set piece, maximum arousal
   // -------------------------------------------------------------------------
-  action_peak: {
+  "action-combat": {
     PASS: [
       "Full arrangement lands on the downbeat at 1:14 with the brass stack and taiko hits aligned to the same hit point — the cue is built to be cut to, and it gives the editor a legitimate landing surface for the climactic blow. Trailer-grade impact, episodic-clean structure.",
       "Arousal ceiling matches the set piece without overshooting the picture; the cue earns its peak through three-act build rather than front-loading the bombast. Drives the cut without dictating it through the second-floor breach.",
@@ -111,9 +111,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 3. EMOTIONAL_MONTAGE — Retrospective, passage of time, bittersweet
+  // 3. HEARTBREAK / SEPARATION — Retrospective, passage of time, bittersweet
   // -------------------------------------------------------------------------
-  emotional_montage: {
+  "heartbreak-separation": {
     PASS: [
       "Piano ostinato carries the verse with the string pad entering at 0:38 — exactly the kind of additive arrangement that lets the editor drop in cuts on every fourth bar without the music protesting. Yields to dialogue and lifts on the photograph reveal.",
       "Tonal palette stays in a single modal color across three minutes, which means the montage can compress a decade of relationship beats without the cue announcing scene transitions. Underscores without competing.",
@@ -141,9 +141,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 4. ROMANCE_INTIMACY — Two characters, close proximity, vulnerability
+  // 4. ROMANCE / INTIMACY — Two characters, close proximity, vulnerability
   // -------------------------------------------------------------------------
-  romance_intimacy: {
+  "romance-intimacy": {
     PASS: [
       "Arrangement is two elements — fingerpicked guitar and a breath-close vocal — and that intimacy of arrangement matches the proximity the scene is asking for. Yields to dialogue completely; the cue knows when not to be heard.",
       "Vocal sits right on the threshold of breath, so the cue carries vulnerability without leaning on lyric specificity. Underscores without competing through the bedside coverage and lifts only on the cut to the hand.",
@@ -171,9 +171,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 5. ROMANTIC_MONTAGE — Relationship arc compressed, warmth, longing
+  // 5. EMOTIONAL RESOLUTION — Relationship arc compressed, warmth, longing
   // -------------------------------------------------------------------------
-  romantic_montage: {
+  "emotional-resolution": {
     PASS: [
       "Verse-chorus-verse arrangement maps cleanly onto a three-stage relationship montage — the editor gets a natural beat at 0:48, 1:32, and 2:16 to align with the date, the move-in, and the argument. Drives the cut without dictating it.",
       "Warmth is in the instrumentation — Wurlitzer, brushed kit, upright bass — and the longing is in the topline melody, which keeps reaching for a resolution it doesn't quite land. Yields to dialogue on the porch beat.",
@@ -201,9 +201,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 6. DRAMATIC_UNDERSCORE — Dialogue scene, emotional subtext, restrained
+  // 6. DRAMA / CONFRONTATION — Dialogue scene, emotional subtext, restrained
   // -------------------------------------------------------------------------
-  dramatic_underscore: {
+  "drama-confrontation": {
     PASS: [
       "Cue holds a single drone pad for the first ninety seconds and adds a piano figure at 1:32 — exactly the kind of restraint a dialogue scene requires. The arrangement lets the actors carry the scene and steps in only on the subtext beat.",
       "Spectral weight is concentrated below 200 Hz and above 5 kHz, leaving the entire dialogue band uncontested. Underscores without competing across a six-minute coverage block; the music editor will not need to ride the level.",
@@ -231,9 +231,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 7. THRILLER_SUSPENSE — Dread buildup, unresolved threat, psychological
+  // 7. SUSPENSE / DREAD — Dread buildup, unresolved threat, psychological
   // -------------------------------------------------------------------------
-  thriller_suspense: {
+  "suspense-dread": {
     PASS: [
       "Sub-bass drone enters at 0:00 and the first melodic information arrives at 1:20 — the cue is pure dread architecture, and the editor can land the reveal on that delayed entry. Gives the editor room to breathe under quiet coverage.",
       "Harmonic language sits in a tritone-adjacent suspended cluster that never resolves — psychological unease comes from the cue's refusal to give the ear a home. Underscores without competing through the apartment search.",
@@ -261,9 +261,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 8. HORROR_ATMOSPHERE — Dissonance, unease, non-diegetic tension
+  // 8. HORROR / PSYCHOLOGICAL — Dissonance, unease, non-diegetic tension
   // -------------------------------------------------------------------------
-  horror_atmosphere: {
+  "horror-psychological": {
     PASS: [
       "Cue is built from prepared-piano scrape, bowed metal, and a children's-toy music-box figure that enters at 1:08 — every textural choice is doing horror work. Underscores without competing through the basement coverage.",
       "Tonal language is atonal across the full duration with chromatic clusters that refuse to organize into key — the audience's ear is never given permission to relax. Lands the turn on the closet reveal.",
@@ -291,9 +291,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 9. COMEDY_QUIRKY — Rhythmic unpredictability, tonal wit, light touch
+  // 9. QUIRKY / OFFBEAT — Rhythmic unpredictability, tonal wit, light touch
   // -------------------------------------------------------------------------
-  comedy_quirky: {
+  "quirky-offbeat": {
     PASS: [
       "Arrangement is plucked banjo, glockenspiel, and a tuba bass figure that enters on the and-of-three — the rhythmic unpredictability is baked into the time signature. Drives the cut without dictating it on the pratfall.",
       "Tonal wit is in the orchestration choices rather than any joke in the writing — the cue is dry, which lets the picture supply the humor without the music telegraphing the punchline. Lands the turn cleanly.",
@@ -321,9 +321,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 10. COMEDY_MONTAGE — Upbeat pace, forward momentum, no darkness
+  // 10. COMEDY / LIGHT — Upbeat pace, forward momentum, no darkness
   // -------------------------------------------------------------------------
-  comedy_montage: {
+  "comedy-light": {
     PASS: [
       "Tempo at 118 BPM and a four-on-the-floor kick give the editor a metronomic backbone for compressed-time comedy beats. Forward momentum without any harmonic darkness anywhere in the arrangement; lands the turn at every chorus return.",
       "Major-key tonal palette holds across the full cue with no minor-key bridge — exactly the right emotional surface for a sequence that should never let the audience worry. Drives the cut without dictating it.",
@@ -351,9 +351,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 11. OPENING_TITLE — Establishing tone, world-building, first impression
+  // 11. OPENING / CLOSING TITLE — Establishing tone, world-building, first impression
   // -------------------------------------------------------------------------
-  opening_title: {
+  "opening-closing-title": {
     PASS: [
       "Cue establishes its tonal palette in the first eight seconds and commits to it across the full duration — exactly what a main title needs to do for a show whose identity is built on consistent emotional surface. Works under title card.",
       "Arrangement leadership is recognizable from the first instrumental gesture, which gives the show a sonic logo audiences will associate with the brand across episodes. Strong candidate for main title and recurring closing-credits.",
@@ -381,9 +381,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 12. CLOSING_TITLE — Emotional resolution, bookend, earned release
+  // 12. EUPHORIA / CELEBRATION — Emotional resolution, bookend, earned release
   // -------------------------------------------------------------------------
-  closing_title: {
+  "euphoria-celebration": {
     PASS: [
       "Cue earns its emotional resolution through three minutes of build rather than asserting it at the front — the audience arrives at the release alongside the music. Candidate for end-credits but not main title.",
       "Tonal palette returns to the harmonic motif from the cold open and resolves it for the first time in the cue's outro — the bookend lands inside the music itself. Lands the turn on the cut to black.",
@@ -411,9 +411,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 13. CINEMATIC_EPIC — Scale, orchestral weight, consequential stakes
+  // 13. CINEMATIC / EPIC — Scale, orchestral weight, consequential stakes
   // -------------------------------------------------------------------------
-  cinematic_epic: {
+  "cinematic-epic": {
     PASS: [
       "Full orchestral arrangement with choir entering at 1:32 and brass stack at 2:14 — the cue is built for theatrical scale without any rock or hybrid layer to compromise the orchestral identity. Drives the cut without dictating it.",
       "Spectral weight is genuinely epic — the low brass and timpani occupy the sub band the way theatrical sound design expects, and the choir sits above the dialogue range. Mix hierarchy translates to 5.1 and Atmos delivery without remix.",
@@ -441,9 +441,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 14. CORPORATE_ASPIRATIONAL — Forward momentum, optimistic, professional polish
+  // 14. CORPORATE / ASPIRATIONAL — Forward momentum, optimistic, professional polish
   // -------------------------------------------------------------------------
-  corporate_aspirational: {
+  "corporate-aspirational": {
     PASS: [
       "Cue holds a bright major-key palette with a clean four-bar rhythmic engine and a melodic hook at 0:32 — exactly the polished, forward-leaning surface a corporate aspirational brief expects. Works under VO and clears for trailer use.",
       "Arrangement is built around piano, plucked synth, and a clean kick — the mix hierarchy leaves the entire dialogue band uncontested for executive voiceover or testimonial cutaway. Yields to dialogue across the full duration.",
@@ -471,9 +471,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 15. NATURE_PASTORAL — Spacious, organic, unhurried, yields to picture
+  // 15. NATURE / PASTORAL — Spacious, organic, unhurried, yields to picture
   // -------------------------------------------------------------------------
-  nature_pastoral: {
+  "nature-pastoral": {
     PASS: [
       "Cue is built from acoustic guitar, hammered dulcimer, and a single sustained string pad — the instrumentation itself does the pastoral work without any electronic layer to break the organic register. Yields to picture entirely.",
       "Tempo at 68 BPM and a long-breathing arrangement give the editor permission to let the picture take its time — the cue does not rush the cut. Underscores without competing through the wide-shot landscape coverage.",
@@ -501,9 +501,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 16. MONTAGE_TRANSITION — Neutral energy, passage of time, editorial glue
+  // 16. MONTAGE / TRANSITION — Neutral energy, passage of time, editorial glue
   // -------------------------------------------------------------------------
-  montage_transition: {
+  "montage-transition": {
     PASS: [
       "Cue holds a steady mid-tempo pulse with a deliberately neutral tonal palette — neither bright nor dark — exactly what editorial glue between scenes requires. Drives the cut without dictating it across four locations.",
       "Arrangement is rhythmically consistent without melodic specificity — the cue's job is to carry temporal continuity, not to assert a feeling, and the topline understands that. Yields to dialogue and lifts on the cut to the new location.",
@@ -531,9 +531,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 17. SPORTS_TRIUMPH — Victory arc, peak arousal, crowd energy
+  // 17. TRIUMPH / VICTORY — Victory arc, peak arousal, crowd energy
   // -------------------------------------------------------------------------
-  sports_triumph: {
+  "triumph-victory": {
     PASS: [
       "Cue earns its triumph through three minutes of build — verse, lift, full-band chorus at 1:48 — exactly the arc a victory sequence is asking the audience to share. Drives the cut without dictating it on the championship-shot reveal.",
       "Anthemic chorus at 1:48 lands on the title-card lift with the full arrangement entering on the same downbeat — gives the editor a single, decisive landing surface for the trophy moment. Lands the turn cleanly.",
@@ -561,9 +561,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 18. GRIEF_LOSS — Low arousal, high emotional weight, unresolved
+  // 18. GRIEF / LOSS — Low arousal, high emotional weight, unresolved
   // -------------------------------------------------------------------------
-  grief_loss: {
+  "grief-loss": {
     PASS: [
       "Cue is solo piano with a string entry at 1:32 — sparse, restrained, and emotionally heavy without performing the grief for the audience. Yields to dialogue and silence equally; gives the editor room to breathe.",
       "Arrangement holds at near-silence for the first forty seconds, which lets the picture's silence become the cue's silence — the music shares the scene's stillness rather than filling it. Underscores without competing.",
@@ -591,9 +591,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 19. SPIRITUAL_REFLECTIVE — Contemplative, timeless, non-denominational
+  // 19. CONTEMPLATIVE / REFLECTIVE — Contemplative, timeless, non-denominational
   // -------------------------------------------------------------------------
-  spiritual_reflective: {
+  "contemplative-reflective": {
     PASS: [
       "Cue is built from sustained drone, hammered dulcimer, and a wordless vocal that enters at 1:32 — every textural choice points at contemplation without committing to a specific tradition. Underscores without competing.",
       "Tonal palette is modal and timeless — no harmonic vocabulary that locks the cue to a denomination or era. Yields to dialogue and breath equally; gives the editor room to sit in the moment.",
@@ -621,9 +621,9 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   },
 
   // -------------------------------------------------------------------------
-  // 20. PRODUCT_LAUNCH — Brand energy, confident, modern, no lyric conflict
+  // 20. URBAN / GRITTY — Brand energy, confident, modern, no lyric conflict
   // -------------------------------------------------------------------------
-  product_launch: {
+  "urban-gritty": {
     PASS: [
       "Cue holds modern production aesthetics — clean drum programming, a single forward synth lead, and a minimal harmonic bed — exactly the contemporary surface a product launch is asking for. Drives the cut without dictating it through the unboxing.",
       "Forward momentum is confident without overstating — the cue projects brand certainty without performing hype. Yields to voiceover and lifts on the product reveal at 0:42. Clears for trailer use under the same brief.",
