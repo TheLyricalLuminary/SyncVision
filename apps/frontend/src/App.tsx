@@ -56,8 +56,49 @@ interface ApiResponse {
   rankedTracks: RankedTrack[]
 }
 
-type View = 'scenes' | 'matches' | 'all' | 'upload' | 'roi' | 'pricing'
+type View = 'scenes' | 'matches' | 'all' | 'upload' | 'roi' | 'pricing' | 'rights'
 type BannerState = 'ok' | 'violation' | null
+
+// ─── Rights evaluation types ──────────────────────────────────────────────────
+
+type RightsState = 'INGESTED' | 'UNVERIFIED' | 'PARTIALLY_CLEAR' | 'CLEAR' | 'BLOCKED'
+
+interface StateTransition {
+  from: RightsState | null
+  to: RightsState
+  rule: string
+  triggered: boolean
+}
+
+interface AuditHashBinding {
+  input: Record<string, unknown>
+  hash: string
+}
+
+interface RightsEvaluation {
+  rights_state: RightsState
+  confidence_score: number
+  blockers: string[]
+  clearance_summary: string
+  transition_trace: StateTransition[]
+  audit_hash: AuditHashBinding
+}
+
+interface RightsTrackResult {
+  audio_id: string
+  title: string
+  isrc: string
+  artistName: string | null
+  evaluation: RightsEvaluation
+}
+
+interface RightsResponse {
+  engine_version: string
+  evaluated_at: string
+  track_count: number
+  state_summary: Record<string, number>
+  tracks: RightsTrackResult[]
+}
 
 // ─── Upload screen types ──────────────────────────────────────────────────────
 
@@ -1219,6 +1260,251 @@ function UploadScreen({
   )
 }
 
+// ─── Rights evaluation screen ─────────────────────────────────────────────────
+
+const RIGHTS_STATE_STYLES: Record<RightsState, { bg: string; color: string; label: string }> = {
+  CLEAR:           { bg: '#14532d', color: '#d1fae5', label: 'CLEAR' },
+  PARTIALLY_CLEAR: { bg: '#92400e', color: '#fef3c7', label: 'PARTIAL' },
+  UNVERIFIED:      { bg: '#1e3a8a', color: '#bfdbfe', label: 'UNVERIFIED' },
+  INGESTED:        { bg: '#334155', color: '#cbd5e1', label: 'INGESTED' },
+  BLOCKED:         { bg: '#7f1d1d', color: '#fee2e2', label: 'BLOCKED' },
+}
+
+function RightsTrackCard({
+  result,
+  expanded,
+  onToggle,
+}: {
+  result: RightsTrackResult
+  expanded: boolean
+  onToggle: () => void
+}) {
+  const style = RIGHTS_STATE_STYLES[result.evaluation.rights_state]
+  const pct = Math.round(result.evaluation.confidence_score * 100)
+
+  return (
+    <div
+      onClick={onToggle}
+      style={{
+        background: '#1e293b',
+        borderRadius: 12,
+        padding: 20,
+        marginBottom: 12,
+        cursor: 'pointer',
+        border: expanded ? '1px solid #2563eb' : '1px solid transparent',
+        transition: 'border-color 200ms',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ color: '#f8fafc', fontWeight: 700, fontSize: 16 }}>{result.title}</span>
+            <span
+              style={{
+                background: style.bg,
+                color: style.color,
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: 4,
+                letterSpacing: '0.05em',
+              }}
+            >
+              {style.label}
+            </span>
+          </div>
+          {result.artistName && (
+            <div style={{ color: '#cbd5e1', fontSize: 13, marginTop: 2 }}>{result.artistName}</div>
+          )}
+          <div style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: 12, marginTop: 2 }}>
+            {result.isrc}
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ fontSize: 32, fontWeight: 900, color: '#f8fafc', lineHeight: 1, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
+            {pct}%
+          </div>
+          <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>CONFIDENCE</div>
+        </div>
+      </div>
+
+      {expanded && (
+        <div style={{ borderTop: '1px solid #334155', marginTop: 16, paddingTop: 16 }}>
+          <p style={{ color: '#cbd5e1', fontSize: 14, lineHeight: 1.6, margin: '0 0 16px' }}>
+            {result.evaluation.clearance_summary}
+          </p>
+
+          {result.evaluation.blockers.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 6 }}>BLOCKERS</div>
+              {result.evaluation.blockers.map((b) => (
+                <div
+                  key={b}
+                  style={{
+                    background: '#450a0a',
+                    border: '1px solid #7f1d1d',
+                    borderRadius: 6,
+                    padding: '6px 10px',
+                    color: '#fca5a5',
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    marginBottom: 4,
+                  }}
+                >
+                  {b}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 6 }}>TRANSITION TRACE</div>
+            {result.evaluation.transition_trace.map((t, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '5px 0',
+                  borderBottom: i < result.evaluation.transition_trace.length - 1 ? '1px solid #1e293b' : 'none',
+                  opacity: t.triggered ? 1 : 0.35,
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: t.triggered ? '#22c55e' : '#475569',
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ color: '#94a3b8', fontSize: 12, flex: 1 }}>{t.rule}</span>
+                {t.triggered && (
+                  <span style={{ color: '#94a3b8', fontSize: 11 }}>
+                    {t.from ?? '∅'} → {t.to}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <div style={{ color: '#94a3b8', fontSize: 12 }}>AUDIT HASH</div>
+            <div
+              style={{
+                color: '#94a3b8',
+                fontFamily: 'monospace',
+                fontSize: 11,
+                wordBreak: 'break-all',
+                marginTop: 4,
+                lineHeight: 1.5,
+              }}
+            >
+              {result.evaluation.audit_hash.hash}
+            </div>
+            <p style={{ color: '#475569', fontSize: 11, marginTop: 6, marginBottom: 0 }}>
+              Deterministic — identical across every run. Any change indicates a system violation.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RightsScreen({ onBack }: { onBack: () => void }) {
+  const [data, setData] = useState<RightsResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch('/api/rights/evaluate')
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json() as Promise<RightsResponse>
+      })
+      .then(setData)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const stateOrder: RightsState[] = ['CLEAR', 'PARTIALLY_CLEAR', 'UNVERIFIED', 'INGESTED', 'BLOCKED']
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <button
+          onClick={onBack}
+          aria-label="Back"
+          style={{ background: 'transparent', border: 'none', color: '#2563eb', fontSize: 20, cursor: 'pointer', padding: 0, lineHeight: 1 }}
+        >
+          ←
+        </button>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#f8fafc' }}>Rights Evaluation</h2>
+      </div>
+      <p style={{ color: '#94a3b8', fontSize: 14, marginBottom: 24, marginTop: 6 }}>
+        Deterministic rights state machine — engine v{data?.engine_version ?? '…'}
+      </p>
+
+      {data && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 28 }}>
+          {stateOrder.map((state) => {
+            const count = data.state_summary[state] ?? 0
+            if (!count) return null
+            const s = RIGHTS_STATE_STYLES[state]
+            return (
+              <div
+                key={state}
+                style={{
+                  background: s.bg,
+                  color: s.color,
+                  borderRadius: 8,
+                  padding: '6px 14px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {s.label} · {count}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ color: '#94a3b8', textAlign: 'center', padding: '60px 0', fontSize: 15 }}>
+          Evaluating tracks…
+        </div>
+      )}
+
+      {error && (
+        <div style={{ background: '#450a0a', border: '1px solid #7f1d1d', borderRadius: 10, padding: 20, color: '#fca5a5', textAlign: 'center' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
+
+      {data && (
+        <div>
+          {data.tracks.map((result) => (
+            <RightsTrackCard
+              key={result.audio_id}
+              result={result}
+              expanded={expanded === result.audio_id}
+              onToggle={() => setExpanded((prev) => prev === result.audio_id ? null : result.audio_id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Root app ─────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -1528,6 +1814,20 @@ export default function App() {
               >
                 Pricing
               </button>
+              <button
+                onClick={() => setView('rights')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#64748b',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0,
+                }}
+              >
+                Rights Evaluation
+              </button>
             </div>
           </div>
         )}
@@ -1676,6 +1976,11 @@ export default function App() {
         {/* ── Screen: pricing ── */}
         {view === 'pricing' && (
           <PricingPage onBack={() => setView('scenes')} />
+        )}
+
+        {/* ── Screen: rights ── */}
+        {view === 'rights' && (
+          <RightsScreen onBack={() => setView('scenes')} />
         )}
       </div>
     </div>
