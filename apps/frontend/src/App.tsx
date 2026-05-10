@@ -748,7 +748,17 @@ function SceneMatchCard({
 
 // ─── Upload screen ────────────────────────────────────────────────────────────
 
-const PREVIEWABLE_TYPES = new Set(['audio/wav', 'audio/mpeg'])
+const PREVIEWABLE_TYPES = new Set([
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/flac',
+  'audio/x-flac',
+  'audio/aac',
+  'audio/mp4',
+  'audio/ogg',
+])
 
 function LocalAudioPlayer({ file }: { file: File }) {
   const [src] = useState(() => URL.createObjectURL(file))
@@ -1392,7 +1402,6 @@ function UploadScreen({
         tracks: [
           {
             filename: entry.serverFilename,
-            originalFilename: entry.file.name,
             title: entry.title.trim(),
             artistName: entry.artistName.trim() || undefined,
             isrc: entry.isrc.trim().toUpperCase(),

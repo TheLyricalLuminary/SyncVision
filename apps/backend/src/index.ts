@@ -1,6 +1,7 @@
 import path from 'path';
 import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
+import { assertRuntimeCoherency } from "./runtime/buildFingerprint";
 import scoresRouter from "./routes/scores";
 import tracksRouter from "./routes/tracks";
 import rightsRouter from "./routes/rights";
@@ -14,6 +15,8 @@ import { startWebhookWorker } from "./queue/webhookWorker";
 import { startReconciliationWorker } from "./queue/reconciliationWorker";
 import { startReconciliationCron } from "./jobs/stripeReconciliation";
 import { attachAuth } from "./middleware/auth";
+
+assertRuntimeCoherency();
 
 // Production safety: fail fast if Stripe is unconfigured
 if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
