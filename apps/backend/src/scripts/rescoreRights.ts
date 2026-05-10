@@ -25,7 +25,7 @@ const tracks = [
 
 async function main() {
   for (const t of tracks) {
-    const track = await prisma.track.findUnique({ where: { isrc: t.isrc } });
+    const track = await prisma.track.findFirst({ where: { isrc: t.isrc } });
     if (!track) {
       console.error(`Track not found for ISRC ${t.isrc}`);
       continue;

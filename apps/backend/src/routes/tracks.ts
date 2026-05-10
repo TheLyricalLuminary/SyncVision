@@ -1,12 +1,9 @@
 // Batch intake routes.
 //
-//  GET  /api/tracks           — list all tracks with status (used by the intake screen poll)
-//  POST /api/tracks/inspect   — multipart upload, mutagen scans each file, returns detected tags
-//  POST /api/tracks/upload    — JSON payload, creates Track + RightsProfile and enqueues
-//  POST /api/tracks/:id/retry — re-enqueue a track that has trackStatus === "failed"
-//
-// All four endpoints are read/write only on the new tracks they create. They
-// never mutate the three legacy seed tracks beyond a status update on retry.
+//  GET  /api/tracks           - list all tracks with status (used by the intake screen poll)
+//  POST /api/tracks/inspect   - multipart upload, mutagen scans each file, returns detected tags
+//  POST /api/tracks/upload    - JSON payload, creates Track + RightsProfile and enqueues
+//  POST /api/tracks/:id/retry - re-enqueue a track that has trackStatus === "failed"
 
 import { Router, Request, Response } from "express";
 import multer from "multer";
@@ -16,6 +13,10 @@ import fs from "fs";
 import { randomUUID } from "crypto";
 import prisma from "../lib/prisma";
 import { enqueueTrack } from "../queue/producer";
+import { requirePlan } from "../middleware/auth";
+import { computeRightsState } from "../scoring/rightsStateMachine";
+import { requirePaidEntitlement } from "../middleware/entitlement";
+import { validateTrackIngestion } from "../lib/validateTrackIngestion";
 
 const router = Router();
 
@@ -25,15 +26,9 @@ const PYTHON_BIN = process.env.PYTHON_BIN || "python3";
 
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Multer — disk storage in apps/backend/audio/
-// Filenames are UUID-prefixed to guarantee uniqueness regardless of upload order.
-// ─────────────────────────────────────────────────────────────────────────────
-
 const ALLOWED_EXTENSIONS = new Set([".wav", ".mp3", ".flac"]);
 
 function sanitizeBasename(name: string): string {
-  // Strip any directory components, replace anything outside [A-Za-z0-9._-] with "_"
   const base = path.basename(name);
   return base.replace(/[^A-Za-z0-9._-]+/g, "_");
 }
@@ -50,18 +45,13 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB hard cap
+  limits: { fileSize: 200 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (ALLOWED_EXTENSIONS.has(ext)) cb(null, true);
     else cb(new Error(`Unsupported file extension: ${ext}. Use .wav, .mp3, or .flac.`));
   },
 });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper: run the mutagen-based extractor against a single file
-// Returns {} on any error so a tagless or unreadable file doesn't crash inspect.
-// ─────────────────────────────────────────────────────────────────────────────
 
 function extractMetadata(audioPath: string): Promise<{ isrc?: string; title?: string }> {
   return new Promise((resolve) => {
@@ -81,30 +71,23 @@ function extractMetadata(audioPath: string): Promise<{ isrc?: string; title?: st
           resolve({});
         }
       } else {
-        console.warn(
-          `extract_metadata.py exit ${code} for ${audioPath}: ${Buffer.concat(errs).toString("utf8").trim()}`
-        );
+        console.warn(`extract_metadata.py exit ${code} for ${audioPath}`);
         resolve({});
       }
     });
 
     proc.on("error", (e) => {
-      console.warn(`extract_metadata.py spawn error for ${audioPath}: ${e.message}`);
+      console.warn(`extract_metadata.py spawn error: ${e.message}`);
       resolve({});
     });
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Path safety: a filename supplied by the client to /upload must resolve to a
-// real file inside AUDIO_DIR. No "../foo" tricks, no absolute paths.
-// ─────────────────────────────────────────────────────────────────────────────
-
 function resolveAudioPath(filename: unknown): string {
   if (typeof filename !== "string" || filename.length === 0) {
     throw new Error("filename is required");
   }
-  const base = path.basename(filename); // strip any directories the client sent
+  const base = path.basename(filename);
   const full = path.join(AUDIO_DIR, base);
   const resolved = path.resolve(full);
   if (resolved !== full || !resolved.startsWith(AUDIO_DIR + path.sep)) {
@@ -117,10 +100,6 @@ function resolveAudioPath(filename: unknown): string {
 }
 
 const ISRC_RE = /^[A-Z]{2}[A-Z0-9]{3}[0-9]{7}$/;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/tracks  — list every track with its current status
-// ─────────────────────────────────────────────────────────────────────────────
 
 router.get("/tracks", async (_req: Request, res: Response) => {
   try {
@@ -151,17 +130,11 @@ router.get("/tracks", async (_req: Request, res: Response) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/tracks/inspect — multipart upload, mutagen scan, return detected tags
-// Files are persisted to apps/backend/audio/ with UUID-prefixed filenames.
-// No DB rows are created here — that happens in /upload after the user confirms.
-// ─────────────────────────────────────────────────────────────────────────────
-
 router.post("/tracks/inspect", upload.array("files", 50), async (req: Request, res: Response) => {
   try {
     const files = (req.files as Express.Multer.File[] | undefined) ?? [];
     if (files.length === 0) {
-      res.status(400).json({ error: "No files uploaded. Use field name 'files' (multipart)." });
+      res.status(400).json({ error: "No files uploaded." });
       return;
     }
 
@@ -169,8 +142,8 @@ router.post("/tracks/inspect", upload.array("files", 50), async (req: Request, r
       files.map(async (f) => {
         const detected = await extractMetadata(f.path);
         return {
-          filename: f.filename,                                  // server-side UUID-prefixed name
-          originalName: f.originalname,                          // what the user dragged in
+          filename: f.filename,
+          originalName: f.originalname,
           sizeBytes: f.size,
           detectedTitle: (() => {
             const t = detected.title ?? null;
@@ -186,31 +159,9 @@ router.post("/tracks/inspect", upload.array("files", 50), async (req: Request, r
     res.json({ files: inspected });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err instanceof Error ? err.message : "Internal server error" });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/tracks/upload — finalise an inspected batch
-//
-// Body shape:
-// {
-//   tracks: [
-//     {
-//       filename: "abc12345_song.wav",        // must already exist in audio/
-//       title: "Song",
-//       isrc:  "QZTAW2534564",                // required + must match ISRC_RE
-//       ascapWorkId?: string,
-//       writerName?: string,
-//       writerIpi?: string,
-//       publisherName?: string,
-//       proAffiliation?: string,
-//       isOneStop?: boolean                   // defaults to false
-//     },
-//     ...
-//   ]
-// }
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface UploadEntry {
   filename: unknown;
@@ -224,15 +175,51 @@ interface UploadEntry {
   proAffiliation?: unknown;
   isOneStop?: unknown;
   masterOwnershipPct?: unknown;
-  label?: unknown;
-  upc?: unknown;
+  masterOwnedBy?: unknown;
+  masterOwnershipType?: unknown;
+  masterVerificationSource?: unknown;
+  masterOwnershipSplits?: unknown;
 }
 
 function asString(v: unknown): string | null {
   return typeof v === "string" && v.length > 0 ? v : null;
 }
 
-router.post("/tracks/upload", async (req: Request, res: Response) => {
+router.post("/tracks/upload", requirePaidEntitlement, async (req: Request, res: Response) => {
+  // ── Trial enforcement for guest users ─────────────────────────────────
+  // auto-login issues SUPERVISOR JWTs to all unauthenticated visitors.
+  // SUPERVISOR bypasses requirePaidEntitlement, so we enforce the trial
+  // limit here for any request whose userId is "guest".
+  {
+    const _auth = (req as any).auth as { userId?: string } | undefined;
+    const isGuest = !_auth?.userId || _auth.userId === "guest";
+    if (isGuest) {
+      const trialToken = req.headers["x-trial-token"] as string | undefined;
+      if (!trialToken) {
+        res.status(403).json({ error: "Trial token required. Start a trial or upgrade your account." });
+        return;
+      }
+      const trial = await prisma.userTrial.findUnique({ where: { trialToken } });
+      if (!trial) {
+        res.status(403).json({ error: "Trial not found." });
+        return;
+      }
+      if (new Date() > trial.expiresAt) {
+        res.status(403).json({ error: "Trial expired. Upgrade to continue." });
+        return;
+      }
+      if (trial.tracksUsed >= 3) {
+        res.status(403).json({ error: "Trial track limit reached.", limit: 3 });
+        return;
+      }
+      // Atomically increment before processing so a retry cannot bypass the limit
+      await prisma.userTrial.update({
+        where: { trialToken },
+        data: { tracksUsed: { increment: 1 } },
+      });
+    }
+  }
+
   try {
     const body = req.body as { tracks?: UploadEntry[] };
     const entries = Array.isArray(body?.tracks) ? body.tracks : null;
@@ -242,7 +229,6 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
       return;
     }
 
-    // Validate first; if any entry fails, reject the whole batch (atomic-ish).
     const prepared: Array<{
       audioPath: string;
       filename: string;
@@ -256,8 +242,10 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
       proAffiliation: string | null;
       isOneStop: boolean;
       masterOwnershipPct: number | null;
-      label: string | null;
-      upc: string | null;
+      masterOwnedBy: string | null;
+      masterOwnershipType: string | null;
+      masterVerificationSource: string | null;
+      masterOwnershipSplits: unknown[] | null;
     }> = [];
 
     for (let i = 0; i < entries.length; i++) {
@@ -267,8 +255,8 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
       const isrc = asString(e.isrc);
       if (!filename) throw new Error(`tracks[${i}].filename is required`);
       if (!title) throw new Error(`tracks[${i}].title is required`);
-      if (!isrc) throw new Error(`tracks[${i}].isrc is required (ISRC missing — track cannot be cleared)`);
-      if (!ISRC_RE.test(isrc)) throw new Error(`tracks[${i}].isrc "${isrc}" is not a valid ISRC format`);
+      if (!isrc) throw new Error(`tracks[${i}].isrc is required`);
+      if (!ISRC_RE.test(isrc)) throw new Error(`tracks[${i}].isrc "${isrc}" invalid format`);
 
       const audioPath = resolveAudioPath(filename);
 
@@ -291,23 +279,34 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
         proAffiliation: asString(e.proAffiliation),
         isOneStop: e.isOneStop === true,
         masterOwnershipPct: masterOwnershipPct !== null && !isNaN(masterOwnershipPct) ? masterOwnershipPct : null,
-        label: asString(e.label),
-        upc: asString(e.upc),
+        masterOwnedBy: asString(e.masterOwnedBy),
+        masterOwnershipType: asString(e.masterOwnershipType),
+        masterVerificationSource: asString(e.masterVerificationSource),
+        masterOwnershipSplits: Array.isArray(e.masterOwnershipSplits) && e.masterOwnershipSplits.length > 0 ? e.masterOwnershipSplits : null,
       });
     }
 
-    // Create + enqueue, accumulating per-track results so the response can show
-    // partial failures rather than a 500 wiping out the whole batch.
+    const STORAGE_DIR = process.env.AUDIO_STORAGE_PATH!;
+    fs.mkdirSync(STORAGE_DIR, { recursive: true });
+
     const created: Array<{ id: string; title: string; isrc: string; status: string; error?: string }> = [];
 
     for (const p of prepared) {
       try {
+        validateTrackIngestion({ audioFilePath: p.audioPath, title: p.title, isrc: p.isrc });
+
+        const trackId = randomUUID();
+        const ext = path.extname(p.audioPath);
+        const canonicalPath = path.join(STORAGE_DIR, `${trackId}${ext}`);
+        fs.copyFileSync(p.audioPath, canonicalPath);
+
         const track = await prisma.track.create({
           data: {
+            id: trackId,
             title: p.title,
             artistName: p.artistName,
             isrc: p.isrc,
-            audioFilePath: p.audioPath,
+            audioFilePath: canonicalPath,
             trackStatus: "uploaded",
             rightsProfile: {
               create: {
@@ -318,8 +317,10 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
                 writerIpi: p.writerIpi,
                 publisherName: p.publisherName,
                 proAffiliation: p.proAffiliation,
-                label: p.label,
-                upc: p.upc,
+                masterOwnedBy: p.masterOwnedBy,
+                masterOwnershipType: p.masterOwnershipType,
+                masterVerifiedAt: p.masterOwnershipType ? new Date() : null,
+                masterOwnershipSplits: p.masterOwnershipSplits as any ?? undefined,
               },
             },
           },
@@ -361,14 +362,6 @@ router.post("/tracks/upload", async (req: Request, res: Response) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/tracks/:id/audio — stream the raw audio file with Range support.
-//
-// Serves 206 Partial Content when the client sends a Range header (required for
-// browser <audio> seeking) and 200 otherwise. Never loads the whole file into
-// memory — always pipes a fs.createReadStream.
-// ─────────────────────────────────────────────────────────────────────────────
-
 const CONTENT_TYPES: Record<string, string> = {
   ".wav":  "audio/wav",
   ".mp3":  "audio/mpeg",
@@ -376,20 +369,18 @@ const CONTENT_TYPES: Record<string, string> = {
 };
 
 router.get("/tracks/:id/audio", async (req: Request, res: Response) => {
-  const id = req.params['id'] as string;
-
+  const id = req.params.id as string;
   try {
     const track = await prisma.track.findUnique({ where: { id } });
 
     if (!track || !track.audioFilePath) {
-      res.status(404).json({ error: "Track not found or audio unavailable" });
+      res.status(404).json({ error: "Track not found" });
       return;
     }
 
     const filePath = track.audioFilePath;
-
     if (!fs.existsSync(filePath)) {
-      res.status(404).json({ error: "Audio file not found on disk" });
+      res.status(404).json({ error: "File not found" });
       return;
     }
 
@@ -400,17 +391,15 @@ router.get("/tracks/:id/audio", async (req: Request, res: Response) => {
     res.setHeader("Accept-Ranges", "bytes");
     res.setHeader("Content-Type", contentType);
 
-    const rangeHeader = req.headers.range;
+    const rangeHeader = req.headers.range as string | undefined;
 
     if (!rangeHeader) {
-      // Full file — 200
       res.setHeader("Content-Length", fileSize);
       res.status(200);
-      fs.createReadStream(filePath).pipe(res as unknown as NodeJS.WritableStream);
+      fs.createReadStream(filePath).pipe(res as any);
       return;
     }
 
-    // Parse "bytes=START-END" (suffix form "bytes=-N" also handled)
     const rangeMatch = rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
     if (!rangeMatch) {
       res.status(416).setHeader("Content-Range", `bytes */${fileSize}`).end();
@@ -419,46 +408,26 @@ router.get("/tracks/:id/audio", async (req: Request, res: Response) => {
 
     const rawStart = rangeMatch[1];
     const rawEnd   = rangeMatch[2];
-
-    let start: number;
-    let end: number;
-
-    if (rawStart === "") {
-      // Suffix range: bytes=-N → last N bytes
-      const suffixLen = parseInt(rawEnd, 10);
-      start = Math.max(0, fileSize - suffixLen);
-      end   = fileSize - 1;
-    } else {
-      start = parseInt(rawStart, 10);
-      end   = rawEnd !== "" ? Math.min(parseInt(rawEnd, 10), fileSize - 1) : fileSize - 1;
-    }
+    let start = rawStart === "" ? Math.max(0, fileSize - parseInt(rawEnd, 10)) : parseInt(rawStart, 10);
+    let end = rawEnd !== "" ? Math.min(parseInt(rawEnd, 10), fileSize - 1) : fileSize - 1;
 
     if (start < 0 || start > end || start >= fileSize) {
       res.status(416).setHeader("Content-Range", `bytes */${fileSize}`).end();
       return;
     }
 
-    const chunkSize = end - start + 1;
-
     res.status(206);
-    res.setHeader("Content-Range",  `bytes ${start}-${end}/${fileSize}`);
-    res.setHeader("Content-Length", chunkSize);
-
-    fs.createReadStream(filePath, { start, end }).pipe(res as unknown as NodeJS.WritableStream);
+    res.setHeader("Content-Range", `bytes ${start}-${end}/${fileSize}`);
+    res.setHeader("Content-Length", end - start + 1);
+    fs.createReadStream(filePath, { start, end }).pipe(res as any);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/tracks/:id/retry — re-enqueue a track that failed analysis
-// Idempotent: a track already in queued/analyzing/analyzed is a no-op (200 with
-// the current status). Only "failed" or "uploaded" tracks are actually re-enqueued.
-// ─────────────────────────────────────────────────────────────────────────────
-
-router.post("/tracks/:id/retry", async (req: Request, res: Response) => {
-  const id = req.params['id'] as string;
+router.post("/tracks/:id/retry", requirePaidEntitlement, async (req: Request, res: Response) => {
+  const id = req.params.id as string;
   try {
     const track = await prisma.track.findUnique({ where: { id } });
     if (!track) {
@@ -466,32 +435,96 @@ router.post("/tracks/:id/retry", async (req: Request, res: Response) => {
       return;
     }
     if (!track.audioFilePath || !fs.existsSync(track.audioFilePath)) {
-      res.status(409).json({ error: "Cannot retry: audio file is missing on disk." });
+      res.status(409).json({ error: "Audio file is missing." });
       return;
     }
 
     if (track.trackStatus === "queued" || track.trackStatus === "analyzing") {
-      res.json({ id, trackStatus: track.trackStatus, message: "Track is already in flight." });
-      return;
-    }
-    if (track.trackStatus === "analyzed") {
-      res.json({ id, trackStatus: "analyzed", message: "Track is already analyzed." });
+      res.json({ id, trackStatus: track.trackStatus, message: "Already in flight." });
       return;
     }
 
-    // failed or uploaded → re-enqueue. Reset to "uploaded" and clear errorReason
-    // so the consumer's idempotency check (which skips analyzed/failed) passes.
     await prisma.track.update({
       where: { id },
       data: { trackStatus: "uploaded", errorReason: null },
     });
 
     await enqueueTrack(id);
-
     res.json({ id, trackStatus: "queued" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err instanceof Error ? err.message : "Internal server error" });
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/tracks/:id/rights-report", requirePlan("AGENCY"), async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const track = await prisma.track.findUnique({
+      where: { id: id as string },
+      include: { rightsProfile: true, confidenceScore: true },
+    });
+
+    if (!track) {
+      res.status(404).json({ error: "Track not found" });
+      return;
+    }
+
+    const rp = track.rightsProfile;
+    const cs = track.confidenceScore;
+    const rightsState = computeRightsState(rp);
+
+    const OWNERSHIP_LABELS: Record<string, string> = {
+      SELF_OWNED: "Self-Owned (artist controls master)",
+      LABEL: "Label-Owned",
+      CO_OWNED: "Co-Owned",
+      WORK_FOR_HIRE: "Work-for-Hire",
+    };
+
+    const STATE_LABELS: Record<string, string> = {
+      CLEAR: "CLEAR",
+      PARTIALLY_CLEAR: "PARTIALLY CLEAR",
+      UNVERIFIED: "UNVERIFIED",
+      INGESTED: "INGESTED",
+      BLOCKED: "BLOCKED",
+    };
+
+    const report = {
+      generatedAt: new Date().toISOString(),
+      track: {
+        id: track.id,
+        title: track.title,
+        artistName: track.artistName ?? null,
+        isrc: track.isrc,
+        modelVersion: track.modelVersion ?? null,
+      },
+      rightsState: {
+        verdict: rightsState,
+        label: STATE_LABELS[rightsState] ?? rightsState,
+      },
+      publishing: {
+        ascapWorkId: rp?.ascapWorkId ?? null,
+        writerName: rp?.writerName ?? null,
+        writerIpi: rp?.writerIpi ?? null,
+        publisherName: rp?.publisherName ?? null,
+        proAffiliation: rp?.proAffiliation ?? null,
+        isOneStop: rp?.isOneStop ?? false,
+      },
+      master: {
+        masterOwnedBy: rp?.masterOwnedBy ?? null,
+        ownershipType: rp?.masterOwnershipType ?? null,
+        ownershipTypeLabel: rp?.masterOwnershipType ? OWNERSHIP_LABELS[rp.masterOwnershipType] : null,
+        ownershipPct: rp?.masterOwnershipPct ?? null,
+        verifiedAt: rp?.masterVerifiedAt ?? null,
+        ownershipSplits: rp?.masterOwnershipSplits ?? null,
+      },
+      confidence: cs ? { score: cs.score, label: cs.confidenceLabel } : null,
+    };
+
+    res.json(report);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

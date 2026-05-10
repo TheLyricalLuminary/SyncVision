@@ -1,14 +1,58 @@
 services:
   - type: web
     name: syncvision-backend
-    env: node
-    rootDir: apps/backend
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    runtime: node
+    buildCommand: >-
+      pip install -r apps/worker/requirements.txt &&
+      cd apps/backend &&
+      npm install &&
+      npx prisma migrate deploy &&
+      npm run build
+    startCommand: node apps/backend/dist/index.js
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: DATABASE_URL
         sync: false
-      - key: CORS_ORIGIN
+      - key: STRIPE_SECRET_KEY
         sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_STARTER
+        sync: false
+      - key: STRIPE_PRICE_PRO
+        sync: false
+      - key: STRIPE_PRICE_STUDIO
+        sync: false
+      - key: STRIPE_PRICE_ENTERPRISE
+        sync: false
+      - key: STRIPE_PRICE_CREDITS_1
+        sync: false
+      - key: STRIPE_PRICE_CREDITS_12
+        sync: false
+      - key: STRIPE_PRICE_CREDITS_50
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: PORT
+        value: "3000"
+      - key: AUDIO_STORAGE_PATH
+        value: /var/audio
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: "7d"
+      - key: REDIS_URL
+        sync: false
+      - key: QUEUE_PREFIX
+        value: "syncvision:prod"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: PYTHON_BIN
+        value: "python3"
+      - key: NODE_ENV
+        value: "production"
+      - key: ENABLE_STRIPE_RECONCILIATION
+        value: "true"
+    disk:
+      name: audio-storage
+      mountPath: /var/audio
+      sizeGB: 10

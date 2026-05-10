@@ -8,17 +8,25 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "test": "tsx src/scoring/confidenceScore.test.ts",
+    "demo": "tsx src/scripts/demo.ts",
     "process-audio": "tsx src/scripts/processAudio.ts",
-    "start": "tsx src/index.ts"
+    "seed-catalog": "tsx src/scripts/seedDefaultCatalog.ts",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.6.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.6.2",
+    "@types/node-cron": "^3.0.11",
     "prisma": "^7.8.0",
+    "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
   },
@@ -29,10 +37,16 @@
     "@prisma/client": "^7.8.0",
     "@types/multer": "^2.1.0",
     "@types/pg": "^8.20.0",
+    "bcryptjs": "^3.0.3",
+    "bullmq": "^5.76.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "ioredis": "^5.10.1",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
-    "pg": "^8.20.0"
+    "node-cron": "^4.2.1",
+    "pg": "^8.20.0",
+    "stripe": "^22.1.1",
+    "zod": "^4.4.3"
   }
 }
