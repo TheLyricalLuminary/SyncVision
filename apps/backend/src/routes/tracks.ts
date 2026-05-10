@@ -16,6 +16,7 @@ import { enqueueTrack } from "../queue/producer";
 import { requirePlan } from "../middleware/auth";
 import { computeRightsState } from "../scoring/rightsStateMachine";
 import { requirePaidEntitlement } from "../middleware/entitlement";
+import { validateTrackIngestion } from "../lib/validateTrackIngestion";
 
 const router = Router();
 
@@ -180,6 +181,40 @@ function asString(v: unknown): string | null {
 }
 
 router.post("/tracks/upload", requirePaidEntitlement, async (req: Request, res: Response) => {
+  // ── Trial enforcement for guest users ─────────────────────────────────
+  // auto-login issues SUPERVISOR JWTs to all unauthenticated visitors.
+  // SUPERVISOR bypasses requirePaidEntitlement, so we enforce the trial
+  // limit here for any request whose userId is "guest".
+  {
+    const _auth = (req as any).auth as { userId?: string } | undefined;
+    const isGuest = !_auth?.userId || _auth.userId === "guest";
+    if (isGuest) {
+      const trialToken = req.headers["x-trial-token"] as string | undefined;
+      if (!trialToken) {
+        res.status(403).json({ error: "Trial token required. Start a trial or upgrade your account." });
+        return;
+      }
+      const trial = await prisma.userTrial.findUnique({ where: { trialToken } });
+      if (!trial) {
+        res.status(403).json({ error: "Trial not found." });
+        return;
+      }
+      if (new Date() > trial.expiresAt) {
+        res.status(403).json({ error: "Trial expired. Upgrade to continue." });
+        return;
+      }
+      if (trial.tracksUsed >= 3) {
+        res.status(403).json({ error: "Trial track limit reached.", limit: 3 });
+        return;
+      }
+      // Atomically increment before processing so a retry cannot bypass the limit
+      await prisma.userTrial.update({
+        where: { trialToken },
+        data: { tracksUsed: { increment: 1 } },
+      });
+    }
+  }
+
   try {
     const body = req.body as { tracks?: UploadEntry[] };
     const entries = Array.isArray(body?.tracks) ? body.tracks : null;
@@ -246,16 +281,27 @@ router.post("/tracks/upload", requirePaidEntitlement, async (req: Request, res: 
       });
     }
 
+    const STORAGE_DIR = process.env.AUDIO_STORAGE_PATH!;
+    fs.mkdirSync(STORAGE_DIR, { recursive: true });
+
     const created: Array<{ id: string; title: string; isrc: string; status: string; error?: string }> = [];
 
     for (const p of prepared) {
       try {
+        validateTrackIngestion({ audioFilePath: p.audioPath, title: p.title, isrc: p.isrc });
+
+        const trackId = randomUUID();
+        const ext = path.extname(p.audioPath);
+        const canonicalPath = path.join(STORAGE_DIR, `${trackId}${ext}`);
+        fs.copyFileSync(p.audioPath, canonicalPath);
+
         const track = await prisma.track.create({
           data: {
+            id: trackId,
             title: p.title,
             artistName: p.artistName,
             isrc: p.isrc,
-            audioFilePath: p.audioPath,
+            audioFilePath: canonicalPath,
             trackStatus: "uploaded",
             rightsProfile: {
               create: {

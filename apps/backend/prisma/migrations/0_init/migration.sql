@@ -1,4 +1,3 @@
-◇ injected env (9) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "scoring";
 

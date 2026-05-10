@@ -13,10 +13,12 @@ model User {
   passwordHash     String
   planLevel        String   @default("COMPOSER")
   stripeCustomerId String?
+  creditBalance    Int      @default(0)
   createdAt        DateTime @default(now())
 
-  ownedCatalogs  Catalog[]       @relation("CatalogOwner")
-  catalogMembers CatalogMember[]
+  ownedCatalogs      Catalog[]           @relation("CatalogOwner")
+  catalogMembers     CatalogMember[]
+  creditTransactions CreditTransaction[]
 
   @@schema("scoring")
 }
@@ -177,5 +179,21 @@ model StripeAuditLog {
   @@index([eventId])
   @@index([action])
   @@map("stripe_audit_log")
+  @@schema("scoring")
+}
+
+// Append-only ledger for every credit top-up. Never mutated after insert.
+// creditBalance on User is the live counter; this table is the audit trail.
+model CreditTransaction {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  packId     String
+  credits    Int
+  stripeEventId String @unique
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@map("credit_transactions")
   @@schema("scoring")
 }

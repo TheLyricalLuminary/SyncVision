@@ -54,6 +54,7 @@ interface Plan {
   interval:    string
   description: string
   features:    string[]
+  highlight:   boolean
 }
 
 interface PricingPageProps {
@@ -67,8 +68,6 @@ function fmt$(cents: number): string {
     maximumFractionDigits: 0,
   }).format(cents / 100)
 }
-
-const HIGHLIGHT_ID = 'supervisor'
 
 // ─── Static content blocks ────────────────────────────────────────────────────
 
@@ -661,7 +660,7 @@ export function PricingPage({ onBack }: PricingPageProps) {
           gap: 16,
         }}>
           {plans.map((plan) => {
-            const highlighted = plan.id === HIGHLIGHT_ID
+            const highlighted = plan.highlight
             const isLoading   = loadingPlan === plan.id
             return (
               <div

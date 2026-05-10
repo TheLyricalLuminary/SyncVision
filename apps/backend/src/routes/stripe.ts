@@ -17,87 +17,17 @@ import { getStripe } from "../lib/stripe";
 import { webhookQueue } from "../queue/webhookQueue";
 import { dispatchEvent } from "../queue/webhookHandlers";
 import { auditLog } from "../lib/auditLog";
+import { getApiPlans, getPlanForCheckout, resolveStripePriceId } from "../lib/pricingAdapter";
+import { CREDIT_PACKS, getCreditPackById, resolvePackPriceId } from "../contracts/creditPacks.contract";
 
 const router = Router();
 
-const APP_URL = process.env.APP_URL ?? "http://localhost:5174";
-
-// ─── Plan catalogue ───────────────────────────────────────────────────────────
-
-export interface Plan {
-  id:          string;
-  name:        string;
-  price_cents: number;
-  interval:    "month";
-  description: string;
-  features:    string[];
-}
-
-export const PLANS: Plan[] = [
-  {
-    id:          "starter",
-    name:        "Starter",
-    price_cents: 14900,
-    interval:    "month",
-    description: "For independent supervisors and small libraries.",
-    features: [
-      "Up to 100 tracks",
-      "Rights state machine evaluation",
-      "Scene fit scoring (20 briefs)",
-      "Deterministic audit hash",
-      "Export CSV",
-    ],
-  },
-  {
-    id:          "pro",
-    name:        "Pro",
-    price_cents: 29900,
-    interval:    "month",
-    description: "For working music supervisors handling multiple projects.",
-    features: [
-      "Up to 500 tracks",
-      "Everything in Starter",
-      "Confidence score ranking",
-      "ROI calculator",
-      "Priority support",
-    ],
-  },
-  {
-    id:          "studio",
-    name:        "Studio",
-    price_cents: 49900,
-    interval:    "month",
-    description: "For production companies and boutique agencies.",
-    features: [
-      "Up to 2,000 tracks",
-      "Everything in Pro",
-      "Multi-catalog management",
-      "Team member access",
-      "API access",
-    ],
-  },
-  {
-    id:          "enterprise",
-    name:        "Enterprise",
-    price_cents: 199900,
-    interval:    "month",
-    description: "For major publishers, broadcasters, and studios.",
-    features: [
-      "Unlimited tracks",
-      "Everything in Studio",
-      "Dedicated account manager",
-      "Custom SLA",
-      "SAML SSO",
-    ],
-  },
-];
-
-const PLAN_MAP = new Map(PLANS.map((p) => [p.id, p]));
+const APP_URL = process.env.FRONTEND_URL ?? "http://localhost:5174";
 
 // ─── GET /api/stripe/plans ────────────────────────────────────────────────────
 
 router.get("/stripe/plans", (_req: Request, res: Response) => {
-  res.json({ plans: PLANS });
+  res.json({ plans: getApiPlans() });
 });
 
 // ─── POST /api/stripe/checkout ────────────────────────────────────────────────
@@ -110,11 +40,11 @@ router.post("/stripe/checkout", async (req: Request, res: Response) => {
     return;
   }
 
-  const plan = PLAN_MAP.get(planId);
-  if (!plan) {
-    res.status(400).json({
-      error: `Unknown planId "${planId}". Must be one of: ${PLANS.map((p) => p.id).join(", ")}`,
-    });
+  let plan;
+  try {
+    plan = getPlanForCheckout(planId);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Invalid planId" });
     return;
   }
 
@@ -124,34 +54,119 @@ router.post("/stripe/checkout", async (req: Request, res: Response) => {
     return;
   }
 
+  const auth = (req as any).auth as { userId?: string } | undefined;
+  const userId = auth?.userId;
+
   try {
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      mode:                 "subscription",
-      customer_email:       email ?? undefined,
-      line_items: [
-        {
-          quantity: 1,
+    const priceId = resolveStripePriceId(plan);
+
+    const lineItem = priceId
+      ? { price: priceId, quantity: 1 as const }
+      : {
+          quantity: 1 as const,
           price_data: {
             currency:    "usd",
-            unit_amount: plan.price_cents,
+            unit_amount: plan.priceCents,
             recurring:   { interval: plan.interval },
             product_data: {
               name:        `SyncVision ${plan.name}`,
               description: plan.description,
             },
           },
-        },
-      ],
-      metadata: { planId: plan.id },
-      success_url: `${APP_URL}?checkout=success&plan=${plan.id}`,
-      cancel_url:  `${APP_URL}?checkout=cancelled`,
+        };
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode:                 "subscription",
+      customer_email:       email ?? undefined,
+      line_items:           [lineItem],
+      metadata: {
+        planId: plan.id,
+        ...(userId ? { userId } : {}),
+      },
+      success_url:          `${APP_URL}?checkout=success&plan=${plan.id}`,
+      cancel_url:           `${APP_URL}?checkout=cancelled`,
       allow_promotion_codes: true,
     });
 
     res.json({ url: session.url, sessionId: session.id });
   } catch (err) {
     console.error("[stripe] checkout session error:", err);
+    const msg = err instanceof Error ? err.message : "Stripe session creation failed";
+    res.status(500).json({ error: msg });
+  }
+});
+
+// ─── GET /api/stripe/credit-packs ────────────────────────────────────────────
+
+router.get("/stripe/credit-packs", (_req: Request, res: Response) => {
+  res.json({
+    packs: CREDIT_PACKS.map((p) => ({
+      id:          p.id,
+      name:        p.name,
+      credits:     p.credits,
+      price_cents: p.priceCents,
+    })),
+  });
+});
+
+// ─── POST /api/stripe/checkout/credits ───────────────────────────────────────
+
+router.post("/stripe/checkout/credits", async (req: Request, res: Response) => {
+  const { packId, email } = req.body as { packId?: string; email?: string };
+
+  if (!packId) {
+    res.status(400).json({ error: "packId is required" });
+    return;
+  }
+
+  const pack = getCreditPackById(packId);
+  if (!pack) {
+    const valid = CREDIT_PACKS.map((p) => p.id).join(", ");
+    res.status(400).json({ error: `Unknown packId "${packId}". Valid IDs: ${valid}` });
+    return;
+  }
+
+  const stripe = getStripe();
+  if (!stripe) {
+    res.status(503).json({ error: "Stripe is not configured (STRIPE_SECRET_KEY missing)" });
+    return;
+  }
+
+  const auth   = (req as any).auth as { userId?: string } | undefined;
+  const userId = auth?.userId;
+
+  try {
+    const priceId = resolvePackPriceId(pack);
+
+    const lineItem = priceId
+      ? { price: priceId, quantity: 1 as const }
+      : {
+          quantity: 1 as const,
+          price_data: {
+            currency:    "usd",
+            unit_amount: pack.priceCents,
+            product_data: { name: pack.name },
+          },
+        };
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode:                 "payment",
+      customer_email:       email ?? undefined,
+      line_items:           [lineItem],
+      metadata: {
+        packId:  pack.id,
+        credits: String(pack.credits),
+        ...(userId ? { userId } : {}),
+      },
+      success_url: `${APP_URL}?checkout=success&pack=${pack.id}`,
+      cancel_url:  `${APP_URL}?checkout=cancelled`,
+    });
+
+    res.json({ url: session.url, sessionId: session.id });
+  } catch (err) {
+    console.error("[stripe] credit checkout session error:", err);
     const msg = err instanceof Error ? err.message : "Stripe session creation failed";
     res.status(500).json({ error: msg });
   }

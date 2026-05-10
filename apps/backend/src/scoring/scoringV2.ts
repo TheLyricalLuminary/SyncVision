@@ -10,7 +10,7 @@
  * Final score is in [0, 100], rounded to one decimal place.
  *
  * hashVersion 2 covers:
- *   { featureVector, rightsState, briefWeights, modelVersion, computedAt }
+ *   { featureVector, rightsState, briefId, briefWeights, modelVersion }
  *
  * Existing hashVersion 1 rows (confidence score contract) are untouched.
  */
@@ -79,7 +79,6 @@ export function computeSyncVisionScoreV2(
     briefId,
     briefWeights: weights,
     modelVersion: modelVersion ?? null,
-    computedAt,
   };
 
   const inputHash = createHash("sha256")

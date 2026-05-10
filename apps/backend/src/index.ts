@@ -18,20 +18,50 @@ import { attachAuth } from "./middleware/auth";
 
 assertRuntimeCoherency();
 
-// Production safety: fail fast if Stripe is unconfigured
-if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
-  console.error("FATAL: Missing STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET");
-  process.exit(1);
+const REQUIRED_ENV = [
+  "DATABASE_URL",
+  "JWT_SECRET",
+  "STRIPE_SECRET_KEY",
+  "STRIPE_WEBHOOK_SECRET",
+  "STRIPE_PRICE_STARTER",
+  "STRIPE_PRICE_PRO",
+  "STRIPE_PRICE_STUDIO",
+  "STRIPE_PRICE_ENTERPRISE",
+  "FRONTEND_URL",
+  "AUDIO_STORAGE_PATH",
+];
+
+const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missing.length > 0) {
+  throw new Error(
+    `[STARTUP ABORTED] Missing required environment variables: ${missing.join(", ")}`
+  );
 }
 
 const app = express();
-const port = process.env.PORT ?? 3001;
+const port = process.env.PORT ?? 3000;
 
 // Trust reverse proxy headers (Render, nginx, Cloudflare) when configured.
 // Required for correct req.ip and HTTPS protocol detection behind load balancers.
 if (process.env.TRUST_PROXY === "true") {
   app.set("trust proxy", 1);
 }
+
+// CORS — allow only the configured frontend origin
+app.use((req, res, next) => {
+  const origin = process.env.FRONTEND_URL;
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    if (req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+  }
+  next();
+});
 
 // Stripe webhook — single canonical path matching the Stripe dashboard endpoint.
 // Must be mounted BEFORE express.json() so the raw body reaches constructEvent().

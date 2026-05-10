@@ -22,7 +22,8 @@ export type AuditAction =
   | "RECON_RUN_START"
   | "RECON_RUN_COMPLETE"
   | "RECON_RUN_ERROR"
-  | "DLQ_PUSH";
+  | "DLQ_PUSH"
+  | "CREDITS_TOPPED_UP";
 
 export async function auditLog(
   action:   AuditAction,

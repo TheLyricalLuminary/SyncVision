@@ -191,8 +191,31 @@ export function calculateConfidenceScore(
     `${title} scores ${total}/100. ${rightsStatus}. ${oneStopStatus}. ${clearanceSummary}`;
 
   // ── Deterministic input hash ─────────────────────────────────────────────
+  // Only hash the fields the scoring function actually reads. Excluding
+  // trackStatus, updatedAt, and other worker-written fields prevents false
+  // mismatch errors when those fields change after the score is first written.
+  const stableInputs = {
+    isrc: track.isrc ?? null,
+    title: track.title ?? null,
+    tempo: (track.tempo ?? null) as number | null,
+    tonalCharacter: (track.tonalCharacter ?? null) as string | null,
+    energyCharacter: (track.energyCharacter ?? null) as string | null,
+    spectralCentroid: (track.spectralCentroid ?? null) as number | null,
+    rmsEnergy: (track.rmsEnergy ?? null) as number | null,
+    hasTimeline: Array.isArray(track.timeline) && (track.timeline as unknown[]).length > 0,
+    rightsProfile: {
+      ascapWorkId: rightsProfile.ascapWorkId ?? null,
+      masterOwnershipPct: toNumber(rightsProfile.masterOwnershipPct),
+      isOneStop: rightsProfile.isOneStop ?? null,
+      writerName: rightsProfile.writerName ?? null,
+      writerIpi: rightsProfile.writerIpi ?? null,
+      publisherName: rightsProfile.publisherName ?? null,
+      proAffiliation: rightsProfile.proAffiliation ?? null,
+    },
+  };
+
   const inputHash = createHash("sha256")
-    .update(sortedJson({ track, rightsProfile }))
+    .update(sortedJson(stableInputs))
     .digest("hex");
 
   const breakdown: ScoreBreakdown = {

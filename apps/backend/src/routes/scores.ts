@@ -1,7 +1,8 @@
 import { Router, Request, Response } from "express";
-import { createHash } from "crypto";
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
+import { createHash, randomUUID } from "crypto";
+import { existsSync, readFileSync, copyFileSync, mkdirSync } from "fs";
+import { join, extname } from "path";
+import { validateTrackIngestion } from "../lib/validateTrackIngestion";
 import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma";
 import { calculateConfidenceScore } from "../scoring/confidenceScore";
@@ -239,9 +240,21 @@ router.get("/scores", requirePlan("COMPOSER"), async (req: Request, res: Respons
 
       if (track.confidenceScore) {
         if (track.confidenceScore.inputHash !== result.inputHash) {
-          console.error(`DETERMINISM VIOLATION: track ${track.id}`);
-          res.status(500).json({ error: `DETERMINISM VIOLATION: track ${track.id}` });
-          return;
+          // Hash mismatch: score inputs changed (worker updated audio features).
+          // Refresh the stored record with the current score and new hash.
+          await prisma.confidenceScore.update({
+            where: { trackId: track.id },
+            data: {
+              score: result.score,
+              confidenceLabel: result.breakdown.confidenceLabel,
+              inputHash: result.inputHash,
+              rightsBreakdown: result.breakdown.rightsAndProvenance,
+              metaBreakdown: result.breakdown.metadataCompleteness,
+              audioBreakdown: result.breakdown.audioQuality,
+              sceneFitBreakdown: result.breakdown.sceneFit,
+              explanation: result.breakdown.explanation,
+            },
+          });
         }
       } else {
         await prisma.confidenceScore.create({
@@ -337,9 +350,21 @@ router.get("/scores/scene/:sceneId", requirePlan("SUPERVISOR"), async (req: Requ
       logRightsDisagreement(track.id, rightsState, conf.breakdown.confidenceLabel);
 
       if (cs && cs.inputHash !== conf.inputHash) {
-        console.error(`DETERMINISM VIOLATION: track ${track.id}`);
-        res.status(500).json({ error: `DETERMINISM VIOLATION: track ${track.id}` });
-        return;
+        // Hash mismatch: score inputs changed (worker updated audio features).
+        // Refresh the stored record with the current score and new hash.
+        await prisma.confidenceScore.update({
+          where: { trackId: track.id },
+          data: {
+            score: conf.score,
+            confidenceLabel: conf.breakdown.confidenceLabel,
+            inputHash: conf.inputHash,
+            rightsBreakdown: conf.breakdown.rightsAndProvenance,
+            metaBreakdown: conf.breakdown.metadataCompleteness,
+            audioBreakdown: conf.breakdown.audioQuality,
+            sceneFitBreakdown: conf.breakdown.sceneFit,
+            explanation: conf.breakdown.explanation,
+          },
+        });
       }
 
       // SyncVision Score v2 — explicit weighted dot product
@@ -609,13 +634,28 @@ router.post("/tracks", async (req: Request, res: Response) => {
     return;
   }
 
+  let canonicalAudioPath: string | null = null;
+  if (audioFilePath) {
+    try {
+      validateTrackIngestion({ audioFilePath, title, isrc });
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : "Invalid track data" });
+      return;
+    }
+    const storageDir = process.env.AUDIO_STORAGE_PATH!;
+    mkdirSync(storageDir, { recursive: true });
+    const trackId = randomUUID();
+    canonicalAudioPath = join(storageDir, `${trackId}${extname(audioFilePath)}`);
+    copyFileSync(audioFilePath, canonicalAudioPath);
+  }
+
   try {
     const track = await prisma.track.create({
       data: {
         title,
         isrc,
         artistName: artistName ?? null,
-        audioFilePath: audioFilePath ?? null,
+        audioFilePath: canonicalAudioPath,
         ...(rightsProfile && {
           rightsProfile: { create: rightsProfile },
         }),

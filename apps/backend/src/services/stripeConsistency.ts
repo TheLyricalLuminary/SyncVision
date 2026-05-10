@@ -61,7 +61,7 @@ export async function validateStripeState(userId: string): Promise<ConsistencyRe
 
   const stripeState = { activeSubscriptions: subs.data.length, priceIds };
   const hasActiveSub = subs.data.length > 0;
-  const localIsPaid  = user.planLevel === "PAID";
+  const localIsPaid  = user.planLevel !== "COMPOSER";
 
   // ── 3. Detect drift ─────────────────────────────────────────────────────────
   if (hasActiveSub && !localIsPaid) {
@@ -81,9 +81,11 @@ export async function repairDrift(result: ConsistencyResult): Promise<void> {
   if (result.consistent !== false) return;
 
   if (driftType === "stripe_paid_local_unpaid") {
+    // Default repair target is SUPERVISOR (lowest paid tier). The webhook handler
+    // sets the exact tier from checkout metadata; this repair covers the gap case.
     const updated = await prisma.user.updateMany({
-      where: { id: userId, planLevel: { not: "PAID" } },
-      data:  { planLevel: "PAID" },
+      where: { id: userId, planLevel: "COMPOSER" },
+      data:  { planLevel: "SUPERVISOR" },
     });
 
     const action = updated.count > 0 ? "ENTITLEMENT_UPGRADED" : "ENTITLEMENT_NOOP";
@@ -98,7 +100,7 @@ export async function repairDrift(result: ConsistencyResult): Promise<void> {
 
   if (driftType === "stripe_canceled_local_paid") {
     const updated = await prisma.user.updateMany({
-      where: { id: userId, planLevel: "PAID" },
+      where: { id: userId, planLevel: { not: "COMPOSER" } },
       data:  { planLevel: "COMPOSER" },
     });
 
