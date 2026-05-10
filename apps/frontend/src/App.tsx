@@ -59,7 +59,7 @@ interface ApiResponse {
   rankedTracks: RankedTrack[]
 }
 
-type View = 'scenes' | 'matches' | 'all' | 'upload' | 'roi' | 'pricing' | 'rights'
+type View = 'scenes' | 'matches' | 'all' | 'upload' | 'roi' | 'pricing' | 'rights' | 'analytics' | 'verification'
 type BannerState = 'ok' | 'violation' | null
 
 // ─── Rights evaluation types ──────────────────────────────────────────────────
@@ -224,6 +224,7 @@ interface InspectResult {
   sizeBytes: number
   detectedTitle: string | null
   detectedIsrc: string | null
+  normalizedTitle: string | null
 }
 
 function inspectFile(file: File, onProgress: (pct: number) => void): Promise<InspectResult> {
@@ -772,13 +773,20 @@ function UploadEntryRow({
   onRemove,
   onQueue,
   onRetry,
+  onDelete,
 }: {
   entry: UploadEntry
   onChange: (id: string, patch: Partial<UploadEntry>) => void
   onRemove: (id: string) => void
   onQueue: (id: string) => void
   onRetry: (id: string) => void
+  onDelete: (id: string) => void
 }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const origRef = useRef<Partial<UploadEntry> | null>(null)
+
   const badge = STATUS_BADGES[entry.status]
   const isrcValid = ISRC_REGEX.test(entry.isrc.trim())
   const titleValid = entry.title.trim().length > 0
@@ -789,6 +797,61 @@ function UploadEntryRow({
     entry.status === 'queued' ||
     entry.status === 'analyzing' ||
     entry.status === 'analyzed'
+  const effectiveLocked = locked && !isEditing
+
+  function startEdit() {
+    origRef.current = {
+      title: entry.title,
+      artistName: entry.artistName,
+      ascapWorkId: entry.ascapWorkId,
+      writerName: entry.writerName,
+      publisherName: entry.publisherName,
+      proAffiliation: entry.proAffiliation,
+    }
+    setIsEditing(true)
+    setSaveError(null)
+  }
+
+  function cancelEdit() {
+    if (origRef.current) onChange(entry.id, origRef.current)
+    origRef.current = null
+    setIsEditing(false)
+    setSaveError(null)
+  }
+
+  async function saveEdit() {
+    if (!entry.trackId) {
+      origRef.current = null
+      setIsEditing(false)
+      return
+    }
+    setIsSaving(true)
+    setSaveError(null)
+    try {
+      const res = await fetch(`/api/tracks/${entry.trackId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: entry.title,
+          artistName: entry.artistName,
+          ascapWorkId: entry.ascapWorkId,
+          writerName: entry.writerName,
+          publisherName: entry.publisherName,
+          proAffiliation: entry.proAffiliation,
+        }),
+      })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(data.error ?? `HTTP ${res.status}`)
+      }
+      origRef.current = null
+      setIsEditing(false)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Save failed')
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   const inputStyle: CSSProperties = {
     background: '#0f172a',
@@ -833,7 +896,43 @@ function UploadEntryRow({
         >
           {badge.label}
         </span>
-        {entry.status !== 'queueing' && entry.status !== 'queued' && entry.status !== 'analyzing' && (
+        {/* Edit/Save/Cancel/Delete for queued-and-beyond entries */}
+        {locked && entry.trackId && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {isEditing ? (
+              <>
+                <button
+                  onClick={() => void saveEdit()}
+                  disabled={isSaving}
+                  style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: isSaving ? 'not-allowed' : 'pointer', opacity: isSaving ? 0.6 : 1 }}
+                >
+                  {isSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={cancelEdit}
+                  style={{ background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={startEdit}
+                style={{ background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
+              >
+                Edit
+              </button>
+            )}
+            <button
+              onClick={() => onDelete(entry.id)}
+              style={{ background: 'transparent', border: '1px solid #7f1d1d', color: '#fca5a5', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
+            >
+              Delete
+            </button>
+          </div>
+        )}
+        {/* Remove button for entries not yet queued */}
+        {!locked && entry.status !== 'queueing' && (
           <button
             onClick={() => onRemove(entry.id)}
             aria-label="Remove file"
@@ -888,7 +987,7 @@ function UploadEntryRow({
               <input
                 value={entry.title}
                 onChange={(e) => onChange(entry.id, { title: e.target.value })}
-                disabled={locked}
+                disabled={effectiveLocked}
                 style={inputStyle}
               />
             </div>
@@ -897,7 +996,7 @@ function UploadEntryRow({
               <input
                 value={entry.artistName}
                 onChange={(e) => onChange(entry.id, { artistName: e.target.value })}
-                disabled={locked}
+                disabled={effectiveLocked}
                 style={inputStyle}
               />
             </div>
@@ -922,7 +1021,7 @@ function UploadEntryRow({
                   onChange(entry.id, { isrc: next, isrcSource: 'manual' })
                 }}
                 placeholder="e.g. QZTAW2599999"
-                disabled={locked}
+                disabled={effectiveLocked}
                 style={{
                   ...inputStyle,
                   fontFamily: 'monospace',
@@ -945,7 +1044,7 @@ function UploadEntryRow({
               <input
                 value={entry.ascapWorkId}
                 onChange={(e) => onChange(entry.id, { ascapWorkId: e.target.value })}
-                disabled={locked}
+                disabled={effectiveLocked}
                 style={inputStyle}
               />
             </div>
@@ -954,7 +1053,7 @@ function UploadEntryRow({
               <input
                 value={entry.writerName}
                 onChange={(e) => onChange(entry.id, { writerName: e.target.value })}
-                disabled={locked}
+                disabled={effectiveLocked}
                 style={inputStyle}
               />
             </div>
@@ -963,7 +1062,7 @@ function UploadEntryRow({
               <input
                 value={entry.publisherName}
                 onChange={(e) => onChange(entry.id, { publisherName: e.target.value })}
-                disabled={locked}
+                disabled={effectiveLocked}
                 style={inputStyle}
               />
             </div>
@@ -973,7 +1072,7 @@ function UploadEntryRow({
                 value={entry.proAffiliation}
                 onChange={(e) => onChange(entry.id, { proAffiliation: e.target.value })}
                 placeholder="ASCAP, BMI, SESAC…"
-                disabled={locked}
+                disabled={effectiveLocked}
                 style={inputStyle}
               />
             </div>
@@ -991,7 +1090,7 @@ function UploadEntryRow({
                   value={entry.masterOwnedBy}
                   onChange={(e) => onChange(entry.id, { masterOwnedBy: e.target.value })}
                   placeholder="Legal name of master rights holder"
-                  disabled={locked}
+                  disabled={effectiveLocked}
                   style={inputStyle}
                 />
               </div>
@@ -1000,7 +1099,7 @@ function UploadEntryRow({
                 <select
                   value={entry.masterOwnershipType}
                   onChange={(e) => onChange(entry.id, { masterOwnershipType: e.target.value })}
-                  disabled={locked}
+                  disabled={effectiveLocked}
                   style={{ ...inputStyle, appearance: 'none' as const }}
                 >
                   <option value="">— Select —</option>
@@ -1016,7 +1115,7 @@ function UploadEntryRow({
                   value={entry.masterVerificationSource}
                   onChange={(e) => onChange(entry.id, { masterVerificationSource: e.target.value })}
                   placeholder="self-attested, contract, label agreement…"
-                  disabled={locked}
+                  disabled={effectiveLocked}
                   style={inputStyle}
                 />
               </div>
@@ -1034,7 +1133,7 @@ function UploadEntryRow({
                         onChange(entry.id, { masterOwnershipSplits: splits })
                       }}
                       placeholder="Owner name"
-                      disabled={locked}
+                      disabled={effectiveLocked}
                       style={{ ...inputStyle, flex: 2 }}
                     />
                     <input
@@ -1044,7 +1143,7 @@ function UploadEntryRow({
                         onChange(entry.id, { masterOwnershipSplits: splits })
                       }}
                       placeholder="%"
-                      disabled={locked}
+                      disabled={effectiveLocked}
                       style={{ ...inputStyle, flex: 1, textAlign: 'right' as const }}
                     />
                     <button
@@ -1052,7 +1151,7 @@ function UploadEntryRow({
                         const splits = entry.masterOwnershipSplits.filter((_, i) => i !== idx)
                         onChange(entry.id, { masterOwnershipSplits: splits })
                       }}
-                      disabled={locked}
+                      disabled={effectiveLocked}
                       style={{ background: 'transparent', border: '1px solid #334155', color: '#94a3b8', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}
                     >✕</button>
                   </div>
@@ -1064,7 +1163,7 @@ function UploadEntryRow({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <button
                         onClick={() => onChange(entry.id, { masterOwnershipSplits: [...entry.masterOwnershipSplits, { owner: '', pct: '' }] })}
-                        disabled={locked}
+                        disabled={effectiveLocked}
                         style={{ background: 'transparent', border: '1px solid #334155', color: '#94a3b8', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}
                       >+ Add owner</button>
                       {allFilled && (
@@ -1082,6 +1181,11 @@ function UploadEntryRow({
           {entry.uploadError && entry.status === 'inspected' && (
             <div style={{ color: '#fca5a5', fontSize: 12, marginTop: 12 }}>
               Queue failed: {entry.uploadError}
+            </div>
+          )}
+          {saveError && isEditing && (
+            <div style={{ color: '#fca5a5', fontSize: 12, marginTop: 12 }}>
+              Save failed: {saveError}
             </div>
           )}
 
@@ -1172,7 +1276,7 @@ function UploadScreen({
               detectedTitle: result.detectedTitle,
               detectedIsrc: result.detectedIsrc,
               isrcSource: result.detectedIsrc ? 'detected' : null,
-              title: e.title || result.detectedTitle || stripExt(e.file.name),
+              title: e.title || result.detectedTitle || result.normalizedTitle || stripExt(e.file.name),
               isrc: e.isrc || (result.detectedIsrc ?? ''),
             }
           }),
@@ -1250,6 +1354,14 @@ function UploadScreen({
     setEntries((prev) => prev.filter((e) => e.id !== id))
   }
 
+  function deleteEntry(id: string) {
+    const entry = entries.find((e) => e.id === id)
+    if (entry?.trackId) {
+      fetch(`/api/tracks/${entry.trackId}`, { method: 'DELETE' }).catch(() => {})
+    }
+    removeEntry(id)
+  }
+
   function queueOne(id: string) {
     const entry = entries.find((e) => e.id === id)
     if (!entry) return
@@ -1280,6 +1392,7 @@ function UploadScreen({
         tracks: [
           {
             filename: entry.serverFilename,
+            originalFilename: entry.file.name,
             title: entry.title.trim(),
             artistName: entry.artistName.trim() || undefined,
             isrc: entry.isrc.trim().toUpperCase(),
@@ -1426,6 +1539,7 @@ function UploadScreen({
             onRemove={removeEntry}
             onQueue={queueOne}
             onRetry={retryOne}
+            onDelete={deleteEntry}
           />
         ))}
       </div>
@@ -1678,6 +1792,195 @@ function RightsScreen({ onBack }: { onBack: () => void }) {
   )
 }
 
+// ─── Determinism verification screen ─────────────────────────────────────────
+
+interface DeterminismReport {
+  hashesMatch: boolean
+  rankingStable: boolean
+  runCount: number
+  verifiedAt: string
+  [key: string]: unknown
+}
+
+function DeterminismVerificationView({ onBack }: { onBack: () => void }) {
+  const [report, setReport] = useState<DeterminismReport | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch('/api/determinism-report')
+      .then((r) => r.json() as Promise<DeterminismReport | { error: string }>)
+      .then((data) => {
+        if ('error' in data && typeof (data as { error: string }).error === 'string') {
+          throw new Error((data as { error: string }).error)
+        }
+        setReport(data as DeterminismReport)
+      })
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  function Check({ ok }: { ok: boolean }) {
+    return (
+      <span style={{ color: ok ? '#4ade80' : '#f87171', fontWeight: 700, fontSize: 20 }}>
+        {ok ? '✓' : '✗'}
+      </span>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 'none', color: '#2563eb', fontSize: 20, cursor: 'pointer', padding: 0, lineHeight: 1 }}>←</button>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#f8fafc' }}>Determinism Verification</h2>
+      </div>
+      <p style={{ color: '#94a3b8', fontSize: 14, marginBottom: 24, marginTop: 6 }}>
+        Cryptographic proof that scoring output is identical across every run.
+      </p>
+
+      {loading && <div style={{ color: '#94a3b8', textAlign: 'center', padding: '60px 0', fontSize: 15 }}>Loading report…</div>}
+
+      {error && (
+        <div style={{ background: '#450a0a', border: '1px solid #7f1d1d', borderRadius: 10, padding: 20, color: '#fca5a5' }}>
+          <strong>Report unavailable:</strong> {error}
+        </div>
+      )}
+
+      {report && (
+        <div style={{ background: '#1e293b', borderRadius: 12, padding: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+            {([
+              { key: 'hashesMatch',   label: 'Hashes Match',    val: <Check ok={report.hashesMatch} /> },
+              { key: 'rankingStable', label: 'Ranking Stable',  val: <Check ok={report.rankingStable} /> },
+              { key: 'runCount',      label: 'Run Count',       val: <span style={{ color: '#f8fafc', fontSize: 24, fontWeight: 800 }}>{report.runCount ?? '—'}</span> },
+              { key: 'verifiedAt',    label: 'Verified At',     val: <span style={{ color: '#f8fafc', fontSize: 13, fontFamily: 'monospace' }}>{report.verifiedAt ? new Date(report.verifiedAt).toLocaleString() : '—'}</span> },
+            ] as const).map(({ key, label, val }) => (
+              <div key={key} style={{ background: '#0f172a', borderRadius: 8, padding: '14px 18px' }}>
+                <div style={{ color: '#94a3b8', fontSize: 11, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+                {val}
+              </div>
+            ))}
+          </div>
+          {!report.hashesMatch && (
+            <div style={{ background: '#450a0a', border: '1px solid #7f1d1d', borderRadius: 8, padding: '12px 16px', color: '#fca5a5', fontSize: 13 }}>
+              DETERMINISM VIOLATION — contact system administrator
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Catalog analytics screen ─────────────────────────────────────────────────
+
+interface CatalogTrack {
+  id: string
+  title: string
+  artistName: string | null
+  isrc: string
+  trackStatus: string
+  ascapWorkId: string | null
+  isOneStop: boolean | null
+}
+
+function CatalogAnalyticsDashboard({ onBack }: { onBack: () => void }) {
+  const [tracks, setTracks] = useState<CatalogTrack[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch('/api/tracks')
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json() as Promise<{ tracks: CatalogTrack[] }>
+      })
+      .then((data) => setTracks(data.tracks))
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
+    uploaded:  { bg: '#334155', color: '#cbd5e1' },
+    analyzing: { bg: '#92400e', color: '#fef3c7' },
+    analyzed:  { bg: '#166534', color: '#d1fae5' },
+    failed:    { bg: '#991b1b', color: '#fee2e2' },
+    queued:    { bg: '#1e3a8a', color: '#bfdbfe' },
+  }
+
+  const statusGroups = tracks
+    ? Object.entries(
+        tracks.reduce<Record<string, number>>((acc, t) => {
+          acc[t.trackStatus] = (acc[t.trackStatus] ?? 0) + 1
+          return acc
+        }, {})
+      )
+    : []
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 'none', color: '#2563eb', fontSize: 20, cursor: 'pointer', padding: 0, lineHeight: 1 }}>←</button>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#f8fafc' }}>Catalog Analytics</h2>
+      </div>
+      <p style={{ color: '#94a3b8', fontSize: 14, marginBottom: 24, marginTop: 6 }}>
+        Track inventory and analysis status across your catalog.
+      </p>
+
+      {loading && <div style={{ color: '#94a3b8', textAlign: 'center', padding: '60px 0', fontSize: 15 }}>Loading…</div>}
+
+      {error && (
+        <div style={{ background: '#450a0a', border: '1px solid #7f1d1d', borderRadius: 10, padding: 20, color: '#fca5a5', textAlign: 'center' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      )}
+
+      {tracks && (
+        <>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 28 }}>
+            <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 10, padding: '14px 20px', minWidth: 80 }}>
+              <div style={{ color: '#94a3b8', fontSize: 11, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total</div>
+              <div style={{ color: '#f8fafc', fontSize: 28, fontWeight: 800 }}>{tracks.length}</div>
+            </div>
+            {statusGroups.map(([status, count]) => {
+              const s = STATUS_COLORS[status] ?? { bg: '#334155', color: '#cbd5e1' }
+              return (
+                <div key={status} style={{ background: s.bg, borderRadius: 10, padding: '14px 20px', minWidth: 80 }}>
+                  <div style={{ color: s.color, fontSize: 11, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.85 }}>{status}</div>
+                  <div style={{ color: s.color, fontSize: 28, fontWeight: 800 }}>{count}</div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div>
+            {tracks.map((track) => {
+              const s = STATUS_COLORS[track.trackStatus] ?? { bg: '#334155', color: '#cbd5e1' }
+              return (
+                <div key={track.id} style={{ background: '#1e293b', borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, border: '1px solid #334155' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: '#f8fafc', fontWeight: 600, fontSize: 14 }}>{track.title}</div>
+                    {track.artistName && <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>{track.artistName}</div>}
+                    <div style={{ color: '#64748b', fontFamily: 'monospace', fontSize: 11, marginTop: 2 }}>{track.isrc}</div>
+                  </div>
+                  {track.isOneStop && (
+                    <span style={{ background: '#14532d', color: '#d1fae5', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>ONE-STOP</span>
+                  )}
+                  <span style={{ background: s.bg, color: s.color, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, letterSpacing: '0.05em', textTransform: 'uppercase', flexShrink: 0 }}>
+                    {track.trackStatus}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Root app ─────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -1878,11 +2181,9 @@ export default function App() {
               }}
             />
             <p style={{ color: '#94a3b8', margin: '4px 0 0', fontSize: 14 }}>
-              <a
-                href="/api/determinism-report"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: '#94a3b8', textDecoration: 'none', borderBottom: '1px solid #475569' }}
+              <button
+                onClick={() => setView('verification')}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', borderBottom: '1px solid #475569', cursor: 'pointer', padding: 0, fontSize: 14 }}
               >
                 Deterministic Music Rights Verification
               </button>
@@ -2000,6 +2301,20 @@ export default function App() {
                 }}
               >
                 Rights Evaluation
+              </button>
+              <button
+                onClick={() => setView('analytics')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#64748b',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0,
+                }}
+              >
+                Catalog Analytics
               </button>
             </div>
           </div>

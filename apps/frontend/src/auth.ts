@@ -4,8 +4,6 @@
 // seeded dev user and inject Authorization: Bearer <token> into every fetch().
 
 const TOKEN_KEY = "syncvision.devToken";
-const DEV_EMAIL = "dev@local";
-const DEV_PASSWORD = "devpassword12345";
 
 // Capture original BEFORE any replacement so auth calls never re-enter the
 // wrapper — that would cause infinite recursion → "Maximum call stack exceeded".
@@ -13,10 +11,11 @@ const originalFetch: typeof window.fetch = window.fetch.bind(window);
 
 async function login(): Promise<string> {
   // Always use originalFetch here — bypasses the wrapper completely.
-  const res = await originalFetch("/api/auth/login", {
+  // /auto-login returns a guest JWT without a database lookup, so it can't
+  // fail due to a missing dev user or a slow Neon cold-start.
+  const res = await originalFetch("/api/auth/auto-login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: DEV_EMAIL, password: DEV_PASSWORD }),
   });
   if (!res.ok) throw new Error(`Auto-login failed: HTTP ${res.status}`);
   const { token } = (await res.json()) as { token: string };

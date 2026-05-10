@@ -79,7 +79,7 @@ router.get(
   requirePlan("COMPOSER"),
   requireCatalogAccess("SUPERVISOR"),
   async (req: Request, res: Response) => {
-    const { catalogId } = req.params;
+    const catalogId = req.params.catalogId as string;
 
     const catalog = await prisma.catalog.findUnique({
       where: { id: catalogId },
@@ -124,7 +124,7 @@ router.put(
   requirePlan("AGENCY"),
   requireCatalogAccess("CATALOG_OWNER"),
   async (req: Request, res: Response) => {
-    const { catalogId } = req.params;
+    const catalogId = req.params.catalogId as string;
     const { name } = req.body ?? {};
 
     if (typeof name !== "string" || !name.trim()) {
@@ -154,7 +154,7 @@ router.post(
   requirePlan("AGENCY"),
   requireCatalogAccess("ADMIN"),
   async (req: Request, res: Response) => {
-    const { catalogId } = req.params;
+    const catalogId = req.params.catalogId as string;
     const { email, role } = req.body ?? {};
 
     if (typeof email !== "string") {
@@ -205,7 +205,8 @@ router.delete(
   requirePlan("AGENCY"),
   requireCatalogAccess("ADMIN"),
   async (req: Request, res: Response) => {
-    const { catalogId, userId } = req.params;
+    const catalogId = req.params.catalogId as string;
+    const userId = req.params.userId as string;
     const reqAuth = (req as AuthReq).auth!;
 
     if (userId === reqAuth.userId) {

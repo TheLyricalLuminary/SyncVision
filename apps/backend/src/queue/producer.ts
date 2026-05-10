@@ -8,7 +8,11 @@ export async function enqueueTrack(trackId: string): Promise<void> {
   const track = await prisma.track.findUnique({ where: { id: trackId } });
   if (!track) throw new Error(`Track not found: ${trackId}`);
 
-  await redis.xadd(STREAM, "*", "trackId", trackId, "enqueuedAt", new Date().toISOString());
+  if (!redis) {
+    console.warn("[producer] Redis unavailable — skipping stream enqueue, marking queued anyway");
+  } else {
+    await redis.xadd(STREAM, "*", "trackId", trackId, "enqueuedAt", new Date().toISOString());
+  }
 
   await prisma.track.update({
     where: { id: trackId },

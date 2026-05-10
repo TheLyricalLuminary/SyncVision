@@ -25,7 +25,7 @@ const tracks = [
 
 async function main() {
   for (const t of tracks) {
-    const track = await prisma.track.findUnique({ where: { isrc: t.isrc } });
+    const track = await prisma.track.findFirst({ where: { isrc: t.isrc } });
     if (!track) {
       console.error(`Track not found for ISRC ${t.isrc}`);
       continue;
@@ -63,7 +63,7 @@ async function main() {
         id: rp.id,
         trackId: rp.trackId,
         ascapWorkId: rp.ascapWorkId,
-        masterOwnershipPct: rp.masterOwnershipPct,
+        masterOwnershipPct: rp.masterOwnershipPct != null ? Number(rp.masterOwnershipPct) : null,
         isOneStop: rp.isOneStop,
         writerName: rp.writerName,
         writerIpi: rp.writerIpi,

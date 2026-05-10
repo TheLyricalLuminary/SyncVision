@@ -12,22 +12,13 @@
 //   APP_URL                — public URL for success/cancel redirects (default: http://localhost:5174)
 
 import { Router, Request, Response } from "express";
-import Stripe from "stripe";
+import redis from "../lib/redis";
+import { getStripe } from "../lib/stripe";
+import { webhookQueue } from "../queue/webhookQueue";
+import { dispatchEvent } from "../queue/webhookHandlers";
+import { auditLog } from "../lib/auditLog";
 
 const router = Router();
-
-// Stripe is instantiated lazily so that a missing STRIPE_SECRET_KEY does
-// not crash the server on startup — routes return 503 when unconfigured.
-let _stripe: InstanceType<typeof Stripe> | null = null;
-function getStripe(): InstanceType<typeof Stripe> | null {
-  if (!process.env.STRIPE_SECRET_KEY) return null;
-  if (!_stripe) {
-    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2026-04-22.dahlia",
-    });
-  }
-  return _stripe;
-}
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:5174";
 
@@ -166,10 +157,21 @@ router.post("/stripe/checkout", async (req: Request, res: Response) => {
   }
 });
 
-// ─── POST /api/stripe/webhook ─────────────────────────────────────────────────
+// ─── POST /api/webhook/stripe — SINGLE canonical ingress ─────────────────────
+//
+// INGESTION ONLY. No DB writes. No entitlement mutation. No business logic.
+//
+//   Phase 1 — Verify:     constructEvent() validates signature + timestamp (±300 s)
+//   Phase 2 — Redis dedup: atomic SET NX — first writer wins, O(1) race-safe
+//   Phase 3 — DB ledger:  stripe_events PK — durable dedup if Redis TTL expires
+//   Phase 4 — Enqueue:    webhookQueue (BullMQ, 5 attempts, exponential backoff)
+//   Phase 5 — ACK fast:   200 before any fulfillment work
+//
+// If Redis/BullMQ is unavailable (dev without Redis), falls back to inline
+// async dispatch via setImmediate so the HTTP contract is unchanged.
 
-router.post("/stripe/webhook", async (req: Request, res: Response) => {
-  const sig = req.headers["stripe-signature"];
+router.post("/webhook/stripe", async (req: Request, res: Response): Promise<void> => {
+  const sig    = req.headers["stripe-signature"];
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
 
   if (!secret || !sig) {
@@ -177,41 +179,63 @@ router.post("/stripe/webhook", async (req: Request, res: Response) => {
     return;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stripe = getStripe();
   if (!stripe) {
-    res.status(503).json({ error: "Stripe is not configured (STRIPE_SECRET_KEY missing)" });
+    res.status(503).json({ error: "Stripe is not configured" });
     return;
   }
 
+  // Phase 1 — Signature + timestamp (constructEvent enforces ±300 s)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let event: any;
   try {
     event = stripe.webhooks.constructEvent(req.body as Buffer, sig, secret);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Webhook signature verification failed";
-    console.error("[stripe] webhook sig error:", msg);
+    const msg = err instanceof Error ? err.message : "Signature verification failed";
+    console.error("[stripe/webhook] sig error:", msg);
     res.status(400).json({ error: msg });
     return;
   }
 
-  switch (event.type) {
-    case "checkout.session.completed": {
-      const session = event.data.object;
-      console.log(`[stripe] checkout.session.completed plan=${session.metadata?.planId} customer=${session.customer}`);
-      // TODO: provision plan in User table
-      break;
+  // Phase 2 — Redis idempotency: atomic SET NX (7-day TTL)
+  // Single atomic command — no race window between check and mark.
+  if (redis) {
+    const key   = `stripe:event:${event.id}`;
+    const isNew = await redis.set(key, "1", "EX", 604800, "NX");
+    if (!isNew) {
+      await auditLog("WEBHOOK_DUPLICATE", "SKIPPED", { eventId: event.id, type: event.type, layer: "redis", tag: "[STRIPE_DUPLICATE]" }, event.id);
+      console.log(`[STRIPE_DUPLICATE] Redis dedup: ${event.id} (${event.type})`);
+      res.status(200).json({ received: true });
+      return;
     }
-    case "customer.subscription.deleted": {
-      const sub = event.data.object;
-      console.log(`[stripe] subscription cancelled customer=${sub.customer}`);
-      // TODO: downgrade plan in User table
-      break;
-    }
-    default:
-      break;
   }
 
-  res.json({ received: true });
+  await auditLog("WEBHOOK_ENQUEUED", "OK", { eventId: event.id, type: event.type, tag: "[STRIPE_RECON]" }, event.id);
+
+  // Phase 3 — Enqueue to BullMQ (ONLY). No DB writes in the HTTP handler.
+  // The worker writes to StripeEventLedger after it dequeues.
+  const jobPayload = { id: event.id, type: event.type, data: event.data };
+  const jobOptions = {
+    attempts:         5,
+    backoff:          { type: "exponential" as const, delay: 2000 },
+    removeOnComplete: true,
+    removeOnFail:     false,
+  };
+
+  if (webhookQueue) {
+    await webhookQueue.add(event.type, jobPayload, jobOptions);
+  } else {
+    // Fallback: no Redis — dispatch inline after HTTP response flushes.
+    // Handler is idempotent so this is safe on retry.
+    setImmediate(() =>
+      dispatchEvent(event.type, event.data, event.id, "webhook").catch((err) =>
+        console.error(`[stripe/webhook] inline fallback error event=${event.id}:`, err)
+      )
+    );
+  }
+
+  // Phase 4 — ACK immediately. Job committed to queue before response.
+  res.status(200).json({ received: true });
 });
 
 export default router;

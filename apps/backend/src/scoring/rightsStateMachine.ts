@@ -387,13 +387,6 @@ export function evaluateTrack(input: TrackEvalInput): RightsEvaluation {
   };
 }
 
-export type RightsState =
-  | "INGESTED"
-  | "UNVERIFIED"
-  | "PARTIALLY_CLEAR"
-  | "CLEAR"
-  | "BLOCKED";
-
 export interface RightsProfileForState {
   ascapWorkId?:         string | null;
   bmiWorkId?:           string | null;

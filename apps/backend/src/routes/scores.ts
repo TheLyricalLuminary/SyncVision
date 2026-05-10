@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { createHash } from "crypto";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { Prisma } from "@prisma/client";
@@ -302,7 +303,7 @@ router.get("/scores", requirePlan("COMPOSER"), async (req: Request, res: Respons
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.get("/scores/scene/:sceneId", requirePlan("SUPERVISOR"), async (req: Request, res: Response) => {
-  const { sceneId } = req.params;
+  const sceneId = req.params.sceneId as string;
 
   if (!(sceneId in BRIEFS)) {
     res.status(400).json({
@@ -331,7 +332,7 @@ router.get("/scores/scene/:sceneId", requirePlan("SUPERVISOR"), async (req: Requ
       const rpNorm = rp ? { ...rp, masterOwnershipPct: toNum(rp.masterOwnershipPct) } : null;
 
       // Brief-agnostic confidence score still validated for determinism
-      const conf = calculateConfidenceScore(trackScalars, rp ?? {});
+      const conf = calculateConfidenceScore(trackScalars, rpNorm ?? {});
       const rightsState = computeRightsState(rp);
       logRightsDisagreement(track.id, rightsState, conf.breakdown.confidenceLabel);
 
@@ -343,7 +344,7 @@ router.get("/scores/scene/:sceneId", requirePlan("SUPERVISOR"), async (req: Requ
 
       // SyncVision Score v2 — explicit weighted dot product
       const sceneFit = calculateSceneFit(track.timeline, brief.pad);     // 0–100
-      const rightsClarity = computeRightsClarity(rp);                    // 0–100
+      const rightsClarity = computeRightsClarity(rpNorm);                // 0–100
       const metaComplete = computeMetadataCompleteness({
         isrc: track.isrc,
         title: track.title,

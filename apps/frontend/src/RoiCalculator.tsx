@@ -234,8 +234,6 @@ export function RoiCalculator({ onBack }: RoiCalculatorProps) {
     projectsPerMonth:       4,
   })
 
-  const [debugOpen, setDebugOpen] = useState(false)
-
   const set = (key: keyof Inputs) => (v: number) =>
     setInputs((prev) => ({ ...prev, [key]: v }))
 
@@ -380,70 +378,6 @@ export function RoiCalculator({ onBack }: RoiCalculatorProps) {
             </div>
           </div>
 
-          {/* Debug panel */}
-          <div
-            style={{
-              background:   '#0f172a',
-              border:       '1px solid #1e293b',
-              borderRadius: 10,
-              overflow:     'hidden',
-            }}
-          >
-            <button
-              onClick={() => setDebugOpen((o) => !o)}
-              style={{
-                width:      '100%',
-                background: 'transparent',
-                border:     'none',
-                padding:    '10px 16px',
-                textAlign:  'left',
-                color:      '#475569',
-                fontSize:   12,
-                fontFamily: 'monospace',
-                cursor:     'pointer',
-                display:    'flex',
-                justifyContent: 'space-between',
-              }}
-            >
-              <span>DEBUG PANEL</span>
-              <span>{debugOpen ? '▲ collapse' : '▼ expand'}</span>
-            </button>
-
-            {debugOpen && (
-              <pre
-                style={{
-                  margin:     0,
-                  padding:    '0 16px 14px',
-                  color:      '#22d3ee',
-                  fontSize:   11,
-                  fontFamily: 'monospace',
-                  lineHeight: 1.6,
-                  overflowX:  'auto',
-                }}
-              >
-                {JSON.stringify(
-                  {
-                    inputs,
-                    WEEKS_PER_MONTH,
-                    intermediates: {
-                      monthlyHoursSaved: intermediates.monthlyHoursSaved,
-                      monthlyValue:      intermediates.monthlyValue,
-                      annualValue:       intermediates.annualValue,
-                    },
-                    plans: plans.map((p) => ({
-                      id:             p.id,
-                      price:          p.price,
-                      roiMultiple:    p.roiMultiple,
-                      breakEvenHours: p.breakEvenHours,
-                      valueGap:       p.valueGap,
-                    })),
-                  },
-                  null,
-                  2,
-                )}
-              </pre>
-            )}
-          </div>
         </div>
       </div>
     </div>

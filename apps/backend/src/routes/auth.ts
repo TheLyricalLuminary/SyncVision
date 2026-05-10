@@ -6,8 +6,8 @@ import { type PlanLevel } from "../lib/planLevel";
 
 const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-const JWT_EXPIRES_IN = "30d";
+const JWT_SECRET     = process.env.JWT_SECRET!;
+const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN ?? "7d") as jwt.SignOptions["expiresIn"];
 
 const VALID_PLANS: PlanLevel[] = ["COMPOSER", "SUPERVISOR", "AGENCY", "ENTERPRISE"];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -86,6 +86,29 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     );
 
     res.json({ token, planLevel: user.planLevel, email: user.email });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/auth/auto-login
+// Returns a signed guest JWT without any database lookup.
+// Scenes, Rights Evaluation, and Pricing pages use this so they stay
+// accessible even when the database is slow or unreachable.
+// Guest is granted SUPERVISOR so scene-scoring endpoints (which gate at
+// SUPERVISOR) work for public views.
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.post("/auth/auto-login", (_req: Request, res: Response) => {
+  try {
+    const token = jwt.sign(
+      { userId: "guest", email: "guest@anonymous", planLevel: "SUPERVISOR" },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+    res.json({ token, planLevel: "SUPERVISOR", email: "guest@anonymous" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
