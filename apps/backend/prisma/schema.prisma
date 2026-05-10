@@ -54,6 +54,9 @@ model Track {
   isrc             String
   trackStatus      String           @default("uploaded")
   audioFilePath    String?
+  isSynthetic      Boolean   @default(true)
+  processedAt      DateTime?
+  confidence       Float?
   timeline         Json?
   errorReason      String?
   tempo            Float?
