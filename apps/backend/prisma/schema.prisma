@@ -9,14 +9,13 @@ datasource db {
 }
 
 model User {
-  id               String   @id @default(cuid())
-  email            String   @unique
-  passwordHash     String
-  planLevel        String   @default("COMPOSER")
-  stripeCustomerId String?
-  creditBalance    Int      @default(0)
-  createdAt        DateTime @default(now())
-
+  id                 String              @id @default(cuid())
+  email              String              @unique
+  passwordHash       String
+  planLevel          String              @default("COMPOSER")
+  createdAt          DateTime            @default(now())
+  stripeCustomerId   String?
+  creditBalance      Int                 @default(0)
   ownedCatalogs      Catalog[]           @relation("CatalogOwner")
   catalogMembers     CatalogMember[]
   creditTransactions CreditTransaction[]
@@ -25,14 +24,13 @@ model User {
 }
 
 model Catalog {
-  id        String   @id @default(cuid())
+  id        String          @id @default(cuid())
   name      String
   ownerId   String
-  owner     User     @relation("CatalogOwner", fields: [ownerId], references: [id])
-  createdAt DateTime @default(now())
-
-  members CatalogMember[]
-  tracks  Track[]
+  createdAt DateTime        @default(now())
+  owner     User            @relation("CatalogOwner", fields: [ownerId], references: [id])
+  members   CatalogMember[]
+  tracks    Track[]
 
   @@schema("scoring")
 }
@@ -40,43 +38,35 @@ model Catalog {
 model CatalogMember {
   id        String  @id @default(cuid())
   catalogId String
-  catalog   Catalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
   userId    String
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   role      String
+  catalog   Catalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([catalogId, userId])
   @@schema("scoring")
 }
 
 model Track {
-  id              String   @id @default(cuid())
-  title           String
-  artistName      String?
-  isrc            String
-  trackStatus     String   @default("uploaded")
-
-  audioFilePath   String?
-  timeline        Json?
-  isSynthetic     Boolean   @default(true)
-  processedAt     DateTime?
-  confidence      Float?
-  errorReason     String?
-
-  tempo             Float?
-  tonalCharacter    String?
-  energyCharacter   String?
-  modelVersion      String?
-
-  spectralCentroid  Float?
-  rmsEnergy         Float?
-  zeroCrossingRate  Float?
-
-  catalogId       String?
-  catalog         Catalog? @relation(fields: [catalogId], references: [id])
-
-  rightsProfile   RightsProfile?
-  confidenceScore ConfidenceScore?
+  id               String           @id @default(cuid())
+  title            String
+  artistName       String?
+  isrc             String
+  trackStatus      String           @default("uploaded")
+  audioFilePath    String?
+  timeline         Json?
+  errorReason      String?
+  tempo            Float?
+  tonalCharacter   String?
+  energyCharacter  String?
+  catalogId        String?
+  modelVersion     String?
+  rmsEnergy        Float?
+  spectralCentroid Float?
+  zeroCrossingRate Float?
+  confidenceScore  ConfidenceScore?
+  rightsProfile    RightsProfile?
+  catalog          Catalog?         @relation(fields: [catalogId], references: [id])
 
   @@unique([catalogId, isrc])
   @@map("ScoringTrack")
@@ -84,26 +74,21 @@ model Track {
 }
 
 model RightsProfile {
-  id                 String   @id @default(cuid())
-  trackId            String   @unique
-  track              Track    @relation(fields: [trackId], references: [id])
-
-  ascapWorkId        String?
-  bmiWorkId          String?
-  masterOwnershipPct Decimal?
-  isOneStop          Boolean?
-
-  writerName         String?
-  writerIpi          String?
-  publisherName      String?
-  proAffiliation     String?
-  label              String?
-  upc                String?
-
+  id                    String    @id @default(cuid())
+  trackId               String    @unique
+  ascapWorkId           String?
+  masterOwnershipPct    Decimal?
+  isOneStop             Boolean?
+  writerName            String?
+  writerIpi             String?
+  publisherName         String?
+  proAffiliation        String?
+  bmiWorkId             String?
   masterOwnedBy         String?
+  masterOwnershipSplits Json?
   masterOwnershipType   String?
   masterVerifiedAt      DateTime?
-  masterOwnershipSplits Json?
+  track                 Track     @relation(fields: [trackId], references: [id])
 
   @@schema("scoring")
 }
@@ -111,28 +96,21 @@ model RightsProfile {
 model ConfidenceScore {
   id                String   @id @default(cuid())
   trackId           String   @unique
-  track             Track    @relation(fields: [trackId], references: [id])
-
   score             Int
   confidenceLabel   String
   inputHash         String
-
   rightsBreakdown   Int
   metaBreakdown     Int
   audioBreakdown    Int
   sceneFitBreakdown Int
-
   explanation       String
   createdAt         DateTime @default(now())
   hashVersion       Int      @default(1)
+  track             Track    @relation(fields: [trackId], references: [id])
 
   @@schema("scoring")
 }
 
-// Idempotency ledger — prevents duplicate processing of Stripe retries.
-// Primary key on eventId is the concurrency lock: a second insert for the
-// same event.id fails at DB level even under concurrent requests.
-// The type column enables operational debugging without hitting Stripe API.
 model StripeEvent {
   eventId   String   @id
   type      String
@@ -142,7 +120,6 @@ model StripeEvent {
   @@schema("scoring")
 }
 
-// Server-authoritative trial state. Frontend stores only the opaque trialToken.
 model UserTrial {
   trialToken String   @id @default(cuid())
   startedAt  DateTime @default(now())
@@ -154,15 +131,12 @@ model UserTrial {
   @@schema("scoring")
 }
 
-// Full processing audit trail for every Stripe event.
-// Distinct from stripe_events (ingestion dedup): this tracks processing state
-// so the reconciliation cron can find missed or failed events.
 model StripeEventLedger {
-  id              String    @id                 // Stripe event.id
+  id              String    @id
   type            String
   processed       Boolean   @default(false)
   processingError String?
-  source          String                        // "webhook" | "reconciliation"
+  source          String
   createdAt       DateTime  @default(now())
   processedAt     DateTime?
 
@@ -172,8 +146,6 @@ model StripeEventLedger {
   @@schema("scoring")
 }
 
-// Immutable audit trail — every reconciliation action, repair, and drift
-// detection event is appended here and never mutated.
 model StripeAuditLog {
   id        String   @id @default(cuid())
   eventId   String?
@@ -188,16 +160,14 @@ model StripeAuditLog {
   @@schema("scoring")
 }
 
-// Append-only ledger for every credit top-up. Never mutated after insert.
-// creditBalance on User is the live counter; this table is the audit trail.
 model CreditTransaction {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  packId     String
-  credits    Int
-  stripeEventId String @unique
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  userId        String
+  packId        String
+  credits       Int
+  stripeEventId String   @unique
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@map("credit_transactions")
