@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'fs';
 import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import { assertRuntimeCoherency } from "./runtime/buildFingerprint";
@@ -100,14 +101,15 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 app.use("/audio", express.static(path.join(process.cwd(), "apps/backend/audio")));
 
-// Serve Vite production build
+// Serve Vite production build only when the dist directory is present.
+// In backend-only deployments (Render) the frontend is served separately.
 const clientDist = path.join(__dirname, "../../frontend/dist");
-app.use(express.static(clientDist));
-
-// Catch-all: let React Router handle client-side navigation
-app.get("/{*path}", (_req: Request, res: Response) => {
-  res.sendFile(path.join(clientDist, "index.html"));
-});
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get("/{*path}", (_req: Request, res: Response) => {
+    res.sendFile(path.join(clientDist, "index.html"));
+  });
+}
 
 // Global error interceptor — catches any unhandled throw from route handlers
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
@@ -146,4 +148,3 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
     setTimeout(() => process.exit(0), 6_000);
   });
 }
-app.use('/audio', express.static(path.join(process.cwd(), 'apps/backend/audio')));
