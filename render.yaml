@@ -24,6 +24,12 @@ services:
         sync: false
       - key: STRIPE_PRICE_ENTERPRISE
         sync: false
+      - key: STRIPE_PRICE_CREDITS_1
+        sync: false
+      - key: STRIPE_PRICE_CREDITS_12
+        sync: false
+      - key: STRIPE_PRICE_CREDITS_50
+        sync: false
       - key: FRONTEND_URL
         sync: false
       - key: PORT
