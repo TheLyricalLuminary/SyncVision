@@ -293,12 +293,12 @@ router.post("/tracks/upload", requirePaidEntitlement, async (req: Request, res: 
 
     for (const p of prepared) {
       try {
-        validateTrackIngestion({ audioFilePath: p.audioPath, title: p.title, isrc: p.isrc });
-
         const trackId = randomUUID();
         const ext = path.extname(p.audioPath);
         const canonicalPath = path.join(STORAGE_DIR, `${trackId}${ext}`);
         fs.copyFileSync(p.audioPath, canonicalPath);
+
+        validateTrackIngestion({ audioFilePath: canonicalPath, title: p.title, isrc: p.isrc });
 
         const track = await prisma.track.create({
           data: {
@@ -306,7 +306,7 @@ router.post("/tracks/upload", requirePaidEntitlement, async (req: Request, res: 
             title: p.title,
             artistName: p.artistName,
             isrc: p.isrc,
-            audioFilePath: canonicalPath,
+            audioFilePath: path.basename(canonicalPath),
             trackStatus: "uploaded",
             rightsProfile: {
               create: {
@@ -378,7 +378,10 @@ router.get("/tracks/:id/audio", async (req: Request, res: Response) => {
       return;
     }
 
-    const filePath = track.audioFilePath;
+    const storageDir = process.env.AUDIO_STORAGE_PATH ?? AUDIO_DIR;
+    const filePath = path.isAbsolute(track.audioFilePath)
+      ? track.audioFilePath
+      : path.join(storageDir, track.audioFilePath);
     if (!fs.existsSync(filePath)) {
       res.status(404).json({ error: "File not found" });
       return;
@@ -434,7 +437,11 @@ router.post("/tracks/:id/retry", requirePaidEntitlement, async (req: Request, re
       res.status(404).json({ error: `Track not found: ${id}` });
       return;
     }
-    if (!track.audioFilePath || !fs.existsSync(track.audioFilePath)) {
+    const retryStorageDir = process.env.AUDIO_STORAGE_PATH ?? AUDIO_DIR;
+    const retryFilePath = track.audioFilePath && (path.isAbsolute(track.audioFilePath)
+      ? track.audioFilePath
+      : path.join(retryStorageDir, track.audioFilePath));
+    if (!retryFilePath || !fs.existsSync(retryFilePath)) {
       res.status(409).json({ error: "Audio file is missing." });
       return;
     }

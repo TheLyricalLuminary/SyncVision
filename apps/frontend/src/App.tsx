@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, Dispatch, DragEvent, SetStateAction } from 'react'
 import syncVisionLogo from './assets/syncvision-logo.png'
 import { RoiCalculator } from './RoiCalculator'
-import { PricingPage } from './PricingPage'
+import { PricingPage, getStoredTrialToken } from './PricingPage'
 
 // Singleton so only one track plays at a time across all cards
 const currentAudio: { el: HTMLAudioElement | null } = { el: null }
@@ -2115,13 +2115,27 @@ export default function App() {
     setSceneError(null)
     setSceneLoading(true)
     setView('matches')
-    fetch(`${API_BASE}/api/scores/scene/${sceneId}`)
-      .then((r) => {
+
+    const trialToken = getStoredTrialToken()
+    const headers: Record<string, string> = {}
+    if (trialToken) headers['x-trial-token'] = trialToken
+
+    fetch(`${API_BASE}/api/scores/scene/${sceneId}`, { headers })
+      .then(async (r) => {
+        if (r.status === 401 || r.status === 403) {
+          const body = await r.json().catch(() => ({})) as { upgradeRequired?: boolean; error?: string }
+          if (body.upgradeRequired) {
+            setSceneLoading(false)
+            setView('pricing')
+            return null
+          }
+          throw new Error(body.error ?? `HTTP ${r.status}`)
+        }
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json() as Promise<SceneResponse>
       })
       .then((data) => {
-        // Ensure the response carries the label we expect
+        if (!data) return
         setSceneData({ ...data, sceneLabel: data.sceneLabel || sceneLabel })
       })
       .catch((err: Error) => setSceneError(err.message))

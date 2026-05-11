@@ -12,6 +12,51 @@ import { computeSyncVisionScoreV2 } from "../scoring/scoringV2";
 import { NARRATIVE_DICTIONARY, type Verdict } from "../scoring/narratives";
 import { requirePlan } from "../middleware/auth";
 
+const SCENE_MAX_SCENES = 5;
+
+// Middleware: allow SUPERVISOR+ JWT OR an active trial token with scenes remaining.
+// On trial path: atomically increments scenesUsed before handing off.
+async function allowSceneView(req: Request, res: Response, next: () => void) {
+  const auth = (req as any).auth;
+
+  // JWT path — standard plan check
+  if (auth) {
+    return requirePlan("SUPERVISOR")(req, res, next);
+  }
+
+  // Trial path
+  const token = req.headers["x-trial-token"] as string | undefined;
+  if (!token) {
+    res.status(401).json({
+      error: "Authentication required",
+      upgradeRequired: true,
+    });
+    return;
+  }
+
+  const trial = await prisma.userTrial.findUnique({ where: { trialToken: token } });
+  if (!trial) {
+    res.status(401).json({ error: "Trial not found", upgradeRequired: true });
+    return;
+  }
+  if (new Date() > trial.expiresAt) {
+    res.status(403).json({ error: "Trial expired", upgradeRequired: true });
+    return;
+  }
+  if (trial.scenesUsed >= SCENE_MAX_SCENES) {
+    res.status(403).json({ error: "Scene view limit reached", upgradeRequired: true, limit: SCENE_MAX_SCENES });
+    return;
+  }
+
+  await prisma.userTrial.update({
+    where: { trialToken: token },
+    data:  { scenesUsed: { increment: 1 } },
+  });
+
+  (req as any).trialToken = token;
+  next();
+}
+
 // Fail fast on startup if any weight profile doesn't sum to 1.0
 validateWeights();
 
@@ -320,7 +365,7 @@ router.get("/scores", requirePlan("COMPOSER"), async (req: Request, res: Respons
 //   Weights are per-brief; see src/scoring/briefWeights.ts
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get("/scores/scene/:sceneId", requirePlan("SUPERVISOR"), async (req: Request, res: Response) => {
+router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: Response) => {
   const sceneId = req.params.sceneId as string;
 
   if (!(sceneId in BRIEFS)) {
