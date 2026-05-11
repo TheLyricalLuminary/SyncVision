@@ -11,6 +11,7 @@ import billingRouter from "./routes/billing";
 import trialsRouter from "./routes/trials";
 import authRouter from "./routes/auth";
 import catalogsRouter from "./routes/catalogs";
+import demoRouter from "./routes/demo";
 import { startConsumer } from "./queue/consumer";
 import { startWebhookWorker } from "./queue/webhookWorker";
 import { startReconciliationWorker } from "./queue/reconciliationWorker";
@@ -82,6 +83,8 @@ app.use("/api", rightsRouter);
 app.use("/api", stripeRouter);
 app.use("/api", billingRouter);
 app.use("/api", trialsRouter);
+
+app.use("/api", demoRouter);
 
 // ── JSON catch-all handlers — enforce JSON contract for every response ────────
 // Must be registered AFTER all routers so they only fire on unmatched paths.

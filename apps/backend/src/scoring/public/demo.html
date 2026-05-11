@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SyncVision™ — Clearance Check</title>
+<style>
+  :root {
+    --bg:      #080b14;
+    --surface: #0e1320;
+    --raised:  #141928;
+    --border:  #1e2640;
+    --purple:  #7c3aed;
+    --magenta: #c026d3;
+    --text:    #f1f5f9;
+    --muted:   #64748b;
+    --pass:    #22c55e;
+    --maybe:   #f59e0b;
+    --fail:    #ef4444;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+
+  .page {
+    max-width: 780px;
+    margin: 0 auto;
+  }
+
+  .wordmark {
+    color: var(--purple);
+    font-size: 13px;
+    letter-spacing: 2px;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+
+  h1 {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+    margin-bottom: 16px;
+  }
+
+  .subhead {
+    font-size: 16px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 32px;
+  }
+
+  .input-group {
+    margin-bottom: 16px;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 16px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  input[type="text"]:focus {
+    border-color: var(--purple);
+  }
+
+  input[type="text"]::placeholder {
+    color: var(--muted);
+  }
+
+  .usage-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .usage-btn {
+    flex: 1;
+    background: var(--raised);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  .usage-btn.selected {
+    background: var(--purple);
+    color: #fff;
+    border-color: var(--purple);
+  }
+
+  .check-btn {
+    width: 100%;
+    background: var(--purple);
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 700;
+    padding: 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .check-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .error-msg {
+    color: var(--fail);
+    font-size: 14px;
+    margin-top: 12px;
+    display: none;
+  }
+
+  /* ── Section 2: Clearance Report ── */
+
+  #clearance-section {
+    display: none;
+    margin-top: 40px;
+  }
+
+  .clearance-cols {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  .col-score {
+    min-width: 160px;
+  }
+
+  .score-number {
+    font-size: 72px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .score-label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+
+  .track-title {
+    font-size: 18px;
+    color: var(--text);
+    margin-top: 16px;
+    font-weight: 600;
+  }
+
+  .track-artist {
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .track-isrc {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: monospace;
+    margin-top: 4px;
+  }
+
+  .col-checklist {
+    flex: 1;
+    min-width: 240px;
+  }
+
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .check-row:last-child {
+    border-bottom: none;
+  }
+
+  .check-icon { font-style: normal; }
+  .check-pass { color: var(--pass); }
+  .check-fail { color: var(--fail); }
+
+  .usage-pills {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+  }
+
+  .pill {
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #0a0a0a;
+  }
+
+  .pill-pass { background: var(--pass); }
+  .pill-fail { background: var(--fail); color: #fff; }
+
+  .clearance-timeline {
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 32px 0;
+  }
+
+  .scene-reveal-btn {
+    width: 100%;
+    background: var(--raised);
+    border: 1px solid var(--purple);
+    color: var(--purple);
+    font-size: 15px;
+    font-weight: 500;
+    padding: 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .scene-reveal-btn:hover {
+    background: #1e1a38;
+  }
+
+  /* ── Section 3: Scene Fit ── */
+
+  #scene-section {
+    display: none;
+    margin-top: 40px;
+  }
+
+  .scene-header {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .scene-subhead {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  .brief-card {
+    background: var(--raised);
+    border-bottom: 1px solid var(--border);
+    padding: 24px;
+    margin-bottom: 0;
+  }
+
+  .brief-card:first-child {
+    border-top: 1px solid var(--border);
+  }
+
+  .card-row1 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .brief-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .brief-score {
+    font-size: 28px;
+    font-weight: 700;
+  }
+
+  .score-bar-wrap {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+  }
+
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+  }
+
+  .verdict-badge {
+    display: inline-block;
+    font-size: 11px;
+    letter-spacing: 1px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin-top: 8px;
+    color: #0a0a0a;
+  }
+
+  .badge-PASS  { background: var(--pass); }
+  .badge-MAYBE { background: var(--maybe); }
+  .badge-FAIL  { background: var(--fail); color: #fff; }
+
+  .brief-narrative {
+    margin-top: 16px;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.8;
+    padding-left: 16px;
+    border-left: 2px solid var(--border);
+  }
+
+  /* ── Footer ── */
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 40px 0;
+    line-height: 1.8;
+  }
+
+  @media (max-width: 520px) {
+    h1 { font-size: 24px; }
+    .score-number { font-size: 52px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Section 1: Input ── -->
+  <div class="wordmark">SyncVision™</div>
+
+  <h1>You pitched it. Director loved it.<br>Then you found out it couldn't clear.</h1>
+
+  <p class="subhead">
+    Paste an ISRC to get clearance confidence and scene fit<br>
+    across 20 briefs — before you pitch it to anyone.
+  </p>
+
+  <div class="input-group">
+    <input type="text" id="isrc-input" placeholder="e.g. QZTB72565415" autocomplete="off" spellcheck="false">
+  </div>
+
+  <div class="usage-row" id="usage-row">
+    <button class="usage-btn selected" data-usage="tv">TV</button>
+    <button class="usage-btn" data-usage="film">Film</button>
+    <button class="usage-btn" data-usage="ad">Ad</button>
+    <button class="usage-btn" data-usage="trailer">Trailer</button>
+  </div>
+
+  <button class="check-btn" id="check-btn">Check Clearance</button>
+  <p class="error-msg" id="error-msg"></p>
+
+  <!-- ── Section 2: Clearance Report ── -->
+  <div id="clearance-section">
+
+    <div class="clearance-cols">
+      <div class="col-score">
+        <div class="score-number" id="cl-score"></div>
+        <div class="score-label">Clearance Confidence</div>
+        <div class="track-title" id="cl-title"></div>
+        <div class="track-artist" id="cl-artist"></div>
+        <div class="track-isrc" id="cl-isrc"></div>
+      </div>
+
+      <div class="col-checklist" id="cl-checklist"></div>
+    </div>
+
+    <div class="usage-pills" id="cl-pills"></div>
+    <p class="clearance-timeline" id="cl-timeline"></p>
+
+    <hr class="divider">
+
+    <button class="scene-reveal-btn" id="scene-reveal-btn">
+      View Scene Fit across all 20 briefs ↓
+    </button>
+
+  </div>
+
+  <!-- ── Section 3: Scene Fit ── -->
+  <div id="scene-section">
+    <h2 class="scene-header" id="scene-header"></h2>
+    <p class="scene-subhead">All 20 emotional briefs. Deterministic — identical on every run.</p>
+    <div id="scene-cards"></div>
+  </div>
+
+  <footer>
+    Powered by SyncVision™<br>
+    Scores are cryptographically reproducible. Identical inputs always produce identical outputs.
+  </footer>
+
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  var selectedUsage = 'tv';
+
+  // ── Usage toggle ──────────────────────────────────────────────────────────
+  document.getElementById('usage-row').addEventListener('click', function(e) {
+    var btn = e.target.closest('.usage-btn');
+    if (!btn) return;
+    document.querySelectorAll('.usage-btn').forEach(function(b) {
+      b.classList.remove('selected');
+    });
+    btn.classList.add('selected');
+    selectedUsage = btn.dataset.usage;
+  });
+
+  // ── Check button ──────────────────────────────────────────────────────────
+  document.getElementById('check-btn').addEventListener('click', function() {
+    var isrcVal = document.getElementById('isrc-input').value.trim();
+    var body = { usageType: selectedUsage };
+    if (isrcVal.length > 0) body.isrc = isrcVal;
+
+    var btn = document.getElementById('check-btn');
+    var errEl = document.getElementById('error-msg');
+    btn.disabled = true;
+    btn.textContent = 'Checking...';
+    errEl.style.display = 'none';
+
+    fetch('/api/demo/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    .then(function(res) {
+      if (res.status === 429) {
+        throw { status: 429 };
+      }
+      if (res.status === 404) {
+        throw { status: 404 };
+      }
+      if (!res.ok) {
+        throw { status: res.status };
+      }
+      return res.json();
+    })
+    .then(function(data) {
+      populateClearance(data);
+      document.getElementById('clearance-section').style.display = 'block';
+      document.getElementById('scene-section').style.display = 'none';
+      btn.disabled = false;
+      btn.textContent = 'Check Clearance';
+    })
+    .catch(function(err) {
+      var msg;
+      if (err.status === 429) {
+        msg = 'Demo limit reached. Request access at syncvision.io';
+      } else if (err.status === 404) {
+        msg = 'No analyzed track found for that ISRC. Try: QZTB72565415';
+      } else {
+        msg = 'Engine unavailable. Try again in a moment.';
+      }
+      errEl.textContent = msg;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Check Clearance';
+    });
+  });
+
+  // ── Scene reveal button ───────────────────────────────────────────────────
+  document.getElementById('scene-reveal-btn').addEventListener('click', function() {
+    var sec = document.getElementById('scene-section');
+    sec.style.display = 'block';
+    sec.scrollIntoView({ behavior: 'smooth' });
+  });
+
+  // ── Score color helper ────────────────────────────────────────────────────
+  function scoreColor(n) {
+    if (n >= 80) return 'var(--pass)';
+    if (n >= 60) return 'var(--maybe)';
+    return 'var(--fail)';
+  }
+
+  // ── Populate clearance section ────────────────────────────────────────────
+  var CHECKLIST = [
+    { label: 'Master ownership verified', blocker: 'MASTER_PCT_UNSET' },
+    { label: 'One-stop confirmed',        blocker: 'ONE_STOP_NOT_CONFIRMED' },
+    { label: 'PRO registration found',    blocker: 'PRO_WORK_ID_MISSING' },
+    { label: 'Writer IPI on file',        blocker: 'WRITER_IPI_MISSING' },
+    { label: 'Publisher identified',      blocker: 'PUBLISHER_UNKNOWN' }
+  ];
+
+  var USAGE_LABELS = { tv: 'TV', film: 'Film', ad: 'Ad', trailer: 'Trailer' };
+
+  function populateClearance(data) {
+    var track     = data.track;
+    var clearance = data.clearance;
+
+    // Score
+    var scoreEl = document.getElementById('cl-score');
+    scoreEl.textContent = clearance.score;
+    scoreEl.style.color = scoreColor(clearance.score);
+
+    // Track meta
+    document.getElementById('cl-title').textContent  = track.title || '';
+    document.getElementById('cl-artist').textContent = track.artistName || '';
+    document.getElementById('cl-isrc').textContent   = track.isrc || '';
+
+    // Checklist
+    var listEl = document.getElementById('cl-checklist');
+    listEl.innerHTML = '';
+    CHECKLIST.forEach(function(item) {
+      var blocked = clearance.blockers.indexOf(item.blocker) !== -1;
+      var row = document.createElement('div');
+      row.className = 'check-row ' + (blocked ? 'check-fail' : 'check-pass');
+      row.innerHTML =
+        '<span class="check-icon">' + (blocked ? '✗' : '✓') + '</span>' +
+        '<span>' + item.label + '</span>';
+      listEl.appendChild(row);
+    });
+
+    // Usage pills
+    var pillsEl = document.getElementById('cl-pills');
+    pillsEl.innerHTML = '';
+    ['tv', 'film', 'ad', 'trailer'].forEach(function(key) {
+      var avail = clearance.usageAvailability[key];
+      var pill = document.createElement('span');
+      pill.className = 'pill ' + (avail ? 'pill-pass' : 'pill-fail');
+      pill.textContent = (avail ? '✓ ' : '✗ ') + USAGE_LABELS[key];
+      pillsEl.appendChild(pill);
+    });
+
+    // Timeline
+    document.getElementById('cl-timeline').textContent =
+      'Estimated clearance: ' + clearance.timeline;
+
+    // Scene fit cards
+    populateSceneFit(data);
+  }
+
+  // ── Populate scene fit section ────────────────────────────────────────────
+  function populateSceneFit(data) {
+    document.getElementById('scene-header').textContent =
+      'Scene Fit — ' + (data.track.title || '');
+
+    var container = document.getElementById('scene-cards');
+    container.innerHTML = '';
+
+    data.sceneFit.forEach(function(row) {
+      var color = scoreColor(row.matchScore);
+
+      var card = document.createElement('div');
+      card.className = 'brief-card';
+
+      // Row 1
+      var r1 = document.createElement('div');
+      r1.className = 'card-row1';
+
+      var nameEl = document.createElement('span');
+      nameEl.className = 'brief-name';
+      nameEl.textContent = row.briefName;
+
+      var scoreEl = document.createElement('span');
+      scoreEl.className = 'brief-score';
+      scoreEl.textContent = row.matchScore;
+      scoreEl.style.color = color;
+
+      r1.appendChild(nameEl);
+      r1.appendChild(scoreEl);
+      card.appendChild(r1);
+
+      // Row 2 — bar
+      var barWrap = document.createElement('div');
+      barWrap.className = 'score-bar-wrap';
+      var barFill = document.createElement('div');
+      barFill.className = 'score-bar-fill';
+      barFill.style.width  = row.matchScore + '%';
+      barFill.style.background = color;
+      barWrap.appendChild(barFill);
+      card.appendChild(barWrap);
+
+      // Row 3 — verdict badge
+      var badge = document.createElement('span');
+      badge.className = 'verdict-badge badge-' + row.verdict;
+      badge.textContent = row.verdict;
+      card.appendChild(badge);
+
+      // Row 4 — narrative
+      var narr = document.createElement('p');
+      narr.className = 'brief-narrative';
+      narr.textContent = row.narrative;
+      card.appendChild(narr);
+
+      container.appendChild(card);
+    });
+  }
+</script>
+</body>
+</html>
