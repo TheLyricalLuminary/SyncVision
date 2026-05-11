@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { join } from "path";
 import prisma from "../lib/prisma";
 import { computeRightsState } from "../scoring/rightsStateMachine";
 import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
@@ -176,6 +177,10 @@ function verdictFor(sceneFit: number): "PASS" | "MAYBE" | "FAIL" {
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 const router = Router();
+
+router.get("/demo", (_req, res) => {
+  res.sendFile(join(__dirname, "../scoring/public/demo.html"));
+});
 
 router.post("/demo/check", async (req: Request, res: Response) => {
   const ip = req.ip ?? "unknown";
