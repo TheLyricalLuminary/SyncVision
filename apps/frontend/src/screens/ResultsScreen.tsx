@@ -85,7 +85,7 @@ export function ResultsScreen({
     <main className="max-w-3xl mx-auto px-8 py-10">
       <div className="print-wordmark hidden">SYNCVISION</div>
 
-      <div className="flex items-center justify-between mb-6 no-print sticky top-0 py-3" style={{ background: 'rgba(43, 30, 62, 0.85)', backdropFilter: 'blur(8px)' }}>
+      <div className="flex items-center justify-between mb-6 no-print sticky top-0 py-3" style={{ background: 'rgba(15, 8, 35, 0.6)', backdropFilter: 'blur(8px)' }}>
         {!readOnly && onBack ? (
           <button onClick={onBack} className="uppercase-label text-xs">
             ← New brief

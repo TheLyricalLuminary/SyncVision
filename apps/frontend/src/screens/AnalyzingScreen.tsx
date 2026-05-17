@@ -31,7 +31,7 @@ export function AnalyzingScreen({
   const elapsedSec = Math.floor(elapsedMs / 1000);
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-8">
+    <main className="flex flex-col items-center justify-center px-8 py-16">
       {!isError ? (
         <>
           <div className="uppercase-label text-xs mb-4">{PHASE_LABEL[phase]}</div>
