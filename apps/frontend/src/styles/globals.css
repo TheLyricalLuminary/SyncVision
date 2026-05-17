@@ -23,8 +23,8 @@ html {
 body {
   background-color: #0a0612;
   background-image: url('/background.png');
-  background-size: contain;
-  background-position: center center;
+  background-size: 150% auto;
+  background-position: center 30%;
   background-attachment: scroll;
   background-repeat: no-repeat;
   color: var(--color-mg-silver);
