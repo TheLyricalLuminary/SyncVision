@@ -26,7 +26,7 @@ RUN pip3 install --no-cache-dir --prefer-binary --break-system-packages \
 WORKDIR /app
 COPY package*.json ./
 COPY apps/backend/package*.json ./apps/backend/
-RUN cd apps/backend && npm install --omit=dev
+RUN cd apps/backend && npm install
 
 COPY apps/backend ./apps/backend
 COPY apps/worker  ./apps/worker
