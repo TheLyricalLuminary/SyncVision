@@ -21,7 +21,12 @@ html {
 }
 
 body {
-  background: var(--color-mg-deep);
+  background-color: var(--color-mg-deep);
+  background-image: url('/background.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   color: var(--color-mg-silver);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 400;
