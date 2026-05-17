@@ -45,11 +45,18 @@ if (process.env.TRUST_PROXY === "true") {
   app.set("trust proxy", 1);
 }
 
-// CORS — allow only the configured frontend origin
+// CORS — allow the configured production frontend origins
+const ALLOWED_ORIGINS = [
+  "https://syncvision-frontend.onrender.com",
+  "https://music-sync-rights-platform.onrender.com",
+  process.env.FRONTEND_URL,
+].filter((o): o is string => Boolean(o));
+
 app.use((req, res, next) => {
-  const origin = process.env.FRONTEND_URL;
-  if (origin) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
+  const requestOrigin = req.headers.origin;
+  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
+    res.setHeader("Access-Control-Allow-Origin", requestOrigin);
+    res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
     res.setHeader("Access-Control-Allow-Credentials", "true");
