@@ -12,6 +12,8 @@ import trialsRouter from "./routes/trials";
 import authRouter from "./routes/auth";
 import catalogsRouter from "./routes/catalogs";
 import demoRouter from "./routes/demo";
+import analysisRouter from "./routes/analysis";
+import composerReportRouter from "./routes/composerReport";
 import { startConsumer } from "./queue/consumer";
 import { startWebhookWorker } from "./queue/webhookWorker";
 import { startReconciliationWorker } from "./queue/reconciliationWorker";
@@ -83,8 +85,9 @@ app.use("/api", rightsRouter);
 app.use("/api", stripeRouter);
 app.use("/api", billingRouter);
 app.use("/api", trialsRouter);
-
+app.use("/api", composerReportRouter);
 app.use("/api", demoRouter);
+app.use("/api", analysisRouter);
 
 // ── JSON catch-all handlers — enforce JSON contract for every response ────────
 // Must be registered AFTER all routers so they only fire on unmatched paths.
@@ -102,7 +105,12 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: "internal_error", message });
 });
 
-app.use("/audio", express.static(path.join(process.cwd(), "apps/backend/audio")));
+app.use(
+  "/audio",
+  express.static(
+    process.env.AUDIO_STORAGE_PATH ?? path.resolve(__dirname, "../audio")
+  )
+);
 
 // Serve Vite production build only when the dist directory is present.
 // In backend-only deployments (Render) the frontend is served separately.

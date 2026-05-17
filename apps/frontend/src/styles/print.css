@@ -1,0 +1,47 @@
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: Georgia, "Times New Roman", serif;
+  }
+
+  .no-print,
+  nav,
+  button {
+    display: none !important;
+  }
+
+  .card {
+    background: #ffffff !important;
+    border: 1px solid #000000 !important;
+    page-break-inside: avoid;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .uppercase-label,
+  .text-mg-lavender,
+  .text-mg-cosmic,
+  .text-mg-silver {
+    color: #000000 !important;
+  }
+
+  .explanation {
+    color: #000000 !important;
+    font-style: italic;
+  }
+
+  .print-wordmark {
+    display: block !important;
+    font-weight: 700;
+    font-size: 1.25rem;
+    letter-spacing: 0.12em;
+    margin-bottom: 1.5rem;
+    color: #000000 !important;
+  }
+
+  a {
+    color: #000000 !important;
+    text-decoration: none;
+  }
+}

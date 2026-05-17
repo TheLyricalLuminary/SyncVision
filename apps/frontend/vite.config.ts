@@ -12,6 +12,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': backendProxy,
+      '/audio': backendProxy,
     },
   },
   // preview (npm run preview) also needs the proxy so local production
@@ -19,6 +20,7 @@ export default defineConfig({
   preview: {
     proxy: {
       '/api': backendProxy,
+      '/audio': backendProxy,
     },
   },
 })

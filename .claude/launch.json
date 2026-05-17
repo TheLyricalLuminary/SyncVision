@@ -6,7 +6,14 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "cwd": "apps/frontend",
-      "port": 5174
+      "port": 5173
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "apps/backend",
+      "port": 3001
     }
   ]
 }

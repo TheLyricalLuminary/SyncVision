@@ -2,7 +2,7 @@
 //
 //  GET  /api/tracks           - list all tracks with status (used by the intake screen poll)
 //  POST /api/tracks/inspect   - multipart upload, mutagen scans each file, returns detected tags
-//  POST /api/tracks/upload    - JSON payload, creates Track + RightsProfile and enqueues
+//  POST /api/tracks/upload    - multipart audio file → disk → Track record → enqueue analysis
 //  POST /api/tracks/:id/retry - re-enqueue a track that has trackStatus === "failed"
 
 import { Router, Request, Response } from "express";
@@ -83,24 +83,6 @@ function extractMetadata(audioPath: string): Promise<{ isrc?: string; title?: st
   });
 }
 
-function resolveAudioPath(filename: unknown): string {
-  if (typeof filename !== "string" || filename.length === 0) {
-    throw new Error("filename is required");
-  }
-  const base = path.basename(filename);
-  const full = path.join(AUDIO_DIR, base);
-  const resolved = path.resolve(full);
-  if (resolved !== full || !resolved.startsWith(AUDIO_DIR + path.sep)) {
-    throw new Error("invalid filename (path traversal blocked)");
-  }
-  if (!fs.existsSync(resolved)) {
-    throw new Error(`file not found in audio dir: ${base}`);
-  }
-  return resolved;
-}
-
-const ISRC_RE = /^[A-Z]{2}[A-Z0-9]{3}[0-9]{7}$/;
-
 router.get("/tracks", async (_req: Request, res: Response) => {
   try {
     const rows = await prisma.track.findMany({
@@ -163,203 +145,64 @@ router.post("/tracks/inspect", upload.array("files", 50), async (req: Request, r
   }
 });
 
-interface UploadEntry {
-  filename: unknown;
-  title: unknown;
-  artistName?: unknown;
-  isrc: unknown;
-  ascapWorkId?: unknown;
-  writerName?: unknown;
-  writerIpi?: unknown;
-  publisherName?: unknown;
-  proAffiliation?: unknown;
-  isOneStop?: unknown;
-  masterOwnershipPct?: unknown;
-  masterOwnedBy?: unknown;
-  masterOwnershipType?: unknown;
-  masterVerificationSource?: unknown;
-  masterOwnershipSplits?: unknown;
-}
-
-function asString(v: unknown): string | null {
-  return typeof v === "string" && v.length > 0 ? v : null;
-}
-
-router.post("/tracks/upload", requirePaidEntitlement, async (req: Request, res: Response) => {
-  // ── Trial enforcement for guest users ─────────────────────────────────
-  // auto-login issues SUPERVISOR JWTs to all unauthenticated visitors.
-  // SUPERVISOR bypasses requirePaidEntitlement, so we enforce the trial
-  // limit here for any request whose userId is "guest".
-  {
-    const _auth = (req as any).auth as { userId?: string } | undefined;
-    const isGuest = !_auth?.userId || _auth.userId === "guest";
-    if (isGuest) {
-      const trialToken = req.headers["x-trial-token"] as string | undefined;
-      if (!trialToken) {
-        res.status(403).json({ error: "Trial token required. Start a trial or upgrade your account." });
-        return;
-      }
-      const trial = await prisma.userTrial.findUnique({ where: { trialToken } });
-      if (!trial) {
-        res.status(403).json({ error: "Trial not found." });
-        return;
-      }
-      if (new Date() > trial.expiresAt) {
-        res.status(403).json({ error: "Trial expired. Upgrade to continue." });
-        return;
-      }
-      if (trial.tracksUsed >= 3) {
-        res.status(403).json({ error: "Trial track limit reached.", limit: 3 });
-        return;
-      }
-      // Atomically increment before processing so a retry cannot bypass the limit
-      await prisma.userTrial.update({
-        where: { trialToken },
-        data: { tracksUsed: { increment: 1 } },
-      });
+// Single canonical ingestion endpoint:
+//   multipart "audio" file → disk → Track row → (best-effort) enqueue
+//
+// Responds with { filename, originalName, sizeBytes } so the IngestScreen
+// can hand the saved filename to /api/analysis/submit.
+router.post("/tracks/upload", (req: Request, res: Response) => {
+  upload.single("audio")(req, res, async (err: unknown) => {
+    if (err) {
+      const message = err instanceof Error ? err.message : "Upload failed";
+      res.status(400).json({ error: message });
+      return;
     }
-  }
-
-  try {
-    const body = req.body as { tracks?: UploadEntry[] };
-    const entries = Array.isArray(body?.tracks) ? body.tracks : null;
-
-    if (!entries || entries.length === 0) {
-      res.status(400).json({ error: "Body must be { tracks: [...] } with at least one entry." });
+    if (!req.file) {
+      res.status(400).json({ error: "No file provided" });
       return;
     }
 
-    const prepared: Array<{
-      audioPath: string;
-      filename: string;
-      title: string;
-      artistName: string | null;
-      isrc: string;
-      ascapWorkId: string | null;
-      writerName: string | null;
-      writerIpi: string | null;
-      publisherName: string | null;
-      proAffiliation: string | null;
-      isOneStop: boolean;
-      masterOwnershipPct: number | null;
-      masterOwnedBy: string | null;
-      masterOwnershipType: string | null;
-      masterVerificationSource: string | null;
-      masterOwnershipSplits: unknown[] | null;
-    }> = [];
+    const savedAbsPath = req.file.path;
+    const savedFilename = req.file.filename;
+    const originalName = req.file.originalname;
+    const title = path.basename(originalName, path.extname(originalName)) || savedFilename;
+    const isrc = `PILOT-${randomUUID()}`;
 
-    for (let i = 0; i < entries.length; i++) {
-      const e = entries[i];
-      const filename = asString(e.filename);
-      const title = asString(e.title);
-      const isrc = asString(e.isrc);
-      if (!filename) throw new Error(`tracks[${i}].filename is required`);
-      if (!title) throw new Error(`tracks[${i}].title is required`);
-      if (!isrc) throw new Error(`tracks[${i}].isrc is required`);
-      if (!ISRC_RE.test(isrc)) throw new Error(`tracks[${i}].isrc "${isrc}" invalid format`);
+    try {
+      validateTrackIngestion({ audioFilePath: savedAbsPath, title, isrc });
 
-      const audioPath = resolveAudioPath(filename);
-
-      const masterRaw = e.masterOwnershipPct;
-      const masterOwnershipPct =
-        typeof masterRaw === "number" ? masterRaw :
-        typeof masterRaw === "string" && masterRaw.length > 0 ? parseFloat(masterRaw) :
-        null;
-
-      prepared.push({
-        audioPath,
-        filename: path.basename(filename),
-        title,
-        artistName: asString(e.artistName),
-        isrc,
-        ascapWorkId: asString(e.ascapWorkId),
-        writerName: asString(e.writerName),
-        writerIpi: asString(e.writerIpi),
-        publisherName: asString(e.publisherName),
-        proAffiliation: asString(e.proAffiliation),
-        isOneStop: e.isOneStop === true,
-        masterOwnershipPct: masterOwnershipPct !== null && !isNaN(masterOwnershipPct) ? masterOwnershipPct : null,
-        masterOwnedBy: asString(e.masterOwnedBy),
-        masterOwnershipType: asString(e.masterOwnershipType),
-        masterVerificationSource: asString(e.masterVerificationSource),
-        masterOwnershipSplits: Array.isArray(e.masterOwnershipSplits) && e.masterOwnershipSplits.length > 0 ? e.masterOwnershipSplits : null,
+      const track = await prisma.track.create({
+        data: {
+          title,
+          isrc,
+          audioFilePath: savedFilename,
+          trackStatus: "uploaded",
+        },
       });
-    }
 
-    const STORAGE_DIR = process.env.AUDIO_STORAGE_PATH!;
-    fs.mkdirSync(STORAGE_DIR, { recursive: true });
-
-    const created: Array<{ id: string; title: string; isrc: string; status: string; error?: string }> = [];
-
-    for (const p of prepared) {
+      // Best-effort: enqueue requires Redis. When absent (pilot), inline
+      // analysis runs via /api/analysis/submit instead.
       try {
-        const trackId = randomUUID();
-        const ext = path.extname(p.audioPath);
-        const canonicalPath = path.join(STORAGE_DIR, `${trackId}${ext}`);
-        fs.copyFileSync(p.audioPath, canonicalPath);
-
-        validateTrackIngestion({ audioFilePath: canonicalPath, title: p.title, isrc: p.isrc });
-
-        const track = await prisma.track.create({
-          data: {
-            id: trackId,
-            title: p.title,
-            artistName: p.artistName,
-            isrc: p.isrc,
-            audioFilePath: path.basename(canonicalPath),
-            trackStatus: "uploaded",
-            rightsProfile: {
-              create: {
-                ascapWorkId: p.ascapWorkId,
-                masterOwnershipPct: p.masterOwnershipPct,
-                isOneStop: p.isOneStop,
-                writerName: p.writerName,
-                writerIpi: p.writerIpi,
-                publisherName: p.publisherName,
-                proAffiliation: p.proAffiliation,
-                masterOwnedBy: p.masterOwnedBy,
-                masterOwnershipType: p.masterOwnershipType,
-                masterVerifiedAt: p.masterOwnershipType ? new Date() : null,
-                masterOwnershipSplits: p.masterOwnershipSplits as any ?? undefined,
-              },
-            },
-          },
-        });
-
-        try {
-          await enqueueTrack(track.id);
-        } catch (enqueueErr) {
-          // Rollback: remove the DB row and the uploaded file so nothing is left orphaned
-          await prisma.confidenceScore.deleteMany({ where: { trackId: track.id } });
-          await prisma.rightsProfile.deleteMany({ where: { trackId: track.id } });
-          await prisma.track.delete({ where: { id: track.id } });
-          try { fs.unlinkSync(p.audioPath); } catch { /* file may not exist */ }
-          throw enqueueErr;
-        }
-
-        created.push({ id: track.id, title: track.title, isrc: track.isrc, status: "queued" });
-      } catch (e) {
-        // P2002 = unique constraint violation — ISRC already exists
-        const code = (e as Record<string, unknown>).code;
-        if (code === "P2002") {
-          res.status(409).json({ error: `A track with ISRC ${p.isrc} already exists in your catalog.` });
-          return;
-        }
-        created.push({
-          id: "",
-          title: p.title,
-          isrc: p.isrc,
-          status: "error",
-          error: e instanceof Error ? e.message : String(e),
-        });
+        await enqueueTrack(track.id);
+      } catch (enqueueErr) {
+        console.warn(
+          "[tracks/upload] enqueueTrack skipped:",
+          enqueueErr instanceof Error ? enqueueErr.message : enqueueErr,
+        );
       }
-    }
 
-    res.json({ tracks: created });
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: err instanceof Error ? err.message : "Internal server error" });
-  }
+      res.json({
+        filename: savedFilename,
+        originalName,
+        sizeBytes: req.file.size,
+        trackId: track.id,
+      });
+    } catch (e) {
+      try { fs.unlinkSync(savedAbsPath); } catch { /* nothing to clean up */ }
+      const message = e instanceof Error ? e.message : "Upload processing failed";
+      res.status(400).json({ error: message });
+    }
+  });
 });
 
 const CONTENT_TYPES: Record<string, string> = {

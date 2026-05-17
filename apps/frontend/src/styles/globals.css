@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+@theme {
+  --color-mg-deep: #2b1e3e;
+  --color-mg-cosmic: #4a4e8f;
+  --color-mg-lavender: #a490c2;
+  --color-mg-silver: #e6e6fa;
+  --color-mg-dim: rgba(74, 78, 143, 0.12);
+  --color-mg-border: rgba(164, 144, 194, 0.2);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-mg-deep);
+  color: var(--color-mg-silver);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+  color: inherit;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  outline: none;
+  color: inherit;
+  background: transparent;
+}
+
+.uppercase-label {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 300;
+  color: var(--color-mg-lavender);
+}
+
+.btn-outline {
+  border: 1px solid var(--color-mg-cosmic);
+  color: var(--color-mg-silver);
+  background: var(--color-mg-deep);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  transition: background 150ms, color 150ms;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: var(--color-mg-cosmic);
+  color: var(--color-mg-silver);
+}
+
+.btn-outline:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.card {
+  border: 1px solid var(--color-mg-cosmic);
+  background: var(--color-mg-dim);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-mg-border);
+  border-radius: 4px;
+}
+::selection {
+  background: var(--color-mg-cosmic);
+  color: var(--color-mg-silver);
+}

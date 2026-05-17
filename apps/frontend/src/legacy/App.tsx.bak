@@ -406,36 +406,36 @@ const GLOBAL_STYLES = `
     --font: 'Instrument Sans', 'DM Sans', system-ui, sans-serif;
     --font-mono: 'SF Mono', 'Fira Code', ui-monospace, monospace;
 
-    --bg:           #13131A;
-    --bg-2:         #18181F;
-    --bg-3:         #0D0D12;
-    --bg-input:     #18181F;
+    --bg:           #ffffff;
+    --bg-2:         #f8f8f7;
+    --bg-3:         #f2f2f0;
+    --bg-input:     #f8f8f7;
 
-    --text:         #F0EFF8;
-    --text-2:       #8E8DAA;
-    --text-3:       #55546A;
+    --text:         #1a1a1a;
+    --text-2:       #5c5c5c;
+    --text-3:       #9a9a9a;
 
-    --border:       rgba(255,255,255,0.07);
-    --border-2:     rgba(255,255,255,0.12);
+    --border:       rgba(0, 0, 0, 0.08);
+    --border-2:     rgba(0, 0, 0, 0.13);
 
-    --blue:         #7B5CF0;
-    --blue-light:   #2A1F5A;
+    --blue:         #2563eb;
+    --blue-light:   #eff6ff;
 
     /* Status semantics */
-    --pass-bg:      #0D2A1A;
-    --pass-fg:      #27A56A;
-    --soft-bg:      #0D2A1A;
-    --soft-fg:      #27A56A;
-    --mod-bg:       #2A1A06;
-    --mod-fg:       #D97706;
-    --high-bg:      #2A0D0D;
-    --high-fg:      #DC2626;
-    --purple-bg:    #2A1F5A;
-    --purple-fg:    #9D7EFF;
-    --neutral-bg:   #18181F;
-    --neutral-fg:   #8E8DAA;
-    --review-bg:    #2A1A06;
-    --review-fg:    #D97706;
+    --pass-bg:      #eaf3de;
+    --pass-fg:      #27500a;
+    --soft-bg:      #f0f7e4;
+    --soft-fg:      #4a7c1a;
+    --mod-bg:       #faeeda;
+    --mod-fg:       #633806;
+    --high-bg:      #fcebeb;
+    --high-fg:      #791f1f;
+    --purple-bg:    #eeedfe;
+    --purple-fg:    #3c3489;
+    --neutral-bg:   #f2f2f0;
+    --neutral-fg:   #5c5c5c;
+    --review-bg:    #fef3c7;
+    --review-fg:    #92400e;
   }
 
   body {
@@ -474,13 +474,13 @@ const GLOBAL_STYLES = `
   }
   .sv-pill:hover { border-color: var(--text-3); }
   .sv-pill.active {
-    background: #7B5CF0;
-    border-color: #7B5CF0;
-    color: #ffffff;
+    background: var(--text);
+    border-color: var(--text);
+    color: var(--bg);
   }
 
   .sv-tab { font-size: 13px; color: var(--text-2); padding: 8px 14px; cursor: pointer; border-bottom: 1.5px solid transparent; margin-bottom: -0.5px; }
-  .sv-tab.active { color: #9D7EFF; border-bottom-color: #7B5CF0; font-weight: 500; }
+  .sv-tab.active { color: var(--text); border-bottom-color: var(--text); font-weight: 500; }
 
   .sv-track-row {
     display: flex;

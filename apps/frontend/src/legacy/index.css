@@ -1,32 +1,16 @@
-@import "tailwindcss";
-@reference "tailwindcss";
-
-@theme {
-  --color-bg-base: #0A0A0B;
-  --color-bg-surface: #141416;
-  --color-bg-elevated: #1C1C1F;
-  --color-copper: #C2410C;
-  --color-copper-hover: #D97706;
-  --color-copper-muted: #7C2D12;
-  --color-ink-primary: #F5F5F4;
-  --color-ink-secondary: #A8A29E;
-  --color-ink-tertiary: #78716C;
-  --font-display: "Inter Tight", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+body {
+  background: #f2f2f0;
+  color: #1a1a1a;
+  font-family: 'Instrument Sans', 'DM Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
 }
-
-@layer base {
-  html { background: #0A0A0B; }
-  body {
-    background: var(--color-bg-base);
-    color: var(--color-ink-primary);
-    font-family: var(--font-sans);
-    font-size: 14px;
-    line-height: 1.55;
-    -webkit-font-smoothing: antialiased;
-  }
-  h1, h2, h3, h4 {
-    font-family: var(--font-display);
-    letter-spacing: -0.02em;
-  }
-}
+#root { min-height: 100vh; }
+button { cursor: pointer; border: none; background: none; font-family: inherit; }
+input, select, textarea { font-family: inherit; outline: none; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+::selection { background: #eeedfe; color: #3c3489; }
