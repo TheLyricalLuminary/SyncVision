@@ -80,19 +80,19 @@ export function BriefScreen({
 
   return (
     <main className="max-w-3xl mx-auto px-8 py-12">
-      <h1 className="uppercase-label text-xs mb-2">Scene Brief</h1>
+      <h1 className="uppercase-label text-xs mb-2 text-mg-silver">Scene Brief</h1>
       <textarea
         value={briefText}
         onChange={(e) => setBriefText(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Describe the scene — pacing, emotional register, moment in the story. Write it the way you'd say it out loud."
-        className="w-full p-4 mb-8 card text-mg-silver text-base resize-y placeholder:text-mg-lavender placeholder:opacity-60"
+        className="w-full p-4 mb-8 card text-mg-silver text-base resize-y placeholder:text-mg-silver placeholder:opacity-80"
         style={{ minHeight: '140px' }}
       />
 
       <div className="flex flex-wrap gap-6 mb-8">
         <div>
-          <div className="uppercase-label text-xs mb-2">Pacing</div>
+          <div className="uppercase-label text-xs mb-2 text-mg-silver">Pacing</div>
           <div className="flex gap-2">
             {PACING_OPTIONS.map((opt) => {
               const active = pacing === opt.value;
@@ -120,7 +120,7 @@ export function BriefScreen({
         </div>
 
         <div className="flex-1 min-w-[200px]">
-          <div className="uppercase-label text-xs mb-2">Emotional Register</div>
+          <div className="uppercase-label text-xs mb-2 text-mg-silver">Emotional Register</div>
           <input
             type="text"
             value={emotionalRegister}
@@ -131,7 +131,7 @@ export function BriefScreen({
         </div>
 
         <div>
-          <div className="uppercase-label text-xs mb-2">Scene Length (sec)</div>
+          <div className="uppercase-label text-xs mb-2 text-mg-silver">Scene Length (sec)</div>
           <input
             type="number"
             value={sceneLengthSec}
