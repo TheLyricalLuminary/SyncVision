@@ -21,10 +21,10 @@ html {
 }
 
 body {
-  background-color: var(--color-mg-deep);
+  background-color: #0a0612;
   background-image: url('/background.png');
-  background-size: cover;
-  background-position: center top;
+  background-size: contain;
+  background-position: center center;
   background-attachment: scroll;
   background-repeat: no-repeat;
   color: var(--color-mg-silver);
