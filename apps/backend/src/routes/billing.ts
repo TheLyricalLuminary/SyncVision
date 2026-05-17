@@ -4,10 +4,6 @@ import prisma from "../lib/prisma";
 
 const router = Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2023-10-16" as any,
-});
-
 const APP_URL = process.env.APP_URL ?? "http://localhost:5173";
 
 // POST /api/billing/checkout — legacy per-userId checkout (userId in body)
@@ -19,6 +15,14 @@ router.post("/billing/checkout", async (req: Request, res: Response) => {
     res.status(400).json({ error: "userId is required" });
     return;
   }
+
+  if (!process.env.STRIPE_SECRET_KEY) {
+    res.status(503).json({ error: "Billing not configured" });
+    return;
+  }
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: "2023-10-16" as any,
+  });
 
   const user = await prisma.user.findUnique({ where: { id: userId } }).catch(() => null);
   if (!user) {
