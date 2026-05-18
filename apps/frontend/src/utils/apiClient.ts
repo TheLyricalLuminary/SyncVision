@@ -58,7 +58,13 @@ export type CurrentUser = {
 const USE_SEED_ENGINE =
   (import.meta.env.VITE_USE_SEED_ENGINE ?? 'true') === 'true';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? '';
+if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
+  throw new Error('VITE_API_URL is not defined — check Render environment variables');
+}
+
+export const API_BASE: string = import.meta.env.VITE_API_URL ?? '';
+
+console.log('[SyncVision] API base URL:', API_BASE || '(relative — dev mode)');
 
 function getToken(): string | null {
   return localStorage.getItem('sv_token');

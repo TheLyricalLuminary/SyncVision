@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { API_BASE } from '../utils/apiClient';
 
 export type IngestedTrack = {
   id: string;
@@ -175,7 +176,7 @@ export function IngestScreen({
 
     const formData = new FormData();
     formData.append('audio', file);
-    xhr.open('POST', '/api/tracks/upload');
+    xhr.open('POST', `${API_BASE}/api/tracks/upload`);
     xhr.send(formData);
   };
 
