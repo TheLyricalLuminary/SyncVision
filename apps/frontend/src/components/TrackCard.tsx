@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AnalysisResult } from '../utils/apiClient';
+import { API_BASE, type AnalysisResult } from '../utils/apiClient';
 import { rightsBadgeLabel, rightsStatusFor } from '../utils/rightsStatus';
 import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
+
+function resolveAudioUrl(path: string | null): string | null {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  if (path.startsWith('/') && API_BASE) return `${API_BASE}${path}`;
+  return path;
+}
 
 type TrackCardProps = {
   result: AnalysisResult;
@@ -38,7 +45,7 @@ export function TrackCard({ result, briefId }: TrackCardProps) {
   const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const audioFilePath = result.track.audioFilePath;
+  const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
   const hasAudio = audioFilePath !== null;
 
   const rightsStatus = rightsStatusFor(result.rightsProfile);
