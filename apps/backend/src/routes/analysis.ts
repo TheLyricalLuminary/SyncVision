@@ -287,7 +287,10 @@ async function processJob(jobId: string): Promise<void> {
       const absolutePath = path.join(AUDIO_DIR, filename);
       const worker = await runWorker(absolutePath);
 
-      const title = filename.replace(/\.[^./\\]+$/, "");
+      const title = filename
+        .replace(/\.[^./\\]+$/, "")
+        .replace(/^[a-f0-9]{8}_/, "")
+        .replace(/_/g, " ");
       const audioFilePath = `/audio/${filename}`;
 
       let track = await prisma.track.findFirst({

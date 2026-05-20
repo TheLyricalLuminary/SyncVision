@@ -222,9 +222,8 @@ router.get("/tracks/:id/audio", async (req: Request, res: Response) => {
     }
 
     const storageDir = process.env.AUDIO_STORAGE_PATH ?? AUDIO_DIR;
-    const filePath = path.isAbsolute(track.audioFilePath)
-      ? track.audioFilePath
-      : path.join(storageDir, track.audioFilePath);
+    const filename = path.basename(track.audioFilePath);
+    const filePath = path.join(storageDir, filename);
     if (!fs.existsSync(filePath)) {
       res.status(404).json({ error: "File not found" });
       return;
