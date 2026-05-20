@@ -24,7 +24,9 @@ const AUDIO_DIR = path.resolve(__dirname, "../../audio");
 const EXTRACTOR_SCRIPT = path.resolve(__dirname, "../../../worker/extract_metadata.py");
 const PYTHON_BIN = process.env.PYTHON_BIN || "python3";
 
-if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
+// Use the persistent Render disk when available, fall back to local audio dir.
+const UPLOAD_DIR = process.env.AUDIO_STORAGE_PATH ?? AUDIO_DIR;
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const ALLOWED_EXTENSIONS = new Set([".wav", ".mp3", ".flac"]);
 
@@ -34,7 +36,7 @@ function sanitizeBasename(name: string): string {
 }
 
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, AUDIO_DIR),
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     const stem = path.basename(sanitizeBasename(file.originalname), path.extname(file.originalname));
