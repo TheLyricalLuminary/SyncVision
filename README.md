@@ -2,9 +2,11 @@
 
 **Pre-clearance risk engine for music supervisors and composers.**
 
-SyncVision replaces the spreadsheet a music supervisor uses to vet tracks against a scene brief. Instead of weeks of phone calls, emails, and gut calls, a supervisor types in what the scene needs and gets back a ranked, rights-checked, audit-stamped shortlist in under five seconds — with a PDF they can hand to a director or a label.
+A music supervisor sitting down to score a scene shouldn’t be working from a spreadsheet, a Spotify playlist, and a gut feeling. SyncVision replaces that workflow with a ranked, rights-checked, audit-stamped shortlist in under five seconds — and a PDF they can hand to a director or a label.
 
 It is **not** an AI recommendation engine. It is a deterministic scoring system. Same inputs produce the same outputs every time, and every number on the screen can be traced back to the rule that produced it.
+
+Built by a working singer-songwriter signed to a sync music company — designed against how supervisors actually clear placements, not how a generic recommender thinks they do.
 
 -----
 
@@ -87,4 +89,14 @@ CQRS-style separation between the write side (ingest + analysis) and the read si
 
 ## Status
 
-End-to-end pipeline operational — brief → ingest → score → shortlist → PDF running on real audio files. Currently in pre-launch; seeking first beta users in the composer and music supervisor space. Demo available on request.
+End-to-end pipeline operational — brief → ingest → score → shortlist → PDF running on real audio files with measurable score differentiation between tracks.
+
+In closed beta. The platform has been tested by a working music supervisor at an active sync music company, with feedback integrated into the current build. Onboarding additional composers and supervisors now.
+
+**Demo on request.** If you’re a composer with a catalogue to score, or a supervisor with briefs to test, reach out — I’ll walk you through it personally.
+
+-----
+
+## Built by
+
+Mark Amigoni — full-stack engineer and signed singer-songwriter. SyncVision is solo-built across the React frontend, Node/TypeScript backend, Python DSP worker, Postgres, and Redis. Currently in active investor conversations.
