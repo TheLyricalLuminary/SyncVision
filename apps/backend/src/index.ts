@@ -90,6 +90,10 @@ app.use("/api", composerReportRouter);
 app.use("/api", demoRouter);
 app.use("/api", analysisRouter);
 
+app.get("/health", (_req: Request, res: Response) => {
+  res.json({ status: "ok" });
+});
+
 // ── JSON catch-all handlers — enforce JSON contract for every response ────────
 // Must be registered AFTER all routers so they only fire on unmatched paths.
 
@@ -132,6 +136,16 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
+
+  const renderUrl = process.env.RENDER_EXTERNAL_URL;
+  if (renderUrl) {
+    setInterval(() => {
+      fetch(`${renderUrl}/health`)
+        .then(() => console.log("[keep-alive] ping ok"))
+        .catch((e: unknown) => console.warn("[keep-alive] ping failed:", e));
+    }, 10 * 60 * 1000);
+    console.log(`[keep-alive] pinging ${renderUrl}/health every 10 min`);
+  }
 });
 
 // Audio analysis consumer — Redis Streams, optional (dev without Redis is fine).
