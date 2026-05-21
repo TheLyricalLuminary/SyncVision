@@ -87,4 +87,4 @@ CQRS-style separation between the write side (ingest + analysis) and the read si
 
 ## Status
 
-Live in private pilot. First paying customer at the Composer tier. End-to-end pipeline running brief → ingest → score → shortlist → PDF on real audio files.
+End-to-end pipeline operational — brief → ingest → score → shortlist → PDF running on real audio files. Currently in pre-launch; seeking first beta users in the composer and music supervisor space. Demo available on request.
