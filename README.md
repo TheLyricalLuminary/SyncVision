@@ -89,14 +89,20 @@ CQRS-style separation between the write side (ingest + analysis) and the read si
 
 ## Status
 
-End-to-end pipeline operational — brief → ingest → score → shortlist → PDF running on real audio files with measurable score differentiation between tracks.
+End-to-end pipeline operational — brief → ingest → score → shortlist → PDF running on real audio files. Iterated based on direct feedback from an active music supervisor in the sync licensing space. Onboarding additional beta users now.
 
-In closed beta. The platform has been tested by a working music supervisor at an active sync music company, with feedback integrated into the current build. Onboarding additional composers and supervisors now.
-
-**Demo on request.** If you’re a composer with a catalogue to score, or a supervisor with briefs to test, reach out — I’ll walk you through it personally.
+**Demo on request.** If you’re a composer with a catalogue to score or a supervisor with briefs to test, reach out.
 
 -----
 
 ## Built by
 
 Mark Amigoni — full-stack engineer and signed singer-songwriter. SyncVision is solo-built across the React frontend, Node/TypeScript backend, Python DSP worker, Postgres, and Redis. Currently in active investor conversations.
+
+-----
+
+## License
+
+Copyright (c) 2026 Mark Amigoni. All rights reserved.
+
+No part of this repository may be reproduced, distributed, or transmitted in any form without explicit written permission from the author.
