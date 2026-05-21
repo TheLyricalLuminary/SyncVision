@@ -10,13 +10,13 @@ type AnalyzingScreenProps = {
 };
 
 const PHASE_LABEL: Record<JobPhase, string> = {
-  idle: 'Idle',
-  submitting: 'Submitting…',
-  pending: 'Queued…',
+  idle: 'Starting…',
+  submitting: 'Sending your tracks…',
+  pending: 'In queue…',
   processing: 'Analyzing tracks…',
-  complete: 'Complete',
-  failed: 'Failed',
-  'timed-out': 'Timed out',
+  complete: 'Done',
+  failed: 'Something went wrong',
+  'timed-out': 'Taking longer than expected',
 };
 
 export function AnalyzingScreen({
@@ -67,21 +67,21 @@ export function AnalyzingScreen({
       ) : (
         <>
           <div className="uppercase-label text-xs mb-2 text-amber-400">
-            {phase === 'timed-out' ? 'Timed out' : 'Analysis failed'}
+            {phase === 'timed-out' ? 'Taking longer than expected' : 'Something went wrong'}
           </div>
           <p className="text-mg-silver text-sm mb-6 max-w-md text-center">
-            {error ?? 'Something went wrong while analyzing the tracks.'}
+            {error ?? 'Something went wrong while analyzing your tracks. Please try again.'}
           </p>
           <div className="flex gap-3">
             <button type="button" onClick={onRetry} className="btn-outline text-xs uppercase tracking-[0.12em]">
-              Retry
+              Try again
             </button>
             <button
               type="button"
               onClick={onBackToIngest}
               className="btn-outline text-xs uppercase tracking-[0.12em]"
             >
-              Back to ingest
+              Back to tracks
             </button>
           </div>
         </>

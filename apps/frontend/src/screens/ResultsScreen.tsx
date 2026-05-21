@@ -128,7 +128,12 @@ export function ResultsScreen({
 
       <section>
         {results.length === 0 ? (
-          <p className="text-mg-lavender text-sm italic">No results.</p>
+          <div className="py-12 text-center">
+            <p className="text-mg-silver text-sm mb-2">No matches found for this scene.</p>
+            <p className="text-mg-lavender text-xs" style={{ opacity: 0.7 }}>
+              Try rewriting your scene description, or upload different tracks and run the analysis again.
+            </p>
+          </div>
         ) : (
           results.map((r) => (
             <TrackCard key={r.track.id} result={r} briefId={briefId} />

@@ -80,7 +80,10 @@ export function BriefScreen({
 
   return (
     <main className="max-w-3xl mx-auto px-8 py-12">
-      <h1 className="uppercase-label text-xs mb-2 text-mg-silver">Scene Brief</h1>
+      <h1 className="text-mg-silver font-bold text-xl mb-1">Describe Your Scene</h1>
+      <p className="text-mg-lavender text-sm mb-6" style={{ opacity: 0.8 }}>
+        Tell us what's happening in the scene — the mood, the moment, the energy. SyncVision will match your tracks to it and flag anything that could block a license.
+      </p>
       <textarea
         value={briefText}
         onChange={(e) => setBriefText(e.target.value)}

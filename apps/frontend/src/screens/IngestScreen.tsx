@@ -140,19 +140,24 @@ export function IngestScreen({
           setTracks((prev) =>
             prev.map((t) =>
               t.id === trackId
-                ? { ...t, status: 'error', errorMessage: 'Invalid server response' }
+                ? { ...t, status: 'error', errorMessage: 'Upload succeeded but the server response was unexpected. Try again.' }
                 : t,
             ),
           );
         }
         return;
       }
-      let message = `Upload failed (${xhr.status})`;
-      try {
-        const parsed = JSON.parse(xhr.responseText) as { error?: string };
-        if (parsed.error) message = parsed.error;
-      } catch {
-        // keep default
+      let message = 'Upload failed. Please try again.';
+      if (xhr.status === 413) message = 'File is too large. Please use a file under 200 MB.';
+      else if (xhr.status === 415) message = 'File type not supported. Please use WAV, MP3, or AIFF.';
+      else if (xhr.status === 502 || xhr.status === 503) message = 'Server is temporarily unavailable. Wait a moment and try again.';
+      else {
+        try {
+          const parsed = JSON.parse(xhr.responseText) as { error?: string };
+          if (parsed.error && !/^\w+_\w+$/.test(parsed.error)) message = parsed.error;
+        } catch {
+          // keep default
+        }
       }
       setTracks((prev) =>
         prev.map((t) =>
@@ -168,7 +173,7 @@ export function IngestScreen({
       setTracks((prev) =>
         prev.map((t) =>
           t.id === trackId
-            ? { ...t, status: 'error', errorMessage: 'Network error during upload' }
+            ? { ...t, status: 'error', errorMessage: 'Upload failed — check your internet connection and try again.' }
             : t,
         ),
       );
@@ -287,7 +292,10 @@ export function IngestScreen({
         ← Back to brief
       </button>
 
-      <h1 className="uppercase-label text-xs mb-4">Ingest Tracks</h1>
+      <h1 className="text-mg-silver font-bold text-xl mb-1">Add Your Tracks</h1>
+      <p className="text-mg-lavender text-sm mb-6" style={{ opacity: 0.8 }}>
+        Upload the audio files you want to check against this scene.
+      </p>
 
       <div
         onDragEnter={(e) => {
@@ -310,6 +318,7 @@ export function IngestScreen({
         <p className="text-mg-silver mb-1">
           Drag and drop audio files here
         </p>
+        <p className="text-mg-lavender text-sm mb-2" style={{ opacity: 0.7 }}>or click to browse your files</p>
         <p className="uppercase-label text-xs">WAV · MP3 · AIFF · Multi-file</p>
         <input
           ref={fileInputRef}
@@ -375,7 +384,7 @@ export function IngestScreen({
       {tracks.length > 0 && (
         <div className="mt-8 mb-8">
           <h2 className="uppercase-label text-xs mb-3">
-            Tracks ({tracks.length})
+            Your Tracks ({tracks.length})
           </h2>
           <ul>
             {tracks.map((t) => (
@@ -445,11 +454,16 @@ export function IngestScreen({
           disabled={!canAnalyze}
           className="btn-outline text-sm uppercase tracking-[0.12em]"
         >
-          Analyze →
+          Run Analysis →
         </button>
-        {readyCount > 0 && (
+        {tracks.length > 0 && readyCount === 0 && (
+          <span className="text-mg-lavender text-xs" style={{ opacity: 0.7 }}>
+            Waiting for uploads to finish…
+          </span>
+        )}
+        {readyCount > 0 && !insufficientCredits && (
           <span className="uppercase-label text-xs">
-            This analysis will use {readyCount} credit{readyCount === 1 ? '' : 's'}
+            Uses {readyCount} credit{readyCount === 1 ? '' : 's'}
           </span>
         )}
         {creditBalance === 0 && (
@@ -459,7 +473,7 @@ export function IngestScreen({
         )}
         {insufficientCredits && (
           <span className="text-amber-400 text-xs">
-            Insufficient credits ({creditBalance} of {readyCount} needed)
+            Not enough credits ({creditBalance} available, {readyCount} needed)
           </span>
         )}
       </div>

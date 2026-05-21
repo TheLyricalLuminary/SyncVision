@@ -34,6 +34,15 @@ const POLL_INTERVAL_MS = 1500;
 const WARN_AFTER_MS = 45_000;
 const TIMEOUT_AFTER_MS = 60_000;
 
+function humanizeError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/404/.test(msg)) return "We couldn't find the audio files on the server. Please go back and re-upload your tracks, then try again.";
+  if (/502|503|504/.test(msg)) return "The server is temporarily unavailable. Wait a moment and try again.";
+  if (/fetch|network|NetworkError/i.test(msg)) return "Connection lost. Check your internet connection and try again.";
+  if (/401|403/.test(msg)) return "Your session has expired. Please refresh the page and sign in again.";
+  return "Something went wrong. Please go back and try again.";
+}
+
 export function useAnalysisJob(): UseAnalysisJob {
   const [phase, setPhase] = useState<JobPhase>('idle');
   const [results, setResults] = useState<AnalysisResult[] | null>(null);
@@ -86,7 +95,7 @@ export function useAnalysisJob(): UseAnalysisJob {
         if (elapsed >= TIMEOUT_AFTER_MS) {
           clearTimers();
           setPhase('timed-out');
-          setError('Analysis did not complete within 60 seconds.');
+          setError('This is taking longer than usual. Try again with fewer tracks, or check back in a moment.');
         }
       }, 250);
 
@@ -109,12 +118,12 @@ export function useAnalysisJob(): UseAnalysisJob {
               setPhase('complete');
             } else {
               clearTimers();
-              setError(status.error || 'Analysis failed.');
+              setError('Analysis could not be completed. Please go back and try again.');
               setPhase('failed');
             }
           } catch (e) {
             clearTimers();
-            setError(e instanceof Error ? e.message : String(e));
+            setError(humanizeError(e));
             setPhase('failed');
           }
         };
@@ -122,7 +131,7 @@ export function useAnalysisJob(): UseAnalysisJob {
         timersRef.current.poll = window.setTimeout(tick, POLL_INTERVAL_MS);
       } catch (e) {
         clearTimers();
-        setError(e instanceof Error ? e.message : String(e));
+        setError(humanizeError(e));
         setPhase('failed');
       }
     },
