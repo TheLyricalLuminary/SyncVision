@@ -20,6 +20,7 @@ import { selectNarrative, type PADValues } from "../scoring/narrativeDictionary"
 const router = Router();
 
 const AUDIO_DIR = path.resolve(__dirname, "../../audio");
+const UPLOAD_DIR = process.env.AUDIO_STORAGE_PATH ?? AUDIO_DIR;
 const WORKER_SCRIPT = path.resolve(__dirname, "../../../worker/analyze.py");
 const PROJECT_ROOT = path.resolve(__dirname, "../../../..");
 const PYTHON_BIN = process.env.PYTHON_BIN || "python3";
@@ -284,7 +285,7 @@ async function processJob(jobId: string): Promise<void> {
 
   try {
     for (const filename of job.trackIds) {
-      const absolutePath = path.join(AUDIO_DIR, filename);
+      const absolutePath = path.join(UPLOAD_DIR, filename);
       const worker = await runWorker(absolutePath);
 
       const title = filename
@@ -441,7 +442,7 @@ router.post("/analysis/submit", (req: Request, res: Response) => {
   }
 
   for (const t of trackIds as string[]) {
-    if (!fs.existsSync(path.join(AUDIO_DIR, t))) {
+    if (!fs.existsSync(path.join(UPLOAD_DIR, t))) {
       res.status(404).json({ error: "file_not_found", message: `No audio file "${t}"` });
       return;
     }
