@@ -135,9 +135,13 @@ export function ResultsScreen({
             </p>
           </div>
         ) : (
-          results.map((r) => (
-            <TrackCard key={r.track.id} result={r} briefId={briefId} />
-          ))
+          results.map((r, i) => {
+            const topScore = results[0].confidenceScore.score;
+            const delta = i === 0 ? null : topScore - r.confidenceScore.score;
+            return (
+              <TrackCard key={r.track.id} result={r} briefId={briefId} delta={delta} />
+            );
+          })
         )}
       </section>
 

@@ -13,6 +13,7 @@ function resolveAudioUrl(path: string | null): string | null {
 type TrackCardProps = {
   result: AnalysisResult;
   briefId: BriefId;
+  delta?: number | null;
 };
 
 // Singleton so only one track plays at a time across all cards.
@@ -38,7 +39,7 @@ function formatTime(seconds: number): string {
   return `${mm}:${ss}`;
 }
 
-export function TrackCard({ result, briefId }: TrackCardProps) {
+export function TrackCard({ result, briefId, delta }: TrackCardProps) {
   const [playbackMessageVisible, setPlaybackMessageVisible] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -154,6 +155,14 @@ export function TrackCard({ result, briefId }: TrackCardProps) {
         <div className="text-mg-silver text-sm mt-1 tabular-nums">
           {score} / 100 · {result.confidenceScore.confidenceLabel}
         </div>
+        {delta != null && delta > 0 && (
+          <div
+            className="text-[11px] tabular-nums mt-0.5"
+            style={{ color: 'var(--color-mg-lavender)', opacity: 0.6 }}
+          >
+            ▼ {delta} pts vs #1
+          </div>
+        )}
       </div>
 
       <p
