@@ -383,7 +383,7 @@ router.get("/tracks/:id/rights-report", requirePlan("AGENCY"), async (req: Reque
 // DELETE /api/tracks/:id — remove a track and all associated rows
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.delete("/tracks/:id", async (req: Request, res: Response) => {
+router.delete("/tracks/:id", requirePlan("SUPERVISOR"), async (req: Request, res: Response) => {
   const id = req.params['id'] as string;
   try {
     const track = await prisma.track.findUnique({ where: { id } });
