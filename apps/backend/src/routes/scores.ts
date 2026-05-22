@@ -487,9 +487,10 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
           // Scene Fit reflects the dynamic per-brief value, scaled to /5.
           sceneFit: Math.round((sceneFit / 100) * 5),
         },
+        tempo: track.tempo ?? null,
         tonalCharacter: track.tonalCharacter ?? null,
         energyCharacter: track.energyCharacter ?? null,
-        sonicNarrative,
+        sonicNarrative,           // overwritten below after sort
       });
     }
 
@@ -498,6 +499,59 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
         return (b.matchScore as number) - (a.matchScore as number);
       return (a.trackId as string).localeCompare(b.trackId as string);
     });
+
+    // ── Narrative deduplication ───────────────────────────────────────────────
+    // Assign phrases in rank order (matches is already sorted), walking forward
+    // through the pool when the hash-derived slot is already taken by a
+    // higher-ranked track.  Guarantees uniqueness within each brief+verdict
+    // bucket up to pool.length tracks; after that slots cycle gracefully.
+    // The base slot is still hash-derived, so assignments are deterministic and
+    // only change when the ranked result set itself changes.
+    {
+      const usedSlots = new Map<string, Set<number>>();
+
+      for (const match of matches) {
+        const mSceneFit  = match.sceneFit  as number;
+        const mTrackId   = match.trackId   as string;
+        const mTempo     = match.tempo     as number | null;
+        const mTonal     = match.tonalCharacter  as string | null;
+        const mEnergy    = match.energyCharacter as string | null;
+
+        const verdict    = verdictFor(mSceneFit);
+        const briefEntry = NARRATIVE_DICTIONARY[sceneId];
+
+        if (!briefEntry) {
+          match.sonicNarrative =
+            `sceneFit=${mSceneFit} — brief narrative unavailable for "${sceneId}"`;
+          continue;
+        }
+
+        const pool = briefEntry[verdict];
+        const key  = `${sceneId}:${verdict}`;
+        const h    = createHash("sha256")
+          .update(`${mTrackId}:${sceneId}:${verdict}`)
+          .digest("hex");
+        const baseSlot = parseInt(h.slice(0, 8), 16) % pool.length;
+
+        if (!usedSlots.has(key)) usedSlots.set(key, new Set());
+        const taken = usedSlots.get(key)!;
+
+        // Walk forward from the hash-derived slot until a free one is found.
+        let slot = baseSlot;
+        for (let attempt = 1; attempt < pool.length; attempt++) {
+          if (!taken.has(slot)) break;
+          slot = (slot + 1) % pool.length;
+        }
+        taken.add(slot);
+
+        const phrase = pool[slot];
+        const parts  = [mTonal ?? "", mEnergy ?? "",
+          mTempo != null ? `${Math.round(mTempo)} BPM` : ""]
+          .filter(Boolean);
+        const dsp = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+        match.sonicNarrative = `${phrase}${dsp}`;
+      }
+    }
 
     const rankedMatches = matches.map((m, i) => ({ rank: i + 1, ...m }));
 
