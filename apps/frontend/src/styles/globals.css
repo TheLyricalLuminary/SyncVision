@@ -95,3 +95,19 @@ input, select, textarea {
   background: var(--color-mg-cosmic);
   color: var(--color-mg-silver);
 }
+
+.sv-glyph::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 4px;
+  background: #0F0823;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+.sv-glyph::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 7px;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), transparent 50%);
+}

@@ -7,6 +7,7 @@ import {
   ResultsScreen,
   decodeSharePayload,
 } from './screens/ResultsScreen';
+import { DirectorView } from './screens/DirectorView';
 import { useAnalysisJob } from './hooks/useAnalysisJob';
 import { useCredits } from './hooks/useCredits';
 import type { BriefId } from './engine/classifyBrief';
@@ -64,18 +65,12 @@ function App() {
 
   if (shared) {
     return (
-      <div style={{ maxWidth: '760px', margin: '0 auto', minHeight: '100vh', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column' }}>
-        <Nav creditBalance={credits.balance} loading={credits.loading} />
-        <div style={glassCard}>
-          <ResultsScreen
-            briefText={shared.briefText}
-            briefId={shared.briefId}
-            sceneParams={shared.sceneParams}
-            results={shared.results}
-            readOnly
-          />
-        </div>
-      </div>
+      <DirectorView
+        briefText={shared.briefText}
+        briefId={shared.briefId}
+        sceneParams={shared.sceneParams}
+        results={shared.results}
+      />
     );
   }
 
