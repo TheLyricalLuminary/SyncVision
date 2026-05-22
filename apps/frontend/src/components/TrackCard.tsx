@@ -157,7 +157,7 @@ export function TrackCard({ result, briefId, delta }: TrackCardProps) {
         </div>
         {delta != null && delta > 0 && (
           <div
-            className="text-[11px] tabular-nums mt-0.5"
+            className="delta-label text-[11px] tabular-nums mt-0.5"
             style={{ color: 'var(--color-mg-lavender)', opacity: 0.6 }}
           >
             ▼ {delta} pts vs #1

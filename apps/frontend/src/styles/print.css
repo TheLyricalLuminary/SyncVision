@@ -26,6 +26,11 @@
     color: #000000 !important;
   }
 
+  .delta-label {
+    color: #000000 !important;
+    opacity: 1 !important;
+  }
+
   .explanation {
     color: #000000 !important;
     font-style: italic;
