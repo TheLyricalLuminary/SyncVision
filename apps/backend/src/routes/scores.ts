@@ -244,7 +244,7 @@ function buildBriefNarrative(
   const verdict = verdictFor(sceneFit);
   const pool = brief[verdict];
   const h = createHash("sha256").update(`${trackId}:${briefId}:${verdict}`).digest("hex");
-  const phrase = pool[parseInt(h.slice(0, 8), 16) % 3];
+  const phrase = pool[parseInt(h.slice(0, 8), 16) % pool.length];
 
   const parts = [
     track.tonalCharacter ?? "",

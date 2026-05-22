@@ -317,16 +317,19 @@ export const NARRATIVE_DICTIONARY: Record<string, BriefNarrativePool> = {
       "Strong romance match — high valence and soft arousal both on target. Energy lifts slightly in the back half but holds the intimacy.",
       "Intimate posture is convincing throughout. Small arousal fluctuation doesn't break the warmth.",
       "Lands inside the romance zone. Loses a fraction of closeness at the peak but remains a clear candidate.",
+      "Vocal-down mix or instrumental version recommended for the close-scene placement — the lyric narrative competes with picture in the critical dialogue beats, but the underlying arrangement is exactly the right weight for non-diegetic underscore.",
     ],
     MAYBE_HIGH: [
       "Warm in character but the arousal runs above the intimacy zone — reads as romantic rather than intimate. Works for a date montage.",
       "Tender valence is present; the track moves when the brief asks it to stay still. Usable with a softer mix.",
       "Adjacent to romance — the warmth is there, but it's a room away from the kind of closeness this brief requires.",
+      "The track earns the emotional territory in the verse and loses it in the chorus, where arousal lifts past the intimacy ceiling. Edit to a verse-only cue window or request an alt mix before committing.",
     ],
     MAYBE_LOW: [
       "Positive and warm but too composed or too cool for genuine intimacy. B-list for light romantic moments.",
       "The emotional direction points toward connection; the track doesn't lean into it far enough.",
       "Sits below the romance band on valence. Reads as friendship rather than romance.",
+      "Production register is too polished for a close scene — the intimacy brief wants something that sounds like it was recorded in a room, and this sounds like it was mixed for a streaming playlist. Consider whether a stripped version exists.",
     ],
     FAIL_CLOSE: [
       "Warm enough to suggest positive emotion but the intimacy is absent — too polished, too performed for a close scene.",
@@ -385,16 +388,19 @@ export const NARRATIVE_DICTIONARY: Record<string, BriefNarrativePool> = {
       "Strong grief match — cool valence and restrained arousal both inside the brief. Loses the deepest register of absence but earns the placement.",
       "Grief posture holds across the track. Minor energy fluctuation doesn't break the stillness.",
       "Lands in the grief zone convincingly. A degree of arousal above the floor doesn't disqualify it.",
+      "Memorial and eulogy sequences specifically — the track holds space without filling it, which is the hardest thing to find in a loss cue. Confirm one-stop status before a broadcast commitment; the rights profile will determine whether this can clear on a compressed post timeline.",
     ],
     MAYBE_HIGH: [
       "Adjacent to grief on valence and dominance; the arousal reads sorrowful rather than still. Useful for a grief-in-motion beat.",
       "Cool and restrained but doesn't fully commit to the emptiness grief cues require. Usable with architecture.",
       "Emotionally in the right territory; the track is a touch too present for the absent quality grief needs.",
+      "Works for the scene leading into the grief beat rather than the grief beat itself — the arousal is high enough to carry narrative momentum, which is an asset in the approach and a liability at the stillpoint. Cue in early, cut before the close-up.",
     ],
     MAYBE_LOW: [
       "Sad in register but the emotional specificity falls short of grief. B-list for loss-adjacent scenes.",
       "The darkness is there; the stillness isn't. Would need scene architecture to make the brief work.",
       "Sits below the grief band on valence. Reads as sadness, not mourning.",
+      "Could underscore a scene about anticipating loss rather than experiencing it — the emotional distance is actually an asset in that specific context. Outside that window, the track doesn't carry the weight the brief requires.",
     ],
     FAIL_CLOSE: [
       "Tonal character suggests sorrow but the arousal breaks the stillness grief requires. Doesn't hold the space.",
@@ -555,16 +561,19 @@ export const NARRATIVE_DICTIONARY: Record<string, BriefNarrativePool> = {
       "Strong montage match — mid-range on all three axes, emotionally present without insisting. Recommend.",
       "Transition energy holds across the track. The neutrality is an asset, not a weakness.",
       "Lands inside the montage zone. A minor valence tilt doesn't break its utility for editorial.",
+      "Loop-friendly phrase structure and no dominant harmonic resolution — the music editor can extend or trim without audible seam. Solid utility cue for a multi-scene passage.",
     ],
     MAYBE_HIGH: [
       "Mid-energy but the valence tilts warmer or cooler than a truly neutral montage needs — imposes a mood the editor may not want.",
       "Montage-adjacent: works for passages with a specific emotional colour, less useful as a universal transition.",
       "Gets close to the neutral zone; the emotional centre of gravity is present enough to limit editorial flexibility.",
+      "The track has a point of view — which is a liability for a transition cue. Works if the montage is colour-matched to it; requires the editor to build the sequence toward the music rather than underneath it.",
     ],
     MAYBE_LOW: [
       "Mid-arousal is there but the emotional specificity of the track overrides its editorial utility. B-list.",
       "Would work for a montage that matches its mood. Less useful as a general-purpose transition tool.",
       "Sits at the edge of the montage zone. Usable for specific editorial contexts.",
+      "Arrangement has too many focal points — button moments and melodic peaks that will pull the viewer out of the picture. A full-underscore mix or stems pass might open it up for editorial use.",
     ],
     FAIL_CLOSE: [
       "Energetically in the right range but too emotionally specific — the scene would need to match the track's mood, not the other way around.",
