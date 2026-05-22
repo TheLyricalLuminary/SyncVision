@@ -68,7 +68,7 @@ apps/
 
 - **Postgres** — tracks, briefs, scores, rights state, audit hashes
 - **Redis Stream** — analysis job queue with tier-based priority
-- **Stripe** — five-tier billing (Free / Artist / Composer / Supervisor / Studio) plus a $9.99 24-hour trial
+- **Stripe** — four-tier billing (Starter / Pro / Studio / Enterprise)
 
 CQRS-style separation between the write side (ingest + analysis) and the read side (scoring + ranking). The read side is purely deterministic — a hash check on every response enforces the invariant that the same inputs always produce byte-identical output.
 
@@ -76,14 +76,14 @@ CQRS-style separation between the write side (ingest + analysis) and the read si
 
 ## Tiers
 
-|Tier      |Price     |Catalogue     |Export         |Priority|
-|----------|----------|--------------|---------------|--------|
-|Free      |$0        |3 tracks      |—              |low     |
-|Trial     |$9.99 once|5 tracks / 24h|—              |normal  |
-|Artist    |$99/mo    |25 tracks     |—              |normal  |
-|Composer  |$149/mo   |75 tracks     |PDF, CSV       |normal  |
-|Supervisor|$299/mo   |300 tracks    |PDF, CSV, XLSX |high    |
-|Studio    |$499/mo   |unlimited     |white-label PDF|highest |
+|Tier      |Price      |Catalogue       |Features                                                                                  |
+|----------|-----------|----------------|------------------------------------------------------------------------------------------|
+|Starter   |$149/mo    |Up to 100 tracks|Rights FSM, scene fit scoring (20 briefs), deterministic audit hash, CSV export           |
+|Pro ★     |$299/mo    |Up to 500 tracks|Everything in Starter, confidence score ranking, ROI calculator, priority support         |
+|Studio    |$499/mo    |Up to 2,000 tracks|Everything in Pro, multi-catalog management, team member access, rights report export   |
+|Enterprise|$1,999/mo  |Unlimited       |Everything in Studio, API access, dedicated account manager, custom SLA / SAML SSO       |
+
+★ Most popular
 
 -----
 
