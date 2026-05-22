@@ -88,7 +88,7 @@ export function BriefScreen({
         value={briefText}
         onChange={(e) => setBriefText(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Describe the scene — pacing, emotional register, moment in the story. Write it the way you'd say it out loud."
+        placeholder="A slow, intimate moment — the character finally lets their guard down. The room is still. Something is ending and something else is beginning."
         className="w-full p-4 mb-8 card text-mg-silver text-base resize-y placeholder:text-mg-silver placeholder:opacity-80"
         style={{ minHeight: '140px' }}
       />

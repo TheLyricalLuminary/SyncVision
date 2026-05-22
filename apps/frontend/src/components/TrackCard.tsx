@@ -44,6 +44,7 @@ export function TrackCard({ result, briefId, delta }: TrackCardProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [rightsTooltipVisible, setRightsTooltipVisible] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
@@ -124,7 +125,11 @@ export function TrackCard({ result, briefId, delta }: TrackCardProps) {
       </span>
 
       <header className="mb-3 pr-12">
-        <h2 className="text-mg-silver font-bold text-lg">{result.track.title}</h2>
+        <h2 className="text-mg-silver font-bold text-lg">
+          {result.track.title.includes(' - ')
+            ? result.track.title.slice(result.track.title.indexOf(' - ') + 3)
+            : result.track.title}
+        </h2>
         {result.track.artistName && (
           <p className="text-mg-lavender text-sm font-light">
             {result.track.artistName}
@@ -172,21 +177,39 @@ export function TrackCard({ result, briefId, delta }: TrackCardProps) {
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
-        <span
-          className="uppercase-label text-[10px] px-2 py-1 rounded"
-          style={{
-            background:
-              rightsStatus === 'complete'
-                ? 'rgba(72, 187, 165, 0.15)'
-                : 'rgba(220, 170, 80, 0.15)',
-            color:
-              rightsStatus === 'complete' ? '#4abfa5' : '#dcaa50',
-            border: `1px solid ${
-              rightsStatus === 'complete' ? '#4abfa5' : '#dcaa50'
-            }`,
-          }}
-        >
-          {rightsLabel}
+        <span className="relative">
+          <span
+            className="uppercase-label text-[10px] px-2 py-1 rounded"
+            style={{
+              background:
+                rightsStatus === 'complete'
+                  ? 'rgba(72, 187, 165, 0.15)'
+                  : 'rgba(220, 170, 80, 0.15)',
+              color:
+                rightsStatus === 'complete' ? '#4abfa5' : '#dcaa50',
+              border: `1px solid ${
+                rightsStatus === 'complete' ? '#4abfa5' : '#dcaa50'
+              }`,
+              cursor: rightsStatus === 'unclear' ? 'help' : undefined,
+            }}
+            onMouseEnter={() => rightsStatus === 'unclear' && setRightsTooltipVisible(true)}
+            onMouseLeave={() => setRightsTooltipVisible(false)}
+            onClick={() => rightsStatus === 'unclear' && setRightsTooltipVisible(v => !v)}
+          >
+            {rightsLabel}
+          </span>
+          {rightsTooltipVisible && (
+            <span
+              className="absolute bottom-full left-0 mb-2 w-64 text-xs leading-relaxed rounded px-3 py-2 z-10"
+              style={{
+                background: 'var(--color-mg-dim)',
+                border: '1px solid var(--color-mg-border)',
+                color: 'var(--color-mg-silver)',
+              }}
+            >
+              Rights status is unclear when ISRC, master ownership %, and one-stop status are unregistered. Upload tracks with embedded ISRC metadata or contact your distributor to resolve.
+            </span>
+          )}
         </span>
 
         <span className="uppercase-label text-[10px]" style={{ opacity: 0.7 }}>
