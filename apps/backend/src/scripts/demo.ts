@@ -109,9 +109,9 @@ function verdictFor(sceneFit: number): Verdict {
   return "FAIL_HARD";
 }
 
-function pickPhrase(pool: [string, string, string], trackHash: string, briefId: string, verdict: Verdict): string {
+function pickPhrase(pool: [string, string, string, string], trackHash: string, briefId: string, verdict: Verdict): string {
   const h = createHash("sha256").update(`${trackHash}:${briefId}:${verdict}`).digest("hex");
-  return pool[parseInt(h.slice(0, 8), 16) % 3];
+  return pool[parseInt(h.slice(0, 8), 16) % pool.length];
 }
 
 function formatDuration(seconds: number): string {
