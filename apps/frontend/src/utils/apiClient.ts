@@ -30,6 +30,7 @@ export type AnalysisResult = {
     publisherName: string | null;
     writerName: string | null;
     blockers?: string[];
+    rightsState?: string;
   } | null;
   rank: number;
 };

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE, type AnalysisResult } from '../utils/apiClient';
-import { rightsBadgeLabel, rightsStatusFor } from '../utils/rightsStatus';
+import { rightsDisplayFor } from '../utils/rightsStatus';
 import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
 
 function resolveAudioUrl(path: string | null): string | null {
@@ -50,8 +50,7 @@ export function TrackCard({ result, briefId, delta }: TrackCardProps) {
   const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
   const hasAudio = audioFilePath !== null;
 
-  const rightsStatus = rightsStatusFor(result.rightsProfile);
-  const rightsLabel = rightsBadgeLabel(rightsStatus);
+  const rights = rightsDisplayFor(result.rightsProfile);
   const score = result.confidenceScore.score;
   const fillPercent = Math.max(0, Math.min(100, score));
 
@@ -181,22 +180,16 @@ export function TrackCard({ result, briefId, delta }: TrackCardProps) {
           <span
             className="uppercase-label text-[10px] px-2 py-1 rounded"
             style={{
-              background:
-                rightsStatus === 'complete'
-                  ? 'rgba(72, 187, 165, 0.15)'
-                  : 'rgba(220, 170, 80, 0.15)',
-              color:
-                rightsStatus === 'complete' ? '#4abfa5' : '#dcaa50',
-              border: `1px solid ${
-                rightsStatus === 'complete' ? '#4abfa5' : '#dcaa50'
-              }`,
-              cursor: rightsStatus === 'unclear' ? 'help' : undefined,
+              background: rights.bgColor,
+              color: rights.color,
+              border: `1px solid ${rights.borderColor}`,
+              cursor: rights.clickable ? 'help' : undefined,
             }}
-            onMouseEnter={() => rightsStatus === 'unclear' && setRightsTooltipVisible(true)}
+            onMouseEnter={() => rights.clickable && setRightsTooltipVisible(true)}
             onMouseLeave={() => setRightsTooltipVisible(false)}
-            onClick={() => rightsStatus === 'unclear' && setRightsTooltipVisible(v => !v)}
+            onClick={() => rights.clickable && setRightsTooltipVisible(v => !v)}
           >
-            {rightsLabel}
+            {rights.label}
           </span>
           {rightsTooltipVisible && (
             <span
@@ -207,7 +200,7 @@ export function TrackCard({ result, briefId, delta }: TrackCardProps) {
                 color: 'var(--color-mg-silver)',
               }}
             >
-              Rights status is unclear when ISRC, master ownership %, and one-stop status are unregistered. Upload tracks with embedded ISRC metadata or contact your distributor to resolve.
+              {rights.tooltip}
             </span>
           )}
         </span>

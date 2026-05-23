@@ -244,6 +244,7 @@ interface AnalysisResult {
     publisherName: string | null;
     writerName: string | null;
     blockers?: string[];
+    rightsState: string;
   } | null;
   rank: number;
 }
@@ -376,6 +377,7 @@ async function processJob(jobId: string): Promise<void> {
               publisherName: track.rightsProfile.publisherName,
               writerName: track.rightsProfile.writerName,
               blockers: clearance.blockers,
+              rightsState,
             }
           : null,
         rank: 0,

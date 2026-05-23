@@ -91,6 +91,8 @@ model RightsProfile {
   masterOwnershipSplits Json?
   masterOwnershipType   String?
   masterVerifiedAt      DateTime?
+  rightsState           String?
+  rightsLastCheckedAt   DateTime?
   track                 Track     @relation(fields: [trackId], references: [id])
 
   @@schema("scoring")
