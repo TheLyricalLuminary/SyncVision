@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE, type AnalysisResult, type SceneParams } from '../utils/apiClient';
-import { rightsStatusFor, rightsBadgeLabel } from '../utils/rightsStatus';
+import { rightsDisplayFor } from '../utils/rightsStatus';
 import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
 
 // ── design tokens ────────────────────────────────────────────
@@ -96,7 +96,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
 
   const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
   const hasAudio = audioFilePath !== null;
-  const rights = rightsStatusFor(result.rightsProfile);
+  const rights = rightsDisplayFor(result.rightsProfile);
   const score = result.confidenceScore.score;
   const fillPct = Math.max(0, Math.min(100, score));
   const delta = isFirst ? null : topScore - score;
@@ -196,8 +196,8 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
       {/* tag row */}
       <div style={{ marginTop: 8, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ position: 'relative' }}>
-          <Chip variant={rights === 'complete' ? 'default' : 'warn'}>
-            {rights === 'unclear' && (
+          <Chip variant={rights.state === 'CLEAR' ? 'default' : 'warn'}>
+            {rights.state !== 'CLEAR' && rights.clickable && (
               <span
                 onMouseEnter={() => setRightsTooltip(true)}
                 onMouseLeave={() => setRightsTooltip(false)}
@@ -205,11 +205,11 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
                 style={{ width: 13, height: 13, borderRadius: '50%', background: 'rgba(245,181,68,0.25)', display: 'inline-grid', placeItems: 'center', fontSize: 9, fontWeight: 800, color: C.amber, flexShrink: 0, cursor: 'help' }}
               >?</span>
             )}
-            {rightsBadgeLabel(rights).toUpperCase()}
+            {rights.label.toUpperCase()}
           </Chip>
           {rightsTooltip && (
             <span style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 8, width: 256, fontSize: 11, lineHeight: 1.5, borderRadius: 10, padding: '8px 12px', zIndex: 10, background: '#170B33', border: `1px solid ${C.hairline}`, color: C.silver }}>
-              Rights status is unclear when ISRC, master ownership %, and one-stop status are unregistered.
+              {rights.tooltip}
             </span>
           )}
         </span>

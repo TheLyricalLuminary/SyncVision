@@ -1,4 +1,4 @@
-import { rightsStatusFor } from '../utils/rightsStatus';
+import { rightsDisplayFor } from '../utils/rightsStatus';
 import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
 import type { AnalysisResult, SceneParams } from '../utils/apiClient';
 
@@ -141,7 +141,7 @@ export function DirectorView({ briefText, briefId, sceneParams, results }: Direc
         {/* ── track cards ── */}
         {results.map((r) => {
           const isTop      = r.rank === 1;
-          const rights     = rightsStatusFor(r.rightsProfile);
+          const rights     = rightsDisplayFor(r.rightsProfile);
           const score      = r.confidenceScore.score;
           const fillPct    = Math.max(0, Math.min(100, score));
           const title      = stripArtist(r.track.title);
@@ -181,8 +181,8 @@ export function DirectorView({ briefText, briefId, sceneParams, results }: Direc
                 {r.track.tonalCharacter && (
                   <Chip>{r.track.tonalCharacter}</Chip>
                 )}
-                {rights === 'unclear' && (
-                  <Chip variant="warn"><WarnQmark />RIGHTS UNCLEAR</Chip>
+                {rights.state !== 'CLEAR' && (
+                  <Chip variant="warn"><WarnQmark />{rights.label.toUpperCase()}</Chip>
                 )}
               </div>
 
