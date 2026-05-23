@@ -19,8 +19,8 @@ type IngestScreenProps = {
   onAnalyze: (filenames: string[]) => void;
 };
 
-const ACCEPTED_TYPES = ['.wav', '.mp3', '.aiff', '.aif'];
-const ACCEPTED_MIME  = ['audio/wav', 'audio/mpeg', 'audio/aiff', 'audio/x-aiff'];
+const ACCEPTED_TYPES = ['.mp3'];
+const ACCEPTED_MIME  = ['audio/mpeg'];
 
 function isAcceptedFile(file: File): boolean {
   const name = file.name.toLowerCase();
@@ -126,7 +126,7 @@ export function IngestScreen({ creditBalance, onBack, onAnalyze }: IngestScreenP
       }
       let message = 'Upload failed. Please try again.';
       if (xhr.status === 413) message = 'File is too large. Please use a file under 200 MB.';
-      else if (xhr.status === 415) message = 'File type not supported. Please use WAV, MP3, or AIFF.';
+      else if (xhr.status === 415) message = 'File type not supported. Please use MP3.';
       else if (xhr.status === 502 || xhr.status === 503) message = 'Server is temporarily unavailable.';
       else {
         try { const p = JSON.parse(xhr.responseText) as { error?: string }; if (p.error && !/^\w+_\w+$/.test(p.error)) message = p.error; } catch { /* keep default */ }
@@ -147,7 +147,7 @@ export function IngestScreen({ creditBalance, onBack, onAnalyze }: IngestScreenP
     const accepted: File[] = [], rejected: File[] = [];
     Array.from(files).forEach(f => (isAcceptedFile(f) ? accepted : rejected).push(f));
     if (rejected.length > 0) {
-      setDropError(`Unsupported: ${rejected.map(f => f.name).join(', ')}. Use WAV, MP3, or AIFF.`);
+      setDropError(`Unsupported: ${rejected.map(f => f.name).join(', ')}. Use MP3.`);
     } else { setDropError(null); }
     const newTracks = accepted.map(f => ({
       file: f,
@@ -260,7 +260,7 @@ export function IngestScreen({ creditBalance, onBack, onAnalyze }: IngestScreenP
             or <span style={{ color: C.magenta, fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 2 }}>browse</span> from your device
           </div>
           <div style={{ marginTop: 12, fontSize: 9, letterSpacing: '0.22em', color: 'rgba(167,139,250,0.6)', textTransform: 'uppercase', fontFamily: '"JetBrains Mono", monospace' }}>
-            WAV · MP3 · AIFF · MULTI
+            MP3
           </div>
           <input ref={fileInputRef} type="file" accept={ACCEPTED_TYPES.join(',')} multiple className="hidden" onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
         </div>
@@ -310,7 +310,7 @@ export function IngestScreen({ creditBalance, onBack, onAnalyze }: IngestScreenP
               return (
                 <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, background: 'rgba(167,139,250,0.05)', border: `1px solid ${C.hairline}` }}>
                   <div style={{ width: 30, height: 30, borderRadius: 8, background: isUrl ? 'rgba(219,39,119,0.18)' : 'rgba(124,58,237,0.18)', display: 'grid', placeItems: 'center', fontSize: 8, letterSpacing: '0.06em', fontWeight: 700, color: isUrl ? '#f9a8d4' : C.lavender, fontFamily: '"JetBrains Mono", monospace', flexShrink: 0 }}>
-                    {t.source === 'isrc' ? 'ISRC' : isUrl ? 'URL' : 'WAV'}
+                    {t.source === 'isrc' ? 'ISRC' : isUrl ? 'URL' : 'MP3'}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, color: C.silver, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.filename}</div>
