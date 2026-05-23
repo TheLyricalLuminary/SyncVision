@@ -130,7 +130,13 @@ const KEYWORDS: Record<BriefId, string[]> = {
   ],
 };
 
-export function classifyBrief(briefText: string): BriefId {
+function hasEnoughRealWords(text: string): boolean {
+  return text.trim().split(/\s+/).filter(w => w.length >= 2).length >= 2;
+}
+
+export function classifyBrief(briefText: string): BriefId | null {
+  if (!hasEnoughRealWords(briefText)) return null;
+
   const text = briefText.toLowerCase();
   let bestId: BriefId = 'montage-transition';
   let bestScore = 0;
@@ -148,5 +154,5 @@ export function classifyBrief(briefText: string): BriefId {
     },
   );
 
-  return bestId;
+  return bestScore > 0 ? bestId : null;
 }

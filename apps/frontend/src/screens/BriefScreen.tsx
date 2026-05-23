@@ -102,11 +102,14 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
     return () => window.clearTimeout(handle);
   }, [briefText]);
 
-  const canContinue = briefText.trim().length >= 10;
+  const realWordCount = briefText.trim()
+    ? briefText.trim().split(/\s+/).filter(w => w.length >= 2).length
+    : 0;
+  const canContinue = briefText.trim().length >= 10 && realWordCount >= 2;
 
   const handleSubmit = () => {
     if (!canContinue) return;
-    const briefId = classifyBrief(briefText);
+    const briefId = classifyBrief(briefText) ?? 'montage-transition';
     const parsedLen = sceneLengthSec.trim() ? Number(sceneLengthSec) : null;
     onContinue({
       briefText: briefText.trim(),
