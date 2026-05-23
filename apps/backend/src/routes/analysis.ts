@@ -343,7 +343,7 @@ async function processJob(jobId: string): Promise<void> {
       );
 
       const score = Math.round(v2.matchScore);
-      const explanation = selectNarrative(track.id, job.briefId, sceneFit, padValues);
+      const explanation = selectNarrative(track.id, job.briefId, sceneFit, padValues, { tempo: track.tempo });
 
       results.push({
         track: {

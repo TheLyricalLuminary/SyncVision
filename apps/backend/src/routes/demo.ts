@@ -249,7 +249,7 @@ router.post("/demo/check", async (req: Request, res: Response) => {
         (track as any).modelVersion ?? null,
       );
 
-      const narrative = selectNarrative(track!.id, briefId, sceneFit, padValues);
+      const narrative = selectNarrative(track!.id, briefId, sceneFit, padValues, { tempo: track?.tempo });
       const verdict = verdictFor(sceneFit);
 
       return {

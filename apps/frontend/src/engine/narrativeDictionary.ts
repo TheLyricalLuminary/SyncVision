@@ -50,6 +50,10 @@ export interface PADValues {
   dominance: number;
 }
 
+export interface TrackMeta {
+  tempo?: number | null;
+}
+
 // ---------------------------------------------------------------------------
 // Dictionary
 // ---------------------------------------------------------------------------
@@ -128,7 +132,7 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
       "Outro decay at 2:50 holds an unresolved suspended chord — the cue ends without closure, which is the right register for a montage that is asking the audience to sit with what was lost. Candidate for end-credits run-out.",
     ],
     MAYBE: [
-      "Bittersweet color is there in the harmony, but the tempo at 96 BPM is faster than the cut wants — the editor will either need a half-time edit or to compress the montage pacing. Music-editor handoff before commit.",
+      "Bittersweet color is there in the harmony, but the tempo at {tempo} BPM is faster than the cut wants — the editor will either need a half-time edit or to compress the montage pacing. Music-editor handoff before commit.",
       "Lyric content lands on a specific narrative — names a place and a season — which works for a brief that aligns with that imagery and competes with one that does not. Read the lyric sheet against locked picture before saying yes.",
       "Emotional residue is present and the arrangement breathes correctly, but the chorus modulation up a whole step at 1:48 telegraphs uplift that may overshoot a retrospective beat that is still landing on loss. Editorial call.",
       "Forward momentum is correct for time-passing but the cue builds to a peak at 2:15 and stays there for forty seconds — montage as cut probably resolves earlier. Needs a shorter mix or an early fade point.",
@@ -189,7 +193,7 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
     ],
     MAYBE: [
       "Warmth is present but the lyric in the second verse names a specific narrative event — a wedding — that may or may not match the montage's beats. Read against locked picture before commit.",
-      "Forward momentum is correct for compressed-time coverage but the cue at 124 BPM is more upbeat than the scene's tonal register; the editor will need to consider whether longing can carry at that tempo.",
+      "Forward momentum is correct for compressed-time coverage but the cue at {tempo} BPM is more upbeat than the scene's tonal register; the editor will need to consider whether longing can carry at that tempo.",
       "Tonal color and dynamic arc serve the brief, but the chorus has a shouted backing vocal at 1:10 that pulls the register out of intimate-romantic into festival-anthemic. Instrumental version or stems edit needed.",
       "Arrangement leadership is right but the bridge takes the cue into a key change that doesn't return — the montage will end in a different emotional place than it started. Editorial call on whether that arc serves the picture.",
       "Cue is structurally clean for a montage but the master has been used in a competitor product launch within the past eighteen months, which creates sonic-recognition risk. Pre-clear with the brand team.",
@@ -310,7 +314,7 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
     MAYBE: [
       "Quirk is present but the cue introduces a vocal interjection at 0:58 — a single sung syllable — that some directors will hear as charm and others as competing comic information. Editorial call.",
       "Tonal palette serves the brief but the cue is performing its quirkiness rather than carrying it lightly; the wit reads effortful. Music-editor instinct call on whether the picture can absorb that energy.",
-      "Forward momentum is correct but the cue's tempo at 142 BPM is faster than most quirky comedy coverage wants — works for a chase-of-laughs sequence, competes with a slower deadpan two-hander.",
+      "Forward momentum is correct but the cue's tempo at {tempo} BPM is faster than most quirky comedy coverage wants — works for a chase-of-laughs sequence, competes with a slower deadpan two-hander.",
       "Arrangement leadership is appropriately recessive but the cue's mix has a forward whistle line that may compete with on-camera dialogue in the same register. Stems pull would let the music editor mute it.",
       "Wit is in the writing but the cue lands a clear musical punchline at 1:48 that requires the picture to land its own punchline at the same moment. Director call on whether to align the beats.",
       "Cue serves the brief structurally but the master has been placed in a streaming-comedy theme inside the last year — sonic identity may already be associated with another show. Pre-clear conversation.",
@@ -330,7 +334,7 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   // -------------------------------------------------------------------------
   "comedy-light": {
     PASS: [
-      "Tempo at 118 BPM and a four-on-the-floor kick give the editor a metronomic backbone for compressed-time comedy beats. Forward momentum without any harmonic darkness anywhere in the arrangement; lands the turn at every chorus return.",
+      "Tempo at {tempo} BPM and a four-on-the-floor kick give the editor a metronomic backbone for compressed-time comedy beats. Forward momentum without any harmonic darkness anywhere in the arrangement; lands the turn at every chorus return.",
       "Major-key tonal palette holds across the full cue with no minor-key bridge — exactly the right emotional surface for a sequence that should never let the audience worry. Drives the cut without dictating it.",
       "Vocal entry at 0:14 brings character without specificity; the lyric is general enough to read as group montage interiority. Clears for episodic, viable for trailer cutdowns inside the same license.",
       "Arrangement layers are additive across the verse-chorus-verse — guitar at 0:30, horns at 0:58, group vocal at 1:24 — giving the editor four natural lift points to align with the montage's beats.",
@@ -459,7 +463,7 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
     ],
     MAYBE: [
       "Optimism is present but the cue's harmonic language reads slightly nostalgic — works for legacy-brand storytelling, competes with a forward-tech narrative. Director-level call on the brand voice.",
-      "Forward momentum is correct but the cue's BPM at 132 is faster than most aspirational corporate work uses — lands as energetic for a launch, reads as anxious for an institutional brief.",
+      "Forward momentum is correct but the cue's BPM at {tempo} is faster than most aspirational corporate work uses — lands as energetic for a launch, reads as anxious for an institutional brief.",
       "Tonal palette is brand-clean but the cue's mix has a forward synth lead that may compete with a prominent voiceover. Stems pull lets the music editor mute the lead during V/O coverage.",
       "Cue is corporate-grade structurally but the topline melody is highly memorable in a way that may compete with the brand's own audio mnemonic. Sonic-identity pre-clear with the brand team.",
       "Aspirational register lands but the cue's outro at 2:48 runs longer than most corporate cutdowns need — the deliverable set should include 15-, 30-, and 60-second alts. Worth requesting before commit.",
@@ -481,7 +485,7 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   "nature-pastoral": {
     PASS: [
       "Cue is built from acoustic guitar, hammered dulcimer, and a single sustained string pad — the instrumentation itself does the pastoral work without any electronic layer to break the organic register. Yields to picture entirely.",
-      "Tempo at 68 BPM and a long-breathing arrangement give the editor permission to let the picture take its time — the cue does not rush the cut. Underscores without competing through the wide-shot landscape coverage.",
+      "Tempo at {tempo} BPM and a long-breathing arrangement give the editor permission to let the picture take its time — the cue does not rush the cut. Underscores without competing through the wide-shot landscape coverage.",
       "Tonal palette is modal and unhurried with no clear cadential resolution before the outro — the music shares the picture's relationship to time rather than imposing its own structure. Drives the cut without dictating it.",
       "Spectral weight is light across the full band, leaving the natural-sound design layer (wind, water, birdsong) entirely uncontested. Mix hierarchy is documentary-grade and clears for nature-doc episodic use.",
       "Dynamic arc holds nearly flat for the first two minutes and lifts almost imperceptibly into the bridge — the cue's restraint is its emotional argument. Lands the turn quietly on the herd-on-the-ridge reveal.",
@@ -512,7 +516,7 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
     PASS: [
       "Cue holds a steady mid-tempo pulse with a deliberately neutral tonal palette — neither bright nor dark — exactly what editorial glue between scenes requires. Drives the cut without dictating it across four locations.",
       "Arrangement is rhythmically consistent without melodic specificity — the cue's job is to carry temporal continuity, not to assert a feeling, and the topline understands that. Yields to dialogue and lifts on the cut to the new location.",
-      "Forward momentum is steady at 104 BPM with a four-bar phrase structure that lets the editor cut on every fourth bar without phrase-end artifacts. Underscores without competing across passage-of-time coverage.",
+      "Forward momentum is steady at {tempo} BPM with a four-bar phrase structure that lets the editor cut on every fourth bar without phrase-end artifacts. Underscores without competing across passage-of-time coverage.",
       "Spectral weight is balanced across the band with no register dominant — the cue functions as connective tissue rather than scene-driving content. Mix hierarchy is editorial-glue grade.",
       "Tonal palette is harmonically open — suspended chords without strong cadential motion — which means the cue can absorb whatever emotional direction the surrounding scenes establish. Lands the turn at every transition cleanly.",
       "Outro at 1:48 ends on a clean fade rather than a button — the cue dissolves into the next scene rather than closing the previous one. Candidate for repeated episodic transition use across season.",
@@ -549,7 +553,7 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
     ],
     MAYBE: [
       "Victory arc is structurally correct but the cue's lyric names a specific sport — football — that may or may not match the production's actual coverage. Pre-clear lyric specificity against the cut.",
-      "Crowd-energy register lands but the cue's tempo at 92 BPM is slower than most sports-triumph cutdowns use — works for a slow-motion-emotional victory beat, competes with a fast-cut highlight reel.",
+      "Crowd-energy register lands but the cue's tempo at {tempo} BPM is slower than most sports-triumph cutdowns use — works for a slow-motion-emotional victory beat, competes with a fast-cut highlight reel.",
       "Anthemic peak is real but the cue's vocal entry at 0:28 commits the music to a performer-identity that the brand may or may not want to associate with. Director-level call.",
       "Tonal palette is sports-grade but the cue's outro at 3:48 runs longer than most highlight-reel cuts need — needs a 60- and 90-second cutdown set before commit.",
       "Cue serves the brief but the master is heavily associated with a specific team's broadcast use — sonic-identity collision risk if the production is covering a competing franchise. Pre-clear with the league.",
@@ -720,6 +724,7 @@ export async function selectNarrative(
   briefId: string,
   sceneFitScore: number,
   padValues: PADValues,
+  meta?: TrackMeta,
 ): Promise<string> {
   const pool = NARRATIVE_DICTIONARY[briefId];
   if (!pool) {
@@ -738,12 +743,15 @@ export async function selectNarrative(
     );
   }
 
-  // Reference padValues so strict TS configurations do not flag it as unused;
-  // PAD context is already encoded into the phrase pool vocabulary itself.
   void padValues;
 
   const idx = await deterministicIndex(trackId, briefId, phrases.length);
-  return phrases[idx];
+  let phrase = phrases[idx];
+
+  const tempoStr = meta?.tempo != null ? String(Math.round(meta.tempo)) : 'mid-tempo';
+  phrase = phrase.replace(/\{tempo\}/g, tempoStr);
+
+  return phrase;
 }
 
 // ---------------------------------------------------------------------------
