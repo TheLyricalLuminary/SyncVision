@@ -72,7 +72,12 @@ const PACING_OPTIONS: Array<{ value: SceneParams['pacing']; label: string }> = [
   { value: 'driving', label: 'Driving' },
 ];
 
-const MOOD_OPTIONS = ['Yearning', 'Intimate', 'Bittersweet', 'Hopeful', 'Triumphant'];
+const MOOD_OPTIONS = [
+  'Yearning', 'Intimate', 'Bittersweet', 'Hopeful', 'Triumphant',
+  'Melancholic', 'Tense', 'Euphoric', 'Nostalgic', 'Eerie',
+  'Playful', 'Romantic', 'Desperate', 'Serene', 'Defiant',
+  'Vulnerable', 'Cinematic',
+];
 
 type BriefScreenProps = {
   initialBriefText?: string;
