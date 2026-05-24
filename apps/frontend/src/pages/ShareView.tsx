@@ -69,7 +69,7 @@ function AxisBar({ label, subLabel, pct }: { label: string; subLabel: string; pc
         <span style={{ color: C.silver, fontFamily: MONO }}>{pct}%</span>
       </div>
       <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 999, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${C.purple}, ${C.magenta})`, borderRadius: 999 }} />
+        <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg, #F5B544, #F97316)', borderRadius: 999 }} />
       </div>
     </div>
   );
@@ -165,7 +165,7 @@ function TrackCard({ result, decision, comment, onDecide }: TrackCardProps) {
       </div>
 
       {/* body: reasoning + score */}
-      <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 200px', gap: 20, alignItems: 'start' }}>
+      <div className="sv-trk-body" style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 200px', gap: 20, alignItems: 'start' }}>
         {/* left */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* AI reasoning */}
@@ -203,7 +203,7 @@ function TrackCard({ result, decision, comment, onDecide }: TrackCardProps) {
         </div>
 
         {/* right: score */}
-        <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(0,0,0,0.18)', border: `1px solid ${C.hairline}` }}>
+        <div className="sv-trk-right" style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(0,0,0,0.18)', border: `1px solid ${C.hairline}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
             <div style={{ fontSize: 9, letterSpacing: '0.30em', textTransform: 'uppercase', color: C.lavender }}>FIT SCORE</div>
             <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 26, color: C.silver, letterSpacing: '-0.01em' }}>
@@ -544,6 +544,8 @@ export default function ShareView({ briefText, results }: ShareViewProps) {
           .sv-share-left { display: none !important; }
           .sv-share-right { position: static !important; height: auto !important; border-left: none !important; border-top: 1px solid rgba(167,139,250,0.14) !important; }
           .sv-share-main { padding: 20px 16px !important; }
+          .sv-trk-body { grid-template-columns: 1fr !important; }
+          .sv-trk-right { display: none !important; }
         }
       `}</style>
     </div>
