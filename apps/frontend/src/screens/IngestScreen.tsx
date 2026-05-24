@@ -58,12 +58,7 @@ const SANS  = '"Manrope", system-ui, sans-serif';
 const BG    = `radial-gradient(1200px 700px at 18% 0%, rgba(124,58,237,0.18), transparent 60%), radial-gradient(900px 600px at 82% 100%, rgba(219,39,119,0.10), transparent 60%), #06030F`;
 
 function SvLogo() {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 700, letterSpacing: '-0.01em', fontFamily: SANS }}>
-      <span className="sv-glyph" style={{ width: 22, height: 22, borderRadius: 7, position: 'relative', flexShrink: 0, background: `conic-gradient(from 210deg at 50% 50%, ${C.purple}, ${C.magenta}, ${C.purple})`, boxShadow: '0 0 0 1px rgba(255,255,255,0.06) inset' }} />
-      <span style={{ fontSize: 15 }}><b>SyncVision</b></span>
-    </span>
-  );
+  return <img src="/logo.png" alt="SyncVision" style={{ height: 28, width: 'auto', display: 'block' }} />;
 }
 
 export function IngestScreen({ creditBalance, onBack, onAnalyze }: IngestScreenProps) {

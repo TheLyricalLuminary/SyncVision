@@ -65,9 +65,8 @@ function stripArtist(title: string) {
 // ── sub-components ─────────────────────────────────────────────
 function SvLogo({ onClick }: { onClick?: () => void }) {
   return (
-    <span onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 700, letterSpacing: '-0.01em', fontFamily: SANS, cursor: onClick ? 'pointer' : undefined }}>
-      <span className="sv-glyph" style={{ width: 22, height: 22, borderRadius: 7, position: 'relative', flexShrink: 0, background: `conic-gradient(from 210deg at 50% 50%, ${C.purple}, ${C.magenta}, ${C.purple})`, boxShadow: '0 0 0 1px rgba(255,255,255,0.06) inset' }} />
-      <span style={{ fontSize: 15 }}><b>SyncVision</b></span>
+    <span onClick={onClick} style={{ cursor: onClick ? 'pointer' : undefined, display: 'inline-flex' }}>
+      <img src="/logo.png" alt="SyncVision" style={{ height: 28, width: 'auto', display: 'block' }} />
     </span>
   );
 }
