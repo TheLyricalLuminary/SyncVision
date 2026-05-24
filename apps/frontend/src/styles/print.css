@@ -19,8 +19,31 @@
     margin-bottom: 0.75rem;
   }
 
-  /* General text classes go dark — but NOT elements with inline color
-     (rights badges use inline style so they keep their colour coding). */
+  /* ── TrackCard articles ── */
+  article {
+    background: #ffffff !important;
+    border: 1px solid #cccccc !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    margin-bottom: 0.75rem;
+  }
+
+  /* Force ALL text inside articles dark — inline styles included.
+     Rights badges carry an inline color we want to keep, so we
+     re-apply them via the data-rights-color attribute set in JSX. */
+  article * {
+    color: #1a1a1a !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Score bar: replace gradient with solid dark fill */
+  article [style*="linear-gradient"] {
+    background: #333333 !important;
+  }
+
+  /* General text classes go dark */
   .text-mg-lavender,
   .text-mg-cosmic,
   .text-mg-silver {
@@ -68,5 +91,11 @@
   a {
     color: #1a1a1a !important;
     text-decoration: none;
+  }
+
+  /* Hide interactive / decorative chrome */
+  [aria-hidden="true"],
+  audio {
+    display: none !important;
   }
 }

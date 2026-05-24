@@ -176,19 +176,29 @@ export function calculateConfidenceScore(
 
   // ── Plain-English explanation ────────────────────────────────────────────
   const title = track.title ?? "This track";
-  const rightsStatus =
-    isrcPoints > 0 ? "ISRC verified" : "ISRC missing or invalid";
-  const oneStopStatus =
-    oneStopPoints > 0 ? "one-stop clearance confirmed" : "one-stop clearance not confirmed";
+
+  // Musical character sentence — only when audio features are present
+  const audioDesc: string[] = [];
+  if (track.tonalCharacter) audioDesc.push(track.tonalCharacter as string);
+  if (track.energyCharacter) audioDesc.push(track.energyCharacter as string);
+  if (typeof track.tempo === "number" && !isNaN(track.tempo as number))
+    audioDesc.push(`${Math.round(track.tempo as number)} BPM`);
+  const audioSentence = audioDesc.length > 0
+    ? `Character: ${audioDesc.join(", ")}.`
+    : "";
+
   const clearanceSummary =
     total >= 80
       ? "Sync clearance is straightforward."
       : total >= 60
       ? "Sync clearance requires minor follow-up."
-      : "Sync clearance requires significant rights investigation.";
+      : "Sync clearance requires rights investigation.";
 
-  const explanation =
-    `${title} scores ${total}/100. ${rightsStatus}. ${oneStopStatus}. ${clearanceSummary}`;
+  const explanation = [
+    audioSentence,
+    clearanceSummary,
+    oneStopPoints > 0 ? "One-stop confirmed." : "One-stop not confirmed.",
+  ].filter(Boolean).join(" ");
 
   // ── Deterministic input hash ─────────────────────────────────────────────
   // Only hash the fields the scoring function actually reads. Excluding
