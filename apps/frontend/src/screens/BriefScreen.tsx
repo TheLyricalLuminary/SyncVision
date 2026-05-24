@@ -37,17 +37,6 @@ const MOOD_FAMILIES: Array<{ name: string; moods: string[]; isStyle?: boolean }>
   { name: 'Style modifiers', moods: ['Cinematic', 'Playful'], isStyle: true },
 ];
 
-const SYNTHESIS_TEMPLATES: Array<{
-  pacings: Array<SceneParams['pacing']>;
-  moods: string[];
-  text: (pacing: string, moods: string[]) => string;
-}> = [
-  {
-    pacings: ['slow'],
-    moods: ['Intimate', 'Bittersweet'],
-    text: (_p, _m) => `Slow-burning intimate tension with bittersweet emotional release.`,
-  },
-];
 
 function buildSynthesis(pacing: SceneParams['pacing'], moods: string[]): string | null {
   if (!pacing && moods.length === 0) return null;
