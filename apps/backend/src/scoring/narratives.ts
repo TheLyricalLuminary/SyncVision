@@ -835,3 +835,52 @@ export const NARRATIVE_DICTIONARY: Record<string, BriefNarrativePool> = {
   },
 
 };
+
+// ---------------------------------------------------------------------------
+// Selection helpers — exported so analysis.ts and demo.ts can use the same
+// narrative system as scores.ts without duplicating the logic.
+// ---------------------------------------------------------------------------
+
+import { createHash } from "crypto";
+
+export function verdictFor(sceneFit: number): Verdict {
+  if (sceneFit >= 80) return "PASS_STRONG";
+  if (sceneFit >= 70) return "PASS_SOFT";
+  if (sceneFit >= 60) return "MAYBE_HIGH";
+  if (sceneFit >= 50) return "MAYBE_LOW";
+  if (sceneFit >= 40) return "FAIL_CLOSE";
+  return "FAIL_HARD";
+}
+
+/**
+ * Deterministically select a narrative phrase for (trackId, briefId, sceneFit)
+ * and append a parenthetical audio-feature suffix with the track's actual
+ * tonal character, energy character, and BPM.
+ *
+ * Hash key: sha256(`${trackId}:${briefId}:${verdict}`) so the same
+ * track+brief+tier always yields the same phrase.
+ */
+export function buildBriefNarrative(
+  trackId: string,
+  briefId: string,
+  sceneFit: number,
+  track: { tempo: number | null; tonalCharacter: string | null; energyCharacter: string | null },
+): string {
+  const brief = NARRATIVE_DICTIONARY[briefId];
+  if (!brief) {
+    return `sceneFit=${sceneFit} — brief narrative unavailable for "${briefId}"`;
+  }
+  const verdict = verdictFor(sceneFit);
+  const pool = brief[verdict];
+  const h = createHash("sha256").update(`${trackId}:${briefId}:${verdict}`).digest("hex");
+  const phrase = pool[parseInt(h.slice(0, 8), 16) % pool.length];
+
+  const parts = [
+    track.tonalCharacter ?? "",
+    track.energyCharacter ?? "",
+    track.tempo != null ? `${Math.round(track.tempo)} BPM` : "",
+  ].filter(Boolean);
+  const suffix = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+
+  return `${phrase}${suffix}`;
+}

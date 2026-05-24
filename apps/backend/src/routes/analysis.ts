@@ -15,7 +15,8 @@ import prisma from "../lib/prisma";
 import { computeRightsState } from "../scoring/rightsStateMachine";
 import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
 import { computeSyncVisionScoreV2 } from "../scoring/scoringV2";
-import { selectNarrative, type PADValues } from "../scoring/narrativeDictionary";
+import { buildBriefNarrative } from "../scoring/narratives";
+import type { PADValues } from "../scoring/narrativeDictionary";
 
 const router = Router();
 
@@ -343,7 +344,11 @@ async function processJob(jobId: string): Promise<void> {
       );
 
       const score = Math.round(v2.matchScore);
-      const explanation = selectNarrative(track.id, job.briefId, sceneFit, padValues, { tempo: track.tempo });
+      const explanation = buildBriefNarrative(track.id, job.briefId, sceneFit, {
+        tempo: track.tempo,
+        tonalCharacter: track.tonalCharacter,
+        energyCharacter: track.energyCharacter,
+      });
 
       results.push({
         track: {
