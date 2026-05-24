@@ -81,17 +81,3 @@ export function rightsDisplayFor(
 
   return { state, ...DISPLAY[state] };
 }
-
-// Kept for backward compat — used by DirectorView and ResultsScreen
-export type RightsStatus = 'complete' | 'unclear';
-
-export function rightsStatusFor(
-  rightsProfile: AnalysisResult['rightsProfile'],
-): RightsStatus {
-  const { state } = rightsDisplayFor(rightsProfile);
-  return state === 'CLEAR' ? 'complete' : 'unclear';
-}
-
-export function rightsBadgeLabel(status: RightsStatus): string {
-  return status === 'complete' ? 'Rights clear' : 'Rights unclear';
-}

@@ -182,7 +182,10 @@ export function DirectorView({ briefText, briefId, sceneParams, results }: Direc
                   <Chip>{r.track.tonalCharacter}</Chip>
                 )}
                 {rights.state !== 'CLEAR' && (
-                  <Chip variant="warn"><WarnQmark />{rights.label.toUpperCase()}</Chip>
+                  <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', padding: '4px 8px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', background: rights.bgColor, border: `1px solid ${rights.borderColor}`, color: rights.color }}>
+                    {rights.clickable && <WarnQmark />}
+                    {rights.label.toUpperCase()}
+                  </span>
                 )}
               </div>
 

@@ -196,17 +196,17 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
       {/* tag row */}
       <div style={{ marginTop: 8, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ position: 'relative' }}>
-          <Chip variant={rights.state === 'CLEAR' ? 'default' : 'warn'}>
-            {rights.state !== 'CLEAR' && rights.clickable && (
-              <span
-                onMouseEnter={() => setRightsTooltip(true)}
-                onMouseLeave={() => setRightsTooltip(false)}
-                onClick={() => setRightsTooltip(v => !v)}
-                style={{ width: 13, height: 13, borderRadius: '50%', background: 'rgba(245,181,68,0.25)', display: 'inline-grid', placeItems: 'center', fontSize: 9, fontWeight: 800, color: C.amber, flexShrink: 0, cursor: 'help' }}
-              >?</span>
+          <span
+            style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', padding: '4px 8px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', background: rights.bgColor, border: `1px solid ${rights.borderColor}`, color: rights.color, cursor: rights.clickable ? 'help' : undefined }}
+            onMouseEnter={() => rights.clickable && setRightsTooltip(true)}
+            onMouseLeave={() => setRightsTooltip(false)}
+            onClick={() => rights.clickable && setRightsTooltip(v => !v)}
+          >
+            {rights.clickable && (
+              <span style={{ width: 13, height: 13, borderRadius: '50%', background: `${rights.color}33`, display: 'inline-grid', placeItems: 'center', fontSize: 9, fontWeight: 800, flexShrink: 0 }}>?</span>
             )}
             {rights.label.toUpperCase()}
-          </Chip>
+          </span>
           {rightsTooltip && (
             <span style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 8, width: 256, fontSize: 11, lineHeight: 1.5, borderRadius: 10, padding: '8px 12px', zIndex: 10, background: '#170B33', border: `1px solid ${C.hairline}`, color: C.silver }}>
               {rights.tooltip}
