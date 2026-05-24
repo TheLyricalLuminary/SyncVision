@@ -52,6 +52,8 @@ export interface PADValues {
 
 export interface TrackMeta {
   tempo?: number | null;
+  tonalCharacter?: string | null;
+  energyCharacter?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -748,8 +750,15 @@ export async function selectNarrative(
   const idx = await deterministicIndex(trackId, briefId, phrases.length);
   let phrase = phrases[idx];
 
-  const tempoStr = meta?.tempo != null ? String(Math.round(meta.tempo)) : 'mid-tempo';
-  phrase = phrase.replace(/\{tempo\}/g, tempoStr);
+  const tempoStr = meta?.tempo != null ? String(Math.round(meta.tempo)) : null;
+  if (tempoStr) phrase = phrase.replace(/\{tempo\}/g, tempoStr);
+
+  const parts = [
+    meta?.tonalCharacter ?? null,
+    meta?.energyCharacter ?? null,
+    tempoStr != null ? `${tempoStr} BPM` : null,
+  ].filter((v): v is string => v !== null);
+  if (parts.length > 0) phrase += ` (${parts.join(', ')})`;
 
   return phrase;
 }

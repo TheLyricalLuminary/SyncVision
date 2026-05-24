@@ -47,6 +47,8 @@ export interface PADValues {
 
 export interface TrackMeta {
   tempo?: number | null;
+  tonalCharacter?: string | null;
+  energyCharacter?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -739,8 +741,18 @@ export function selectNarrative(
   const idx = deterministicIndex(trackId, briefId, phrases.length);
   let phrase = phrases[idx];
 
-  const tempoStr = meta?.tempo != null ? String(Math.round(meta.tempo)) : 'mid-tempo';
-  phrase = phrase.replace(/\{tempo\}/g, tempoStr);
+  // Inline {tempo} substitution for phrases that reference it directly.
+  const tempoStr = meta?.tempo != null ? String(Math.round(meta.tempo)) : null;
+  if (tempoStr) phrase = phrase.replace(/\{tempo\}/g, tempoStr);
+
+  // Append actual librosa features as a parenthetical suffix so every phrase
+  // references the specific track rather than a hypothetical one.
+  const parts = [
+    meta?.tonalCharacter ?? null,
+    meta?.energyCharacter ?? null,
+    tempoStr != null ? `${tempoStr} BPM` : null,
+  ].filter((v): v is string => v !== null);
+  if (parts.length > 0) phrase += ` (${parts.join(', ')})`;
 
   return phrase;
 }

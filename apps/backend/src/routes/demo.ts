@@ -4,7 +4,7 @@ import prisma from "../lib/prisma";
 import { computeRightsState } from "../scoring/rightsStateMachine";
 import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
 import { computeSyncVisionScoreV2 } from "../scoring/scoringV2";
-import { buildBriefNarrative } from "../scoring/narratives";
+import { selectNarrative } from "../scoring/narrativeDictionary";
 
 // ─── In-memory rate limiter: 10 req / IP / hour ───────────────────────────────
 
@@ -230,6 +230,10 @@ router.post("/demo/check", async (req: Request, res: Response) => {
     const rp = (track as any).rightsProfile as RightsProfileLike | null;
     const clearance = computeClearance(rp);
 
+    // PAD values (passed to selectNarrative for API compatibility)
+    const padMeans = meanPAD(track.timeline);
+    const padValues = padMeans ?? { arousal: 0.5, valence: 0.5, dominance: 0.5 };
+
     // Rights state for scoring
     const rightsState = computeRightsState(rp);
 
@@ -245,7 +249,7 @@ router.post("/demo/check", async (req: Request, res: Response) => {
         (track as any).modelVersion ?? null,
       );
 
-      const narrative = buildBriefNarrative(track!.id, briefId, sceneFit, {
+      const narrative = selectNarrative(track!.id, briefId, sceneFit, padValues, {
         tempo: track?.tempo ?? null,
         tonalCharacter: (track as any).tonalCharacter ?? null,
         energyCharacter: (track as any).energyCharacter ?? null,
