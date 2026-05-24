@@ -38,18 +38,57 @@ const MOOD_FAMILIES: Array<{ name: string; moods: string[]; isStyle?: boolean }>
 ];
 
 
+const MOOD_ADJ: Record<string, string> = {
+  Intimate: 'intimate', Romantic: 'romantic', Vulnerable: 'vulnerable', Yearning: 'yearning',
+  Tense: 'tense', Defiant: 'defiant', Desperate: 'desperate', Eerie: 'eerie',
+  Hopeful: 'hopeful', Triumphant: 'triumphant', Euphoric: 'euphoric', Serene: 'serene',
+  Nostalgic: 'nostalgic', Bittersweet: 'bittersweet', Melancholic: 'melancholic',
+  Cinematic: 'cinematic', Playful: 'playful',
+};
+
+const MOOD_NOUN: Record<string, string> = {
+  Intimate: 'intimacy', Romantic: 'romance', Vulnerable: 'vulnerability', Yearning: 'longing',
+  Tense: 'tension', Defiant: 'defiance', Desperate: 'desperation', Eerie: 'unease',
+  Hopeful: 'hope', Triumphant: 'triumph', Euphoric: 'euphoria', Serene: 'serenity',
+  Nostalgic: 'nostalgia', Bittersweet: 'bittersweetness', Melancholic: 'melancholy',
+  Cinematic: 'grandeur', Playful: 'levity',
+};
+
+const DRIVING_ACTION: Record<string, string> = {
+  Tense: 'escape', Defiant: 'standoff', Desperate: 'pursuit', Eerie: 'unraveling',
+  Triumphant: 'breakthrough', Euphoric: 'surge', Hopeful: 'push',
+  Intimate: 'reckoning', Romantic: 'collision', Vulnerable: 'unraveling',
+  Yearning: 'pursuit', Serene: 'descent', Nostalgic: 'return',
+  Bittersweet: 'departure', Melancholic: 'spiral', Cinematic: 'charge', Playful: 'chase',
+};
+
 function buildSynthesis(pacing: SceneParams['pacing'], moods: string[]): string | null {
   if (!pacing && moods.length === 0) return null;
-  const pacingWord = pacing === 'slow' ? 'Slow-burning' : pacing === 'mid' ? 'Measured' : 'Driving';
-  const pacingDesc = pacing === 'slow'
-    ? 'restrained emotional weight'
-    : pacing === 'mid'
-    ? 'building momentum'
-    : 'urgent forward energy';
-  if (moods.length === 0) return `${pacingWord} scene — ${pacingDesc}, direction unspecified.`;
-  const [first, second] = moods;
-  if (moods.length === 1) return `${pacingWord} scene with ${first.toLowerCase()} coloring — ${pacingDesc}.`;
-  return `${pacingWord} ${first.toLowerCase()} tension with ${second.toLowerCase()} emotional release.`;
+  const adj    = (m: string) => MOOD_ADJ[m]       ?? m.toLowerCase();
+  const noun   = (m: string) => MOOD_NOUN[m]      ?? m.toLowerCase();
+  const action = (m: string) => DRIVING_ACTION[m] ?? 'charge';
+
+  if (!pacing) {
+    if (moods.length === 1) return `Scene with ${adj(moods[0])} coloring — pacing unspecified.`;
+    return `${adj(moods[0]).charAt(0).toUpperCase()}${adj(moods[0]).slice(1)} ${noun(moods[1])} — pacing unspecified.`;
+  }
+
+  if (pacing === 'slow') {
+    if (moods.length === 0) return `Slow-burning scene — restrained emotional weight, direction unspecified.`;
+    if (moods.length === 1) return `Slow-burning scene with ${adj(moods[0])} coloring — restrained emotional weight.`;
+    return `Slow-burning ${adj(moods[0])} tension with ${adj(moods[1])} emotional release.`;
+  }
+
+  if (pacing === 'driving') {
+    if (moods.length === 0) return `High-stakes urgent scene — kinetic energy, direction unspecified.`;
+    if (moods.length === 1) return `High-stakes ${adj(moods[0])} scene — urgent forward energy.`;
+    return `High-stakes urgent ${action(moods[0])} with ${adj(moods[1])} intensity.`;
+  }
+
+  // mid
+  if (moods.length === 0) return `Measured scene — building momentum, direction unspecified.`;
+  if (moods.length === 1) return `Conversational scene with ${adj(moods[0])} build — measured momentum.`;
+  return `Conversational ${noun(moods[1])} building toward ${adj(moods[0])} resolution.`;
 }
 
 function SvLogo() {

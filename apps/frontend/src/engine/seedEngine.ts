@@ -52,12 +52,26 @@ function confidenceLabelFor(score: number): string {
   return 'LOW';
 }
 
+const ALL_CLEARANCE_BLOCKERS = [
+  'MASTER_PCT_UNSET', 'WRITER_UNIDENTIFIED', 'WRITER_IPI_MISSING',
+  'PUBLISHER_UNKNOWN', 'PRO_WORK_ID_MISSING', 'ONE_STOP_NOT_CONFIRMED',
+];
+
+function rightsStateFromClearance(score: number, blockerSet: Set<string>): string {
+  if (score >= 80) return 'CLEAR';
+  if (score >= 60) return 'PARTIALLY_CLEAR';
+  if (ALL_CLEARANCE_BLOCKERS.every(b => blockerSet.has(b))) return 'INGESTED';
+  if (score > 0)   return 'PARTIALLY_CLEAR';
+  return 'BLOCKED';
+}
+
 function mapResponse(resp: DemoCheckResponse): AnalysisResult[] {
   const blockers = new Set(resp.clearance.blockers);
   const masterVerifiedAt = blockers.has('MASTER_PCT_UNSET')
     ? null
     : STATIC_MASTER_VERIFIED_AT;
   const audioFilePath = `/api/tracks/${resp.track.id}/audio`;
+  const rightsState = rightsStateFromClearance(resp.clearance.score, blockers);
 
   const results: AnalysisResult[] = resp.sceneFit.map((row) => {
     const score = Math.round(row.matchScore);
@@ -92,6 +106,7 @@ function mapResponse(resp: DemoCheckResponse): AnalysisResult[] {
         publisherName: null,
         writerName: null,
         blockers: resp.clearance.blockers ?? [],
+        rightsState,
       },
     };
   });
