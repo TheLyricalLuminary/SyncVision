@@ -117,12 +117,20 @@ export function AnalyzingScreen({ phase, warning, error, elapsedMs, onRetry, onB
                   <div style={{ width: 12, height: 12, borderRadius: '50%', border: `1.5px solid rgba(255,255,255,0.15)`, borderTopColor: C.magenta, animation: 'sv-spin 0.9s linear infinite' }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: C.silver, fontWeight: 600 }}>{elapsedSec > 0 ? `${elapsedSec}s elapsed` : 'Starting…'}</div>
-                  <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: C.lavender, marginTop: 2 }}>
+                  <div style={{ fontSize: 13, color: C.silver, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                     {PHASE_STAGE[phase] ?? 'Analyzing…'}
+                    <span aria-hidden style={{ display: 'inline-flex', gap: 3 }}>
+                      {[0, 0.2, 0.4].map(delay => (
+                        <span key={delay} className="sv-dot" style={{ animationDelay: `${delay}s`, fontSize: 14, lineHeight: 1, color: C.magenta }} />
+                      ))}
+                    </span>
                   </div>
+                  {elapsedSec > 0 && (
+                    <div style={{ fontSize: 11, color: 'rgba(167,139,250,0.55)', marginTop: 2, letterSpacing: '0.04em' }}>
+                      {elapsedSec}s
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: 10, color: C.silver, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.04em' }}>—</div>
                 {/* animated bottom bar */}
                 <div style={{ position: 'absolute', left: 0, bottom: 0, height: 2, background: `linear-gradient(90deg, ${C.purple}, ${C.magenta})`, boxShadow: '0 0 8px rgba(219,39,119,0.5)', width: '60%', animation: 'sv-analyzing 1.4s ease-in-out infinite' }} />
                 <style>{`@keyframes sv-analyzing { 0% { transform: translateX(-100%); } 100% { transform: translateX(180%); } }`}</style>
@@ -135,8 +143,8 @@ export function AnalyzingScreen({ phase, warning, error, elapsedMs, onRetry, onB
 
             {/* ── footer ── */}
             <div style={{ marginTop: 'auto', paddingTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${C.hairline}` }}>
-              <span style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.lavender }}>
-                About <b style={{ color: C.silver, fontFamily: '"JetBrains Mono", monospace', fontWeight: 500, fontSize: 11, letterSpacing: '0.04em' }}>{Math.max(0, 30 - elapsedSec)}s</b> remaining
+              <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(167,139,250,0.55)' }}>
+                Usually under 30s
               </span>
               <button type="button" onClick={onBackToIngest} style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.lavender, padding: '8px 14px', borderRadius: 999, background: 'transparent', border: `1px solid ${C.hairlineStrong}`, cursor: 'pointer', fontFamily: SANS }}>
                 Cancel
