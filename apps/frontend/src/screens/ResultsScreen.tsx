@@ -337,8 +337,13 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
           ))
         )}
 
-        {/* ── print wordmark ── */}
-        <div className="print-wordmark hidden">SYNCVISION</div>
+        {/* ── print header (logo + scene label) ── */}
+        <div className="print-wordmark hidden">
+          <img src="/logo.png" alt="SyncVision" className="print-wordmark-logo" />
+          <span className="print-wordmark-text" style={{ marginLeft: 10, opacity: 0.5, fontSize: '0.75rem', letterSpacing: '0.14em' }}>
+            SYNC REPORT
+          </span>
+        </div>
 
       </div>
 

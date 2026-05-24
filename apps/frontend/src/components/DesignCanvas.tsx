@@ -137,15 +137,19 @@ type DCContextValue = {
 
 const DCCtx = React.createContext<DCContextValue | null>(null);
 
+// AnyElement gives props: Record<string,unknown> so TypeScript 6's
+// stricter ReactElement generics don't make every .props access an error.
+type AnyElement = React.ReactElement<Record<string, unknown>>;
+
 // Recursively unwrap React.Fragment so <>…</> grouping doesn't hide
 // DCSection/DCArtboard children from the type-based walks below.
-function dcFlatten(children: React.ReactNode): React.ReactElement[] {
-  const out: React.ReactElement[] = [];
+function dcFlatten(children: React.ReactNode): AnyElement[] {
+  const out: AnyElement[] = [];
   React.Children.forEach(children, (c) => {
-    if (c && (c as React.ReactElement).type === React.Fragment) {
-      out.push(...dcFlatten((c as React.ReactElement).props.children));
+    if (c && (c as AnyElement).type === React.Fragment) {
+      out.push(...dcFlatten((c as AnyElement).props.children as React.ReactNode));
     } else if (c) {
-      out.push(c as React.ReactElement);
+      out.push(c as AnyElement);
     }
   });
   return out;
@@ -204,14 +208,14 @@ export function DesignCanvas({ children, minScale, maxScale, style }: DesignCanv
 
   dcFlatten(children).forEach((sec) => {
     if (!sec || sec.type !== DCSection) return;
-    const sid: string = sec.props.id ?? sec.props.title;
+    const sid = ((sec.props.id ?? sec.props.title) as string | undefined);
     if (!sid) return;
     sectionOrder.push(sid);
     const persisted = state.sections[sid] || {};
     const abs: [string, React.ReactElement<DCArtboardProps>][] = [];
-    dcFlatten(sec.props.children).forEach((ab) => {
+    dcFlatten(sec.props.children as React.ReactNode).forEach((ab) => {
       if (!ab || ab.type !== DCArtboard) return;
-      const aid: string | undefined = ab.props.id ?? ab.props.label;
+      const aid = (ab.props.id ?? ab.props.label) as string | undefined;
       if (aid) abs.push([aid, ab as React.ReactElement<DCArtboardProps>]);
     });
     const srcKey = abs.map(([k]) => k).join('\x1f');
@@ -224,8 +228,8 @@ export function DesignCanvas({ children, minScale, maxScale, style }: DesignCanv
     });
     const kept = (persisted.order || []).filter((k) => srcIds.includes(k));
     sectionMeta[sid] = {
-      title: persisted.title ?? sec.props.title,
-      subtitle: sec.props.subtitle,
+      title: persisted.title ?? (sec.props.title as string),
+      subtitle: sec.props.subtitle as string | undefined,
       slotIds: [...kept, ...srcIds.filter((k) => !kept.includes(k))],
     };
   });
@@ -484,11 +488,11 @@ type DCSectionProps = {
 export function DCSection({ id, title, subtitle, children, gap = 48 }: DCSectionProps) {
   const ctx = React.useContext(DCCtx);
   const sid = id ?? title;
-  const all = React.Children.toArray(dcFlatten(children)) as React.ReactElement[];
+  const all = React.Children.toArray(dcFlatten(children)) as AnyElement[];
   const artboards = all.filter((c) => c && c.type === DCArtboard);
   const rest = all.filter((c) => !(c && c.type === DCArtboard));
   const sec = (ctx && sid && ctx.section(sid)) || {};
-  const allIds = artboards.map((a) => a.props.id ?? a.props.label).filter(Boolean) as string[];
+  const allIds = artboards.map((a) => (a.props.id ?? a.props.label) as string | undefined).filter(Boolean) as string[];
   const srcKey = allIds.join('\x1f');
   const hidden = sec.srcKey === srcKey ? (sec.hidden || []) : [];
   const srcOrder = allIds.filter((k) => !hidden.includes(k));
@@ -500,7 +504,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48 }: DCSection
   }, [sec.order, srcOrder.join('|')]);
 
   const byId = Object.fromEntries(
-    artboards.map((a) => [a.props.id ?? a.props.label, a])
+    artboards.map((a) => [(a.props.id ?? a.props.label) as string, a])
   ) as Record<string, React.ReactElement<DCArtboardProps>>;
 
   return (
@@ -563,7 +567,7 @@ async function dcExport(node: HTMLElement, w: number, h: number, name: string, k
   const toDataURL = (url: string): Promise<string> =>
     fetch(url)
       .then((r) => r.blob())
-      .then((b) => new Promise((res) => {
+      .then((b) => new Promise<string>((res) => {
         const fr = new FileReader();
         fr.onload = () => res(fr.result as string);
         fr.onerror = () => res(url);
