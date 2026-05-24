@@ -6,7 +6,7 @@ import {
   ResultsScreen,
   decodeSharePayload,
 } from './screens/ResultsScreen';
-import { DirectorView } from './screens/DirectorView';
+import ShareView from './pages/ShareView';
 import { useAnalysisJob } from './hooks/useAnalysisJob';
 import { useCredits } from './hooks/useCredits';
 import type { BriefId } from './engine/classifyBrief';
@@ -54,7 +54,7 @@ function App() {
 
   if (shared) {
     return (
-      <DirectorView
+      <ShareView
         briefText={shared.briefText}
         briefId={shared.briefId}
         sceneParams={shared.sceneParams}
