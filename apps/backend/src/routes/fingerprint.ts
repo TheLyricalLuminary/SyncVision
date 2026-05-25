@@ -167,9 +167,10 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
       discrepancies.push({ field: "artistName", submitted: track.artistName, external: extArtist });
     }
 
-    // ── autoFill — merged from MusicBrainz + Credits.fm ─────────
-    // Credits.fm = entity resolution layer; MusicBrainz = canonical catalog.
-    // Where both return a value, both are kept — conflicts surface to the supervisor.
+    // ── autoFill — translated from each layer into a single form payload ──
+    // MusicBrainz: catalog translation (recording → ISRC, ISWC, composer)
+    // Credits.fm:  cross-reference translation (ISRC → IPI, publisher, PRO links)
+    // Neither layer decides truth. Conflicts surface to the supervisor, not the engine.
     const autoFill = {
       isrc:           resolvedIsrc,
       iswc:           creditsEnrichment?.iswc           ?? mbEnrichment?.iswc           ?? null,
