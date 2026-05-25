@@ -474,7 +474,6 @@ export default function ShareView({ briefText, sceneParams, results }: ShareView
               {results.map(result => {
                 const d = decisions[result.track.id];
                 const title = stripArtist(result.track.title);
-                const pending = !d;
                 return (
                   <div key={result.track.id} style={{
                     padding: '10px 12px', borderRadius: 10,

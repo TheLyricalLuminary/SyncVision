@@ -29,18 +29,6 @@ function isAcceptedFile(file: File): boolean {
   return false;
 }
 
-function isSupportedUrl(value: string): boolean {
-  const t = value.trim().toLowerCase();
-  return t.includes('spotify.com') || t.includes('soundcloud.com') || t.includes('dropbox.com');
-}
-
-function filenameFromUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    const last = u.pathname.split('/').filter(Boolean).pop() ?? u.hostname;
-    return last.length > 0 ? last : u.hostname;
-  } catch { return url.slice(0, 60); }
-}
 
 // ── design tokens ────────────────────────────────────────────
 const C = {
@@ -63,10 +51,8 @@ function SvLogo() {
 
 export function IngestScreen({ creditBalance, onBack, onAnalyze }: IngestScreenProps) {
   const [tracks, setTracks]         = useState<IngestedTrack[]>([]);
-  const [urlValue, setUrlValue]     = useState('');
   const [isrcValue, setIsrcValue]   = useState('');
   const [dropError, setDropError]   = useState<string | null>(null);
-  const [urlError, setUrlError]     = useState<string | null>(null);
   const [isrcError, setIsrcError]   = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef    = useRef<HTMLInputElement>(null);
@@ -84,23 +70,7 @@ export function IngestScreen({ creditBalance, onBack, onAnalyze }: IngestScreenP
     };
   }, []);
 
-  const animateProgress = (id: string, initialStatus: IngestedTrack['status'], durationMs: number) => {
-    const startedAt = Date.now();
-    const tick = () => {
-      const elapsed = Date.now() - startedAt;
-      const progress = Math.min(100, (elapsed / durationMs) * 100);
-      setTracks(prev => prev.map(t => t.id === id ? { ...t, progress, status: progress >= 100 ? 'ready' : initialStatus } : t));
-      if (progress < 100) {
-        const handle = window.setTimeout(tick, 50);
-        animationFrames.current.set(id, handle);
-      } else {
-        animationFrames.current.delete(id);
-      }
-    };
-    tick();
-  };
-
-  const uploadFile = (trackId: string, file: File) => {
+const uploadFile = (trackId: string, file: File) => {
     const xhr = new XMLHttpRequest();
     uploadXhrs.current.set(trackId, xhr);
     xhr.upload.onprogress = event => {
@@ -152,18 +122,7 @@ export function IngestScreen({ creditBalance, onBack, onAnalyze }: IngestScreenP
     newTracks.forEach(n => uploadFile(n.track.id, n.file));
   };
 
-  const handleAddUrl = () => {
-    const value = urlValue.trim();
-    if (!value) return;
-    if (!isSupportedUrl(value)) { setUrlError('URL must be from Spotify, SoundCloud, or Dropbox.'); return; }
-    setUrlError(null);
-    const id = `url-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    setTracks(prev => [...prev, { id, filename: filenameFromUrl(value), source: 'url', status: 'resolving', progress: 0 }]);
-    setUrlValue('');
-    animateProgress(id, 'resolving', 1800);
-  };
-
-  const handleAddIsrc = () => {
+const handleAddIsrc = () => {
     const value = isrcValue.trim().toUpperCase();
     if (!ISRC_FORMAT.test(value)) { setIsrcError('Not a valid ISRC format.'); return; }
     setIsrcError(null);
