@@ -6,11 +6,11 @@ ALTER TABLE scoring."RightsProfile"
   ADD COLUMN IF NOT EXISTS "lyricLicensedBy"     TEXT;
 
 -- Add AcoustID identity fields to Track
-ALTER TABLE public."Track"
+ALTER TABLE scoring."Track"
   ADD COLUMN IF NOT EXISTS "acoustidId"          TEXT,
   ADD COLUMN IF NOT EXISTS "acoustidScore"        DOUBLE PRECISION,
   ADD COLUMN IF NOT EXISTS "acoustidCheckedAt"    TIMESTAMPTZ;
 
 -- Make ISRC nullable (was required at ingestion, now resolved async)
-ALTER TABLE public."Track"
+ALTER TABLE scoring."Track"
   ALTER COLUMN "isrc" DROP NOT NULL;
