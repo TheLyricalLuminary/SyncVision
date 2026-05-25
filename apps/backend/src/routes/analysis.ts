@@ -219,7 +219,7 @@ interface AnalysisResult {
     id: string;
     title: string;
     artistName: string | null;
-    isrc: string;
+    isrc: string | null;
     tempo: number | null;
     tonalCharacter: string | null;
     energyCharacter: string | null;
@@ -304,7 +304,6 @@ async function processJob(jobId: string): Promise<void> {
         track = await prisma.track.create({
           data: {
             title,
-            isrc: `PILOT-${randomUUID()}`,
             tempo: worker.tempo,
             tonalCharacter: worker.tonalCharacter,
             energyCharacter: worker.energyCharacter,

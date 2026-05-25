@@ -168,15 +168,13 @@ router.post("/tracks/upload", (req: Request, res: Response) => {
     const savedFilename = req.file.filename;
     const originalName = req.file.originalname;
     const title = path.basename(originalName, path.extname(originalName)) || savedFilename;
-    const isrc = `PILOT-${randomUUID()}`;
 
     try {
-      validateTrackIngestion({ audioFilePath: savedAbsPath, title, isrc });
+      validateTrackIngestion({ audioFilePath: savedAbsPath, title, isrc: null });
 
       const track = await prisma.track.create({
         data: {
           title,
-          isrc,
           audioFilePath: savedFilename,
           trackStatus: "uploaded",
         },

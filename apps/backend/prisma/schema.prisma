@@ -51,7 +51,10 @@ model Track {
   id               String           @id @default(cuid())
   title            String
   artistName       String?
-  isrc             String
+  isrc             String?
+  acoustidId       String?
+  acoustidScore    Float?
+  acoustidCheckedAt DateTime?
   trackStatus      String           @default("uploaded")
   audioFilePath    String?
   isSynthetic      Boolean   @default(true)
@@ -71,7 +74,7 @@ model Track {
   rightsProfile    RightsProfile?
   catalog          Catalog?         @relation(fields: [catalogId], references: [id])
 
-  @@unique([catalogId, isrc])
+  @@unique([catalogId, isrc], map: "catalog_isrc_unique")
   @@map("ScoringTrack")
   @@schema("scoring")
 }

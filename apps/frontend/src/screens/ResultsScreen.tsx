@@ -84,6 +84,140 @@ function Chip({ children, variant = 'default' }: { children: React.ReactNode; va
   );
 }
 
+// ── RightsPipelineView ─────────────────────────────────────────
+interface FingerprintResult {
+  acoustidId: string | null;
+  score: number;
+  matchQuality: 'HIGH' | 'MEDIUM' | 'LOW' | 'NO_MATCH';
+  topRecording: { id: string; title: string | null; artist: string | null } | null;
+  discrepancies: { field: string; submitted: string | null; external: string | null }[];
+  reconciliationNote: string;
+}
+
+function RightsPipelineView({
+  rp, trackId, onOpenIntake,
+}: {
+  rp: AnalysisResult['rightsProfile'];
+  trackId: string;
+  onOpenIntake: () => void;
+}) {
+  const [fingerprinting, setFingerprinting] = useState(false);
+  const [fpResult, setFpResult]             = useState<FingerprintResult | null>(null);
+  const [fpError, setFpError]               = useState<string | null>(null);
+
+  const hasWriter    = Boolean(rp?.writerName);
+  const hasPublisher = Boolean(rp?.publisherName);
+  const hasPro       = Boolean(rp?.proAffiliation || rp?.writerName);
+  const hasOneStop   = rp?.isOneStop === true;
+  const syncCleared  = (rp as Record<string, unknown> | null)?.syncLicenseStatus === 'CLEARED';
+  const lyricCleared = (rp as Record<string, unknown> | null)?.lyricLicenseStatus === 'CLEARED';
+  const hasAnyIntake = hasWriter || hasPublisher || hasPro;
+
+  const matchQ = fpResult?.matchQuality;
+
+  const stages: { label: string; done: boolean; warn?: boolean }[] = [
+    { label: 'Metadata intake',          done: hasAnyIntake },
+    { label: 'Writer / splits captured', done: hasWriter },
+    { label: 'Publisher data captured',  done: hasPublisher },
+    { label: 'One-stop confirmed',        done: hasOneStop },
+    { label: 'Sync license cleared',     done: syncCleared },
+    { label: 'Lyric license cleared',    done: lyricCleared },
+    {
+      label: fpResult
+        ? matchQ === 'HIGH'   ? 'Identity verified (AcoustID ✓)'
+        : matchQ === 'MEDIUM' ? 'Identity probable — review recommended'
+        : matchQ === 'LOW'    ? 'Low-confidence match — manual review'
+        :                       'No external match found'
+        : 'Fingerprint identity resolution',
+      done: matchQ === 'HIGH' || matchQ === 'MEDIUM',
+      warn: matchQ === 'LOW' || matchQ === 'NO_MATCH',
+    },
+    { label: 'PRO cross-check',          done: false },
+  ];
+
+  const completedCount = stages.filter(s => s.done).length;
+  const confidencePct  = Math.round((completedCount / stages.length) * 100);
+
+  const runFingerprint = async () => {
+    setFingerprinting(true);
+    setFpError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/tracks/${trackId}/fingerprint`, { method: 'POST' });
+      const data = await res.json() as FingerprintResult & { error?: string; message?: string };
+      if (!res.ok) throw new Error(data.message ?? data.error ?? `Server ${res.status}`);
+      setFpResult(data);
+    } catch (e) {
+      setFpError(e instanceof Error ? e.message : 'Fingerprint failed');
+    } finally {
+      setFingerprinting(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 10, padding: '12px 14px', borderRadius: 11, background: 'rgba(0,0,0,0.22)', border: `1px solid ${C.hairline}` }}>
+      {/* header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div>
+          <div style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender, fontWeight: 700 }}>Rights intake &amp; verification</div>
+          <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.lavender, marginTop: 3, opacity: 0.7 }}>pipeline</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 20, lineHeight: 1, color: confidencePct >= 70 ? '#34D399' : confidencePct >= 40 ? C.amber : C.magenta }}>
+            {confidencePct}%
+          </div>
+          <div style={{ fontSize: 9, color: C.lavender, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>Rights confidence</div>
+        </div>
+      </div>
+
+      {/* stages */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {stages.map(s => (
+          <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 14, height: 14, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', fontSize: 9, fontWeight: 800,
+              background: s.done ? 'rgba(52,211,153,0.18)' : s.warn ? 'rgba(219,39,119,0.15)' : 'rgba(167,139,250,0.10)',
+              color: s.done ? '#34D399' : s.warn ? C.magenta : 'rgba(167,139,250,0.5)',
+              border: `1px solid ${s.done ? 'rgba(52,211,153,0.4)' : s.warn ? 'rgba(219,39,119,0.3)' : C.hairline}`,
+            }}>
+              {s.done ? '✓' : s.warn ? '!' : '⧗'}
+            </span>
+            <span style={{ fontSize: 11, color: s.done ? C.silver : s.warn ? C.magenta : 'rgba(226,232,240,0.45)', letterSpacing: '0.01em' }}>{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* fingerprint result detail */}
+      {fpResult && fpResult.discrepancies.length > 0 && (
+        <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: 'rgba(219,39,119,0.08)', border: '1px solid rgba(219,39,119,0.2)' }}>
+          <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.magenta, fontWeight: 700, marginBottom: 6 }}>Discrepancy detected</div>
+          {fpResult.discrepancies.map(d => (
+            <div key={d.field} style={{ fontSize: 11, color: C.silver, marginBottom: 4 }}>
+              <span style={{ color: C.lavender, textTransform: 'uppercase', fontSize: 9, letterSpacing: '0.12em' }}>{d.field}: </span>
+              <span style={{ color: C.amber }}>"{d.submitted}"</span>
+              <span style={{ color: 'rgba(226,232,240,0.45)', margin: '0 6px' }}>→</span>
+              <span style={{ color: C.magenta }}>external: "{d.external}"</span>
+            </div>
+          ))}
+          <div style={{ fontSize: 10, color: 'rgba(226,232,240,0.55)', marginTop: 4, fontStyle: 'italic' }}>Review recommended before placement</div>
+        </div>
+      )}
+      {fpResult && fpResult.discrepancies.length === 0 && fpResult.matchQuality !== 'NO_MATCH' && (
+        <div style={{ marginTop: 8, fontSize: 10, color: '#34D399', fontStyle: 'italic' }}>{fpResult.reconciliationNote}</div>
+      )}
+      {fpError && <div style={{ marginTop: 8, fontSize: 10, color: C.magenta }}>{fpError}</div>}
+
+      {/* actions */}
+      <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+        <button type="button" onClick={onOpenIntake} style={{ flex: 1, padding: '7px 0', borderRadius: 7, border: `1px solid ${C.hairlineStrong}`, background: 'transparent', color: C.lavender, fontFamily: SANS, fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em' }}>
+          ✎ Edit Rights Data
+        </button>
+        <button type="button" onClick={() => void runFingerprint()} disabled={fingerprinting} style={{ flex: 1, padding: '7px 0', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.purple}, ${C.magenta})`, color: '#fff', fontFamily: SANS, fontSize: 11, fontWeight: 700, cursor: fingerprinting ? 'wait' : 'pointer', letterSpacing: '0.04em' }}>
+          {fingerprinting ? 'Resolving…' : '⦿ Resolve Identity'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── BLOCKER_LABELS ─────────────────────────────────────────────
 const BLOCKER_LABELS: Record<string, string> = {
   WRITER_UNIDENTIFIED:    'Writer name missing',
@@ -116,12 +250,12 @@ function RightsPanel({
   trackId, isrc: initialIsrc, existing, onSaved, onClose,
 }: {
   trackId: string;
-  isrc: string;
+  isrc: string | null;
   existing: AnalysisResult['rightsProfile'];
   onSaved: (r: RightsSaveResult) => void;
   onClose: () => void;
 }) {
-  const [isrc, setIsrc]               = useState(initialIsrc.startsWith('PILOT-') ? '' : initialIsrc);
+  const [isrc, setIsrc]               = useState((!initialIsrc || initialIsrc.startsWith('PILOT-')) ? '' : initialIsrc);
   const [writer, setWriter]           = useState(existing?.writerName ?? '');
   const [publisher, setPublisher]     = useState(existing?.publisherName ?? '');
   const [pro, setPro]                 = useState(existing?.proAffiliation ?? '');
@@ -271,6 +405,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
   const [duration, setDuration]                 = useState(0);
   const [rightsTooltip, setRightsTooltip]       = useState(false);
   const [rightsPanel, setRightsPanel]           = useState(false);
+  const [showPipeline, setShowPipeline]         = useState(false);
   const [playbackMsg, setPlaybackMsg]           = useState(false);
   const [localRightsProfile, setLocalRightsProfile] = useState(result.rightsProfile);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -402,21 +537,33 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
         <span style={{ position: 'relative' }}>
           <span
             style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', padding: '4px 8px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', background: rights.bgColor, border: `1px solid ${rights.borderColor}`, color: rights.color, cursor: 'pointer' }}
-            onMouseEnter={() => !rightsPanel && setRightsTooltip(true)}
+            onMouseEnter={() => !showPipeline && setRightsTooltip(true)}
             onMouseLeave={() => setRightsTooltip(false)}
-            onClick={() => { setRightsTooltip(false); setRightsPanel(v => !v); }}
+            onClick={() => { setRightsTooltip(false); setShowPipeline(v => !v); setRightsPanel(false); }}
           >
-            <span style={{ width: 13, height: 13, borderRadius: '50%', background: `${rights.color}33`, display: 'inline-grid', placeItems: 'center', fontSize: 9, fontWeight: 800, flexShrink: 0 }}>✎</span>
+            <span style={{ width: 13, height: 13, borderRadius: '50%', background: `${rights.color}33`, display: 'inline-grid', placeItems: 'center', fontSize: 9, fontWeight: 800, flexShrink: 0 }}>⧖</span>
             {rights.label.toUpperCase()}
           </span>
-          {rightsTooltip && !rightsPanel && (
+          {rightsTooltip && !showPipeline && (
             <span style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 8, width: 256, fontSize: 11, lineHeight: 1.5, borderRadius: 10, padding: '8px 12px', zIndex: 10, background: '#170B33', border: `1px solid ${C.hairline}`, color: C.silver }}>
-              {rights.tooltip} — Click to enter rights data.
+              Click to view rights pipeline
             </span>
           )}
         </span>
         <Chip variant="genre">{BRIEF_LABELS[briefId]}</Chip>
+        {showPipeline && (
+          <button type="button" onClick={() => setShowPipeline(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: C.lavender, cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+        )}
       </div>
+
+      {/* rights pipeline */}
+      {showPipeline && !rightsPanel && (
+        <RightsPipelineView
+          rp={localRightsProfile}
+          trackId={result.track.id}
+          onOpenIntake={() => { setRightsPanel(true); setShowPipeline(false); }}
+        />
+      )}
 
       {/* rights intake panel */}
       {rightsPanel && (
@@ -434,15 +581,20 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
               writerName: saved.writerName,
               blockers: saved.blockers,
               rightsState: saved.rightsState,
+              syncLicenseStatus: saved.syncLicenseStatus,
+              syncLicensedBy: saved.syncLicensedBy,
+              lyricLicenseStatus: saved.lyricLicenseStatus,
+              lyricLicensedBy: saved.lyricLicensedBy,
             });
             setRightsPanel(false);
+            setShowPipeline(true);
           }}
-          onClose={() => setRightsPanel(false)}
+          onClose={() => { setRightsPanel(false); setShowPipeline(true); }}
         />
       )}
 
-      {/* rights blockers */}
-      {!rightsPanel && localRightsProfile?.blockers && localRightsProfile.blockers.length > 0 && (
+      {/* rights blockers — only when pipeline is closed */}
+      {!showPipeline && !rightsPanel && localRightsProfile?.blockers && localRightsProfile.blockers.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
           {localRightsProfile.blockers.map(code => (
             <Chip key={code} variant="warn">{BLOCKER_LABELS[code] ?? code.replace(/_/g, ' ').toLowerCase()}</Chip>

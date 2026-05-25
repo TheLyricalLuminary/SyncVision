@@ -41,7 +41,6 @@ export function validateTrackIngestion(input: TrackIngestionInput): void {
   if (!title || title.trim().length === 0) {
     throw new Error("Ingestion rejected: title is required");
   }
-  if (!isrc || isrc.trim().length === 0) {
-    throw new Error("Ingestion rejected: isrc is required");
-  }
+  // ISRC is optional at ingestion — identity resolution happens async via AcoustID
+
 }

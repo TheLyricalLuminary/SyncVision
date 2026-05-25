@@ -5,7 +5,7 @@ export type AnalysisResult = {
     id: string;
     title: string;
     artistName: string | null;
-    isrc: string;
+    isrc: string | null;
     tempo: number | null;
     tonalCharacter: string | null;
     energyCharacter: string | null;

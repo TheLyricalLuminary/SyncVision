@@ -623,7 +623,7 @@ router.get("/analytics/catalog", requirePlan("SUPERVISOR"), async (req: Request,
     const trackMaxSceneFit: Array<{
       trackId: string;
       title: string;
-      isrc: string;
+      isrc: string | null;
       maxSceneFit: number;
       bestBriefId: string;
       bestBriefLabel: string;
