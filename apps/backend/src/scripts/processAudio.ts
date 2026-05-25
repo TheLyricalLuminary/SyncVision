@@ -34,7 +34,7 @@ async function main() {
   const tracks = await prisma.track.findMany();
 
   for (const track of tracks) {
-    const filePath = AUDIO_FILES[track.isrc];
+    const filePath = track.isrc ? AUDIO_FILES[track.isrc] : undefined;
     if (!filePath) {
       console.warn(`No audio file mapped for ISRC ${track.isrc} — skipping.`);
       continue;

@@ -28,7 +28,7 @@ async function main() {
     const ok = issues.length === 0 ? "OK " : "FAIL";
     if (issues.length > 0) bad++;
     console.log(
-      `  [${ok}] ${t.title.padEnd(22)} ${t.isrc.padEnd(13)} ` +
+      `  [${ok}] ${t.title.padEnd(22)} ${(t.isrc ?? 'UNRESOLVED').padEnd(13)} ` +
       `tempo=${String(t.tempo ?? "null").padEnd(6)} tonal=${(t.tonalCharacter ?? "null").padEnd(9)} ` +
       `energy=${(t.energyCharacter ?? "null").padEnd(11)} ${issues.length ? "→ " + issues.join(", ") : ""}`
     );

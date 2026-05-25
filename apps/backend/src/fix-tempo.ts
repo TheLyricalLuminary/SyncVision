@@ -10,7 +10,7 @@ const TEMPO_BY_ISRC: Record<string, number> = {
 async function main() {
   const tracks = await prisma.track.findMany();
   for (const track of tracks) {
-    const tempo = TEMPO_BY_ISRC[track.isrc];
+    const tempo = track.isrc ? TEMPO_BY_ISRC[track.isrc] : undefined;
     if (tempo === undefined) continue;
     await prisma.track.update({ where: { id: track.id }, data: { tempo } });
     console.log(`Set tempo for ${track.title}: ${tempo} BPM`);
