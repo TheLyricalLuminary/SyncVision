@@ -31,7 +31,7 @@ The supervisor selects a scene type (chase tension, romance intimacy, grief loss
 
 ### 2. Ingest
 
-The composer uploads tracks. The Python worker runs librosa-based audio analysis to extract tempo, tonal character, energy, RMS, and spectral centroid. The backend stamps the track with its rights profile — ISRC (resolved async via AcoustID fingerprinting), writer, publisher, PRO affiliation, master ownership, one-stop status — and writes everything to Postgres.
+The composer uploads tracks. The Python worker runs librosa-based audio analysis to extract tempo, tonal character, energy, RMS, and spectral centroid. ISRC is not required at upload — identity resolution happens asynchronously via fingerprinting after the track is in the system.
 
 ### 3. Score
 
@@ -54,7 +54,7 @@ Weights are fixed constants. The architecture adjusts embeddings and normalizati
 
 ### 4. Rights pipeline
 
-The rights layer is an 8-stage intake and verification pipeline, not a form:
+The rights layer is an 8-stage intake and verification pipeline:
 
 1. Metadata intake
 2. Writer / splits captured
@@ -62,24 +62,52 @@ The rights layer is an 8-stage intake and verification pipeline, not a form:
 4. One-stop confirmed
 5. Sync license cleared
 6. Lyric license cleared
-7. Fingerprint identity resolution (AcoustID)
+7. Fingerprint identity resolution (AcoustID → MusicBrainz → Credits.fm)
 8. PRO cross-check
 
-Each stage shows a live status indicator. Rights confidence is displayed as a percentage. When rights data is saved, the rights axis recomputes locally and the match score updates immediately — no page reload.
+Each stage shows a live status indicator. Rights confidence displays as a percentage. When rights data saves, the rights axis recomputes locally and the match score updates immediately — no page reload.
 
-ISRC is not required at upload. Identity resolution happens asynchronously via AcoustID fingerprinting: the backend runs `fpcalc` (Chromaprint) on the audio file, queries `api.acoustid.org`, and returns a reconciliation diff of submitted metadata against the MusicBrainz registry.
+### 5. Identity resolution (the key workflow)
 
-### 5. Narrative
+One button — "Resolve Identity" — triggers a three-layer lookup:
+
+**Layer 1 — AcoustID / Chromaprint**
+The backend runs `fpcalc` on the uploaded audio file and queries `api.acoustid.org`. Returns a MusicBrainz recording MBID and match confidence (HIGH / MEDIUM / LOW / NO_MATCH).
+
+**Layer 2 — MusicBrainz**
+Given the recording MBID, the system fetches the full recording: ISRC, work MBID, ISWC, composer name, writer IPI number, publisher name. Two API calls — recording then work.
+
+**Layer 3 — Credits.fm**
+Given the resolved ISRC, Credits.fm cross-links the ISRC against MLC, CISAC, and ASCAP/BMI/SESAC registries. Returns writer IPI, publisher chain, and PRO affiliation. Credits.fm takes precedence over MusicBrainz where both return data.
+
+The result: the rights intake form opens pre-populated — writer name, IPI, publisher, PRO affiliation, ISRC, ISWC — sourced and tagged by registry. The supervisor verifies and confirms. No manual typing. The reconciliation diff flags any conflict between submitted metadata and external registries before a placement decision is made.
+
+### 6. Narrative
 
 For every track-brief pairing, the engine selects one of 360 hand-authored phrases from the narrative dictionary. Selection is `sha256(trackId + briefId) % poolSize`. Same track, same brief, same phrase — every time. No LLM in the loop. Phrases are written in working music-supervisor trade language (cue sheet, one-stop, MFN, controlled comp, dialogue ducking, button ending, needle drop).
 
-### 6. Shortlist
+### 7. Shortlist
 
 The supervisor sees a ranked list with the scalar SyncVision Score, match narrative, and a weighted axis bar breakdown. Bar width is proportional to axis weight; bar fill is proportional to axis value. Delta scores show how much better the top pick is than the alternatives.
 
-### 7. PDF + Share
+### 8. PDF + Share
 
 One click exports a decision packet — branded, signable, hash-stamped. Another click copies a share link the director can open without logging in to approve or pass on each track. Both ship with `scoringVersion` and `inputHash` baked in so the document is reproducible months later.
+
+---
+
+## Metadata stack
+
+Licensing data is not centralized. SyncVision uses a layered approach:
+
+| Layer | Source | What it resolves |
+|---|---|---|
+| Identity | AcoustID + Chromaprint | "What recording is this?" |
+| Recording | MusicBrainz | ISRC, ISWC, work MBID, composer |
+| Rights graph | Credits.fm | Writer IPI, publisher chain, PRO affiliation |
+| Intake | Supervisor-submitted | One-stop, sync license, lyric license, master ownership |
+
+No free database provides sync license availability, master clearance status, or publishing clearance rights. Those live in private label systems and PRO databases. SyncVision's rights layer is probabilistic inference from a metadata graph — not clearance confirmation. The system makes that distinction explicit at every stage.
 
 ---
 
@@ -95,8 +123,10 @@ apps/
 - **Postgres (Neon)** — tracks, briefs, scores, rights state, audit hashes
 - **Prisma** — schema management, deployed via `prisma migrate deploy`
 - **Stripe** — four-tier billing (Starter / Pro / Studio / Enterprise)
-- **AcoustID / Chromaprint** — async fingerprint identity resolution via `fpcalc` + `api.acoustid.org`
-- **Render** — Docker-based deployment (Node 20 + Python 3.11 + Chromaprint + ffmpeg in one image)
+- **AcoustID / Chromaprint** — `fpcalc` fingerprinting + `api.acoustid.org` lookup
+- **MusicBrainz** — open music encyclopedia, recording and work metadata
+- **Credits.fm** — ISRC → rights graph (writer IPI, publisher, PRO affiliation)
+- **Render** — Docker-based deployment (Node 20 + Python 3.11 + Chromaprint + ffmpeg)
 
 The scoring read path is purely deterministic — a SHA-256 audit hash on every response enforces the invariant that the same inputs always produce byte-identical output.
 
@@ -117,7 +147,7 @@ The scoring read path is purely deterministic — a SHA-256 audit hash on every 
 
 ## Status
 
-End-to-end pipeline operational — brief → ingest → score → shortlist → PDF running on real audio files. Rights intake and AcoustID fingerprint identity resolution live in production. Iterated based on direct feedback from an active music supervisor in the sync licensing space.
+End-to-end pipeline operational — brief → ingest → score → shortlist → PDF running on real audio files. Identity resolution via AcoustID + MusicBrainz + Credits.fm live in production. Rights intake auto-populates from registry lookups. Iterated based on direct feedback from an active music supervisor in the sync licensing space.
 
 **Demo on request.** If you're a composer with a catalogue to score or a supervisor with briefs to test, reach out.
 
