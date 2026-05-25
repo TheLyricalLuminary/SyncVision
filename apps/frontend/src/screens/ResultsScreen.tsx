@@ -408,12 +408,37 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
   const [showPipeline, setShowPipeline]         = useState(false);
   const [playbackMsg, setPlaybackMsg]           = useState(false);
   const [localRightsProfile, setLocalRightsProfile] = useState(result.rightsProfile);
+  const [localVector, setLocalVector]               = useState(result.confidenceScore.vector ?? { scene: result.confidenceScore.sceneFitBreakdown / 100, rights: result.confidenceScore.rightsBreakdown / 100, lyrics: result.confidenceScore.lyricsBreakdown / 100, signal: result.confidenceScore.signalBreakdown / 100 });
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Mirror of backend scoreTrack() — same WEIGHTS, same dot product.
+  // Recomputed locally whenever rights data saves so the card updates immediately.
+  const WEIGHTS = { scene: 0.45, rights: 0.25, lyrics: 0.25, signal: 0.05 };
+  const liveScore = Math.round(
+    (localVector.scene  * WEIGHTS.scene  +
+     localVector.rights * WEIGHTS.rights +
+     localVector.lyrics * WEIGHTS.lyrics +
+     localVector.signal * WEIGHTS.signal) * 100
+  );
+
+  // Recomputes rights axis from blocker list — mirrors buildRightsAxis() in trackVector.ts.
+  const rightsAxisFromBlockers = (blockers: string[], hasIsrc: boolean): number => {
+    const BLOCKER_COSTS: Record<string, number> = {
+      MASTER_PCT_UNSET: 20, WRITER_UNIDENTIFIED: 15, WRITER_IPI_MISSING: 15,
+      PUBLISHER_UNKNOWN: 15, PRO_WORK_ID_MISSING: 15, ONE_STOP_NOT_CONFIRMED: 20,
+    };
+    let clearanceScore = 100;
+    for (const b of blockers) clearanceScore -= (BLOCKER_COSTS[b] ?? 0);
+    clearanceScore = Math.max(0, clearanceScore);
+    const clearanceRisk       = 1 - clearanceScore / 100;
+    const metadataUncertainty = hasIsrc ? 0 : 0.08;
+    return Math.max(0, Math.min(1, 1 - clearanceRisk - metadataUncertainty - 0.04));
+  };
 
   const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
   const hasAudio = audioFilePath !== null;
   const rights = rightsDisplayFor(localRightsProfile);
-  const score = result.confidenceScore.score;
+  const score = liveScore;
   const delta = isFirst ? null : topScore - score;
   const title = stripArtist(result.track.title);
   const timeLabel = duration > 0 ? `${formatTime(currentTime)} / ${formatTime(duration)}` : formatTime(currentTime);
@@ -504,31 +529,77 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
         </div>
       </div>
 
-      {/* score + breakdown axes */}
+      {/* score + weighted breakdown */}
       <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 11, background: 'rgba(0,0,0,0.18)', border: `1px solid ${C.hairline}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-          <span style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender }}>Fit · breakdown</span>
-          <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 22, lineHeight: 1, color: score >= 70 ? '#34D399' : score >= 55 ? C.amber : C.magenta, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>
+
+        {/* scalar score */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+          <span style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender }}>Match score</span>
+          <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 22, lineHeight: 1, color: score >= 70 ? '#34D399' : score >= 55 ? C.amber : C.magenta, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em', transition: 'color 0.3s' }}>
             {score}<span style={{ fontFamily: SANS, fontStyle: 'normal', fontSize: 10, color: C.lavender, marginLeft: 2 }}>/100</span>
           </span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 14px' }}>
+
+        {/* weighted axis bars — container width ∝ weight, fill ∝ axis value */}
+        <div style={{ display: 'flex', gap: 2, width: '100%' }}>
           {([
-            ['Scene', 'fit',     result.confidenceScore.sceneFitBreakdown],
-            ['Rights','clarity', result.confidenceScore.rightsBreakdown],
-            ['Lyrics','fit',     result.confidenceScore.lyricsBreakdown],
-            ['Signal','quality', result.confidenceScore.signalBreakdown],
-          ] as [string, string, number][]).map(([label, sub, pct]) => (
-            <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender }}>
-                <span>{label} <span style={{ color: C.silver, fontWeight: 600 }}>{sub}</span></span>
-                <span style={{ color: C.silver, fontFamily: 'monospace' }}>{Math.round(pct)}%</span>
+            { key: 'scene',  label: 'Scene',  sub: 'fit',     weight: 0.45, value: localVector.scene,  actionable: false },
+            { key: 'rights', label: 'Rights', sub: 'clarity', weight: 0.25, value: localVector.rights, actionable: true  },
+            { key: 'lyrics', label: 'Lyrics', sub: 'fit',     weight: 0.25, value: localVector.lyrics, actionable: false, pending: !localRightsProfile },
+            { key: 'signal', label: 'Signal', sub: 'quality', weight: 0.05, value: localVector.signal, actionable: false },
+          ] as { key: string; label: string; sub: string; weight: number; value: number; actionable: boolean; pending?: boolean }[]).map((axis, _i, arr) => {
+            const pct   = Math.round(axis.value * 100);
+            const isLow = axis.value < 0.4;
+            const barColor = axis.value >= 0.7 ? 'linear-gradient(90deg,#34D399,#22c55e)' : axis.value >= 0.45 ? 'linear-gradient(90deg,#F5B544,#F97316)' : 'linear-gradient(90deg,#DB2777,#be185d)';
+            // gap is 2px × (n-1) total; subtract proportional share
+            const gapDeduction = `${2 * (arr.length - 1) * axis.weight}px`;
+            return (
+              <div
+                key={axis.key}
+                style={{ display: 'flex', flexDirection: 'column', gap: 4, width: `calc(${axis.weight * 100}% - ${gapDeduction})`, flexShrink: 0 }}
+              >
+                {/* label row */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.lavender }}>
+                  <span style={{ fontWeight: 700, color: C.silver }}>{axis.label}</span>
+                  {axis.actionable ? (
+                    <button
+                      type="button"
+                      onClick={() => { setShowPipeline(false); setRightsPanel(true); }}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 10, color: isLow ? C.magenta : C.lavender, fontWeight: 700, lineHeight: 1 }}
+                      title="Enter rights data"
+                    >↑</button>
+                  ) : axis.pending ? (
+                    <span style={{ fontSize: 9, color: 'rgba(167,139,250,0.4)' }}>–</span>
+                  ) : null}
+                </div>
+
+                {/* bar track */}
+                <div style={{ height: 5, background: 'rgba(255,255,255,0.05)', borderRadius: 999, overflow: 'hidden', position: 'relative' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${pct}%`,
+                    background: axis.pending ? 'rgba(167,139,250,0.15)' : barColor,
+                    borderRadius: 999,
+                    transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1)',
+                  }} />
+                </div>
+
+                {/* value */}
+                <div style={{ fontSize: 9, fontFamily: 'monospace', color: axis.pending ? 'rgba(167,139,250,0.4)' : C.lavender, letterSpacing: '0.04em' }}>
+                  {axis.pending ? '—' : `${pct}`}
+                  {/* weight label only on wider axes */}
+                  {axis.weight >= 0.2 && <span style={{ opacity: 0.45, marginLeft: 2 }}>{axis.sub}</span>}
+                </div>
               </div>
-              <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 999, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, pct))}%`, background: 'linear-gradient(90deg, #F5B544, #F97316)', borderRadius: 999 }} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
+        </div>
+
+        {/* weight legend — shown once, bottom right */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+          <span style={{ fontSize: 8, color: 'rgba(167,139,250,0.35)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            bar width = weight · bar fill = axis value
+          </span>
         </div>
       </div>
 
@@ -572,7 +643,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
           isrc={result.track.isrc}
           existing={localRightsProfile}
           onSaved={(saved) => {
-            setLocalRightsProfile({
+            const newRp = {
               isOneStop: saved.isOneStop,
               proAffiliation: saved.proAffiliation,
               masterVerifiedAt: saved.masterVerifiedAt,
@@ -585,7 +656,11 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
               syncLicensedBy: saved.syncLicensedBy,
               lyricLicenseStatus: saved.lyricLicenseStatus,
               lyricLicensedBy: saved.lyricLicensedBy,
-            });
+            };
+            setLocalRightsProfile(newRp);
+            // Recompute rights axis → live score update
+            const newRightsAxis = rightsAxisFromBlockers(saved.blockers, Boolean(result.track.isrc));
+            setLocalVector(v => ({ ...v, rights: newRightsAxis }));
             setRightsPanel(false);
             setShowPipeline(true);
           }}
