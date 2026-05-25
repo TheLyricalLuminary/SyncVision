@@ -38,9 +38,21 @@
     text-shadow: none !important;
   }
 
-  /* Score bar: replace gradient with solid dark fill */
-  article [style*="linear-gradient"] {
+  /* Score/waveform bars: replace gradient with solid dark fill */
+  article [style*="linear-gradient"]:not(.sv-reasoning) {
     background: #333333 !important;
+  }
+
+  /* Reasoning box: light treatment — left border only, no dark background */
+  .sv-reasoning {
+    background: transparent !important;
+    border: none !important;
+    border-left: 2px solid #999999 !important;
+    border-radius: 0 !important;
+    padding-left: 10px !important;
+  }
+  .sv-reasoning * {
+    color: #333333 !important;
   }
 
   /* General text classes go dark */
