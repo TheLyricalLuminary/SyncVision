@@ -145,19 +145,15 @@ function TrackCard({ result, decision, comment, onDecide }: TrackCardProps) {
         <div style={{ fontFamily: SERIF, fontSize: 28, lineHeight: 1.05, letterSpacing: '-0.012em', color: C.silver, fontWeight: 400, paddingRight: 60 }}>
           {title}
         </div>
-        <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginTop: 4 }}>
-          <span style={{ color: C.silver, fontWeight: 500 }}>{result.track.artistName ?? 'Unknown Artist'}</span>
+        <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.lavender, marginTop: 5, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ color: C.silver, fontWeight: 600 }}>{result.track.artistName ?? 'Unknown Artist'}</span>
+          {result.track.tonalCharacter && <><span style={{ opacity: 0.35 }}>·</span><span>{result.track.tonalCharacter}</span></>}
+          {result.track.energyCharacter && <><span style={{ opacity: 0.35 }}>·</span><span>{result.track.energyCharacter}</span></>}
+          {result.track.tempo && <><span style={{ opacity: 0.35 }}>·</span><span style={{ fontFamily: MONO }}>{Math.round(result.track.tempo)} BPM</span></>}
         </div>
 
-        {/* chips */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
-          {result.track.tempo && (
-            <Chip style={{ background: 'rgba(124,58,237,0.16)', borderColor: 'rgba(124,58,237,0.36)', color: C.silver }}>
-              {Math.round(result.track.tempo)} BPM
-            </Chip>
-          )}
-          {result.track.tonalCharacter && <Chip>{result.track.tonalCharacter}</Chip>}
-          {result.track.energyCharacter && <Chip>{result.track.energyCharacter}</Chip>}
+        {/* rights chip only */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
           <Chip style={{ background: rights.bgColor, borderColor: rights.borderColor, color: rights.color }}>
             {rights.label}
           </Chip>
@@ -309,7 +305,7 @@ interface ShareViewProps {
 }
 
 // ─── main view ────────────────────────────────────────────────────────────────
-export default function ShareView({ briefText, results }: ShareViewProps) {
+export default function ShareView({ briefText, sceneParams, results }: ShareViewProps) {
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -396,10 +392,12 @@ export default function ShareView({ briefText, results }: ShareViewProps) {
             {[
               { k: 'TRACKS', v: String(total) },
               { k: 'FORMAT', v: 'SHORTLIST' },
+              { k: 'PACING', v: sceneParams.pacing ?? '—' },
+              { k: 'SCENE LENGTH', v: sceneParams.sceneLengthSec ? `${Math.floor(sceneParams.sceneLengthSec / 60)}:${String(sceneParams.sceneLengthSec % 60).padStart(2,'0')}` : '—' },
             ].map(({ k, v }) => (
               <div key={k} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(167,139,250,0.04)', border: `1px solid ${C.hairline}` }}>
                 <div style={{ fontSize: 8.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: C.lavender, marginBottom: 4 }}>{k}</div>
-                <div style={{ fontFamily: MONO, fontSize: 12, color: C.silver, letterSpacing: '0.04em' }}>{v}</div>
+                <div style={{ fontFamily: MONO, fontSize: 12, color: C.silver, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{v}</div>
               </div>
             ))}
           </div>
@@ -451,7 +449,7 @@ export default function ShareView({ briefText, results }: ShareViewProps) {
         }}>
           {/* progress */}
           <div>
-            <div style={{ fontSize: 10, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender, marginBottom: 12 }}>PROGRESS</div>
+            <div style={{ fontSize: 10, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender, marginBottom: 12 }}>YOUR DECISION</div>
             <div style={{
               padding: '18px 18px 16px', borderRadius: 14,
               background: 'linear-gradient(180deg, rgba(124,58,237,0.10), rgba(124,58,237,0.02))',
@@ -461,7 +459,7 @@ export default function ShareView({ briefText, results }: ShareViewProps) {
                 {decidedCount}<span style={{ fontFamily: SANS, fontStyle: 'normal', fontSize: 14, color: C.lavender, letterSpacing: '0.04em' }}> / {total}</span>
               </div>
               <div style={{ marginTop: 8, fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, color: 'rgba(226,232,240,0.7)' }}>
-                {decidedCount === 0 ? 'No decisions yet' : decidedCount === total ? 'All reviewed' : 'tracks reviewed'}
+                {decidedCount === 0 ? 'No decisions yet' : decidedCount === total ? 'All reviewed' : `decided · ${approvedCount} approved`}
               </div>
               <div style={{ marginTop: 14, height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 999, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${progressPct}%`, background: `linear-gradient(90deg, ${C.purple}, ${C.magenta})`, borderRadius: 999, transition: 'width 0.4s ease' }} />
@@ -469,42 +467,46 @@ export default function ShareView({ briefText, results }: ShareViewProps) {
             </div>
           </div>
 
-          {/* track summary list */}
-          {decidedCount > 0 && (
-            <div>
-              <div style={{ fontSize: 10, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender, marginBottom: 12 }}>DECISIONS</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {results.map(result => {
-                  const d = decisions[result.track.id];
-                  if (!d) return null;
-                  const title = stripArtist(result.track.title);
-                  return (
-                    <div key={result.track.id} style={{
-                      padding: '10px 12px', borderRadius: 10,
-                      display: 'flex', alignItems: 'center', gap: 10,
+          {/* track-by-track — always visible */}
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender, marginBottom: 12 }}>TRACK-BY-TRACK</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {results.map(result => {
+                const d = decisions[result.track.id];
+                const title = stripArtist(result.track.title);
+                const pending = !d;
+                return (
+                  <div key={result.track.id} style={{
+                    padding: '10px 12px', borderRadius: 10,
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    border: '1px solid',
+                    ...(d === 'approve'
+                      ? { background: 'rgba(52,211,153,0.06)', borderColor: 'rgba(52,211,153,0.3)' }
+                      : d === 'pass'
+                      ? { background: 'rgba(248,113,113,0.04)', borderColor: 'rgba(248,113,113,0.22)' }
+                      : { background: 'rgba(167,139,250,0.03)', borderColor: C.hairline }),
+                  }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0,
+                      fontFamily: SERIF, fontSize: 13, border: '1px solid',
                       ...(d === 'approve'
-                        ? { borderColor: 'rgba(52,211,153,0.3)', background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.3)' }
-                        : { borderColor: 'rgba(248,113,113,0.22)', background: 'rgba(248,113,113,0.04)', border: '1px solid rgba(248,113,113,0.22)' }),
-                    }}>
-                      <div style={{
-                        width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0,
-                        fontFamily: SERIF, fontSize: 13, border: '1px solid',
-                        ...(d === 'approve'
-                          ? { background: 'rgba(52,211,153,0.18)', color: C.good, borderColor: 'rgba(52,211,153,0.4)' }
-                          : { background: 'rgba(248,113,113,0.14)', color: C.bad, borderColor: 'rgba(248,113,113,0.3)' }),
-                      }}>{result.rank}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: SERIF, fontSize: 13, color: C.silver, lineHeight: 1.1, letterSpacing: '-0.005em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
-                        <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', marginTop: 3, color: d === 'approve' ? C.good : C.bad }}>
-                          {d === 'approve' ? '✓ APPROVED' : '✕ PASSED'}
-                        </div>
+                        ? { background: 'rgba(52,211,153,0.18)', color: C.good, borderColor: 'rgba(52,211,153,0.4)' }
+                        : d === 'pass'
+                        ? { background: 'rgba(248,113,113,0.14)', color: C.bad, borderColor: 'rgba(248,113,113,0.3)' }
+                        : { background: 'rgba(167,139,250,0.08)', color: C.lavender, borderColor: C.hairline }),
+                    }}>{result.rank}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: SERIF, fontSize: 13, color: C.silver, lineHeight: 1.1, letterSpacing: '-0.005em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+                      <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', marginTop: 3,
+                        color: d === 'approve' ? C.good : d === 'pass' ? C.bad : 'rgba(167,139,250,0.5)' }}>
+                        {d === 'approve' ? '✓ APPROVED' : d === 'pass' ? '✕ PASSED' : 'AWAITING YOUR CALL'}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
+          </div>
 
           {/* send button */}
           <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -528,11 +530,11 @@ export default function ShareView({ briefText, results }: ShareViewProps) {
                 }}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                Send Decisions
+                Send Decisions Back →
               </button>
             )}
             <div style={{ textAlign: 'center', fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: 'rgba(167,139,250,0.65)' }}>
-              {submitted ? 'Thank you for your feedback.' : 'Your choices sync back in real time.'}
+              {submitted ? 'Jessica is notified the moment you send.' : 'Your choices sync back in real time.'}
             </div>
           </div>
         </aside>
