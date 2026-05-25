@@ -3,6 +3,7 @@ services:
     name: syncvision-backend
     runtime: node
     buildCommand: >-
+      apt-get update -qq && apt-get install -y -q chromaprint ffmpeg &&
       pip install -r apps/worker/requirements.txt &&
       cd apps/backend &&
       npm install &&
@@ -50,6 +51,8 @@ services:
         value: "python3"
       - key: NODE_ENV
         value: "production"
+      - key: ACOUSTID_APP_ID
+        sync: false
       - key: ENABLE_STRIPE_RECONCILIATION
         value: "true"
     disk:
