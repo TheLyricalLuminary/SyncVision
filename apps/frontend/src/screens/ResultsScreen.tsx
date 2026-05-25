@@ -97,7 +97,6 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
   const hasAudio = audioFilePath !== null;
   const rights = rightsDisplayFor(result.rightsProfile);
   const score = result.confidenceScore.score;
-  const fillPct = Math.max(0, Math.min(100, score));
   const delta = isFirst ? null : topScore - score;
   const title = stripArtist(result.track.title);
   const timeLabel = duration > 0 ? `${formatTime(currentTime)} / ${formatTime(duration)}` : formatTime(currentTime);
