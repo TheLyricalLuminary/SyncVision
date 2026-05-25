@@ -144,15 +144,19 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     }
 
     // ── Persist AcoustID identity ────────────────────────────────
-    await prisma.track.update({
-      where: { id: id as string },
-      data: {
-        acoustidId:        top?.id ?? null,
-        acoustidScore:     score,
-        acoustidCheckedAt: new Date(),
-        // Surface resolved ISRC for review — do NOT auto-write without supervisor confirm
-      },
-    });
+    // Non-fatal: if the column doesn't exist yet on this deploy, skip silently.
+    try {
+      await prisma.track.update({
+        where: { id: id as string },
+        data: {
+          acoustidId:        top?.id ?? null,
+          acoustidScore:     score,
+          acoustidCheckedAt: new Date(),
+        },
+      });
+    } catch (e) {
+      console.warn("[fingerprint] acoustid persist skipped:", e instanceof Error ? e.message : e);
+    }
 
     // ── Reconciliation diff ──────────────────────────────────────
     const discrepancies: { field: string; submitted: string | null; external: string | null }[] = [];
