@@ -14,7 +14,7 @@ import { randomUUID } from "crypto";
 import prisma from "../lib/prisma";
 import { computeRightsState } from "../scoring/rightsStateMachine";
 import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
-import { computeSyncVisionScoreV2 } from "../scoring/scoringV2";
+import { buildVector } from "../scoring/trackVector";
 import { selectNarrative, type PADValues } from "../scoring/narrativeDictionary";
 
 const router = Router();
@@ -231,10 +231,14 @@ interface AnalysisResult {
     score: number;
     confidenceLabel: string;
     explanation: string;
-    rightsBreakdown: number;
-    metaBreakdown: number;
-    audioBreakdown: number;
+    // canonical vector — all values 0–100 (×100 for UI display)
     sceneFitBreakdown: number;
+    rightsBreakdown: number;
+    lyricsBreakdown: number;
+    signalBreakdown: number;
+    // raw 0–1 vector for audit/downstream use
+    vector: { scene: number; rights: number; lyrics: number; signal: number };
+    inputHash: string;
   };
   rightsProfile: {
     isOneStop: boolean | null;
@@ -272,7 +276,6 @@ const jobs = new Map<string, JobRecord>();
 
 // ─── Async processing ────────────────────────────────────────────────────────
 
-const META_BREAKDOWN_PILOT = 80;
 
 async function processJob(jobId: string): Promise<void> {
   const job = jobs.get(jobId);
@@ -282,7 +285,6 @@ async function processJob(jobId: string): Promise<void> {
 
   const results: AnalysisResult[] = [];
   const briefDef = BRIEFS[job.briefId];
-  const weights = BRIEF_WEIGHTS[job.briefId];
 
   try {
     for (const filename of job.trackIds) {
@@ -333,15 +335,26 @@ async function processJob(jobId: string): Promise<void> {
       const clearance = computeClearance(rp);
       const rightsState = computeRightsState(track.rightsProfile);
 
-      const v2 = computeSyncVisionScoreV2(
-        job.briefId,
-        { sceneFit, rightsClarity: clearance.score, metadata: META_BREAKDOWN_PILOT },
-        weights,
-        rightsState,
-        track.modelVersion,
-      );
+      const { vector, ranked } = buildVector({
+        padSceneFit:   sceneFit,
+        dspMatchScore: sceneFit,  // DSP proxy: same PAD fit until embedding layer lands
+        rights: {
+          clearanceScore: clearance.score,
+          hasIsrc:        Boolean(track.isrc),
+          acoustidScore:  (track as Record<string, unknown>).acoustidScore as number | null ?? null,
+        },
+        lyrics: null,  // no lyrics data yet — axis returns neutral 0.5
+        signal: {
+          hasAudio:  Boolean(track.audioFilePath),
+          hasLyrics: false,
+          hasTitle:  Boolean(track.title),
+          hasTempo:  track.tempo !== null,
+          hasTonal:  Boolean(track.tonalCharacter),
+          hasArtist: Boolean(track.artistName),
+        },
+      });
 
-      const score = Math.round(v2.matchScore);
+      const score = Math.round(ranked.score * 100);
       const explanation = selectNarrative(track.id, job.briefId, sceneFit, padValues, {
         tempo: track.tempo,
         tonalCharacter: track.tonalCharacter,
@@ -365,10 +378,12 @@ async function processJob(jobId: string): Promise<void> {
           score,
           confidenceLabel: confidenceLabelFor(score),
           explanation,
-          rightsBreakdown: clearance.score,
-          metaBreakdown: META_BREAKDOWN_PILOT,
-          audioBreakdown: sceneFit,
-          sceneFitBreakdown: sceneFit,
+          sceneFitBreakdown: Math.round(vector.scene  * 100),
+          rightsBreakdown:   Math.round(vector.rights * 100),
+          lyricsBreakdown:   Math.round(vector.lyrics * 100),
+          signalBreakdown:   Math.round(vector.signal * 100),
+          vector,
+          inputHash: ranked.inputHash,
         },
         rightsProfile: track.rightsProfile
           ? {

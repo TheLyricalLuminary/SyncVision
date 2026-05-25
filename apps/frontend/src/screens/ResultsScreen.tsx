@@ -515,9 +515,9 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 14px' }}>
           {([
             ['Scene', 'fit',     result.confidenceScore.sceneFitBreakdown],
-            ['Mood',  'match',   result.confidenceScore.metaBreakdown],
-            ['Audio', 'quality', result.confidenceScore.audioBreakdown],
-            ['Rights','score',   result.confidenceScore.rightsBreakdown],
+            ['Rights','clarity', result.confidenceScore.rightsBreakdown],
+            ['Lyrics','fit',     result.confidenceScore.lyricsBreakdown],
+            ['Signal','quality', result.confidenceScore.signalBreakdown],
           ] as [string, string, number][]).map(([label, sub, pct]) => (
             <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender }}>

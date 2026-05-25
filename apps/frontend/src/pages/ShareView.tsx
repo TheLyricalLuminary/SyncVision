@@ -110,10 +110,10 @@ function TrackCard({ result, decision, comment, onDecide }: TrackCardProps) {
   const seed = result.track.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
 
   const scoreBreakdown = [
-    { label: 'Scene', subLabel: 'fit',    pct: result.confidenceScore.sceneFitBreakdown },
-    { label: 'Mood',  subLabel: 'match',  pct: result.confidenceScore.metaBreakdown },
-    { label: 'Rights',subLabel: 'score',  pct: result.confidenceScore.rightsBreakdown },
-    { label: 'Audio', subLabel: 'quality',pct: result.confidenceScore.audioBreakdown },
+    { label: 'Scene',  subLabel: 'fit',     pct: result.confidenceScore.sceneFitBreakdown },
+    { label: 'Rights', subLabel: 'clarity', pct: result.confidenceScore.rightsBreakdown },
+    { label: 'Lyrics', subLabel: 'fit',     pct: result.confidenceScore.lyricsBreakdown },
+    { label: 'Signal', subLabel: 'quality', pct: result.confidenceScore.signalBreakdown },
   ];
 
   return (

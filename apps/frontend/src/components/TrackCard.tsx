@@ -301,10 +301,10 @@ export function TrackCard({ result, briefId, delta }: TrackCardProps) {
             </span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
-            <AxisBar label="Scene" subLabel="fit" pct={result.confidenceScore.sceneFitBreakdown} />
-            <AxisBar label="Mood" subLabel="match" pct={result.confidenceScore.metaBreakdown} />
-            <AxisBar label="Audio" subLabel="quality" pct={result.confidenceScore.audioBreakdown} />
-            <AxisBar label="Rights" subLabel="score" pct={result.confidenceScore.rightsBreakdown} />
+            <AxisBar label="Scene"  subLabel="fit"     pct={result.confidenceScore.sceneFitBreakdown} />
+            <AxisBar label="Rights" subLabel="clarity" pct={result.confidenceScore.rightsBreakdown} />
+            <AxisBar label="Lyrics" subLabel="fit"     pct={result.confidenceScore.lyricsBreakdown} />
+            <AxisBar label="Signal" subLabel="quality" pct={result.confidenceScore.signalBreakdown} />
           </div>
         </div>
 

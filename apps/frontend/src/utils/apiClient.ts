@@ -17,10 +17,12 @@ export type AnalysisResult = {
     score: number;
     confidenceLabel: string;
     explanation: string;
-    rightsBreakdown: number;
-    metaBreakdown: number;
-    audioBreakdown: number;
     sceneFitBreakdown: number;
+    rightsBreakdown: number;
+    lyricsBreakdown: number;
+    signalBreakdown: number;
+    vector: { scene: number; rights: number; lyrics: number; signal: number };
+    inputHash: string;
   };
   rightsProfile: {
     isOneStop: boolean | null;
