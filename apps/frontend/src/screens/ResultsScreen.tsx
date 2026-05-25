@@ -84,18 +84,200 @@ function Chip({ children, variant = 'default' }: { children: React.ReactNode; va
   );
 }
 
+// ── BLOCKER_LABELS ─────────────────────────────────────────────
+const BLOCKER_LABELS: Record<string, string> = {
+  WRITER_UNIDENTIFIED:    'Writer name missing',
+  WRITER_IPI_MISSING:     'Writer IPI missing',
+  PUBLISHER_UNKNOWN:      'Publisher unknown',
+  PRO_WORK_ID_MISSING:    'PRO Work ID missing',
+  ONE_STOP_NOT_CONFIRMED: 'One-stop not confirmed',
+  MASTER_PCT_UNSET:       'Master ownership % unset',
+  MASTER_OWNERSHIP_CONFLICT: 'Master ownership conflict',
+  ISRC_MISSING:           'ISRC missing',
+};
+
+// ── RightsPanel ────────────────────────────────────────────────
+type RightsSaveResult = {
+  rightsState: string;
+  blockers: string[];
+  isOneStop: boolean | null;
+  proAffiliation: string | null;
+  masterVerifiedAt: string | null;
+  masterOwnedBy: string | null;
+  publisherName: string | null;
+  writerName: string | null;
+  syncLicenseStatus: string | null;
+  syncLicensedBy: string | null;
+  lyricLicenseStatus: string | null;
+  lyricLicensedBy: string | null;
+};
+
+function RightsPanel({
+  trackId, isrc: initialIsrc, existing, onSaved, onClose,
+}: {
+  trackId: string;
+  isrc: string;
+  existing: AnalysisResult['rightsProfile'];
+  onSaved: (r: RightsSaveResult) => void;
+  onClose: () => void;
+}) {
+  const [isrc, setIsrc]               = useState(initialIsrc.startsWith('PILOT-') ? '' : initialIsrc);
+  const [writer, setWriter]           = useState(existing?.writerName ?? '');
+  const [publisher, setPublisher]     = useState(existing?.publisherName ?? '');
+  const [pro, setPro]                 = useState(existing?.proAffiliation ?? '');
+  const [workId, setWorkId]           = useState('');
+  const [oneStop, setOneStop]         = useState(existing?.isOneStop ?? false);
+  const [syncLicense, setSyncLicense] = useState('');
+  const [syncBy, setSyncBy]           = useState('');
+  const [lyricLicense, setLyricLicense] = useState('');
+  const [lyricBy, setLyricBy]         = useState('');
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    background: 'rgba(0,0,0,0.3)', border: `1px solid ${C.hairlineStrong}`,
+    borderRadius: 8, padding: '7px 10px', fontSize: 12, color: C.silver,
+    fontFamily: SANS, outline: 'none',
+  };
+  const labelStyle: React.CSSProperties = {
+    fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase',
+    color: C.lavender, display: 'block', marginBottom: 4,
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {};
+      if (isrc.trim())        body.isrc = isrc.trim();
+      if (writer.trim())      body.writerName = writer.trim();
+      if (publisher.trim())   body.publisherName = publisher.trim();
+      if (pro.trim())         body.proAffiliation = pro.trim();
+      if (workId.trim())      body.ascapWorkId = workId.trim();
+      body.isOneStop = oneStop;
+      if (syncLicense.trim()) body.syncLicenseStatus = syncLicense.trim();
+      if (syncBy.trim())      body.syncLicensedBy = syncBy.trim();
+      if (lyricLicense.trim()) body.lyricLicenseStatus = lyricLicense.trim();
+      if (lyricBy.trim())     body.lyricLicensedBy = lyricBy.trim();
+
+      const res = await fetch(`${API_BASE}/api/tracks/${trackId}/rights`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const data = await res.json() as RightsSaveResult;
+      onSaved(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 10, padding: '12px 14px', borderRadius: 11, background: 'rgba(0,0,0,0.35)', border: `1px solid ${C.hairlineStrong}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <span style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender, fontWeight: 700 }}>Rights intake</span>
+        <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: C.lavender, cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div>
+          <label style={labelStyle}>ISRC</label>
+          <input style={inputStyle} value={isrc} onChange={e => setIsrc(e.target.value)} placeholder="e.g. USRC17607839" />
+        </div>
+        <div>
+          <label style={labelStyle}>Writer Name</label>
+          <input style={inputStyle} value={writer} onChange={e => setWriter(e.target.value)} placeholder="Artist / composer" />
+        </div>
+        <div>
+          <label style={labelStyle}>Publisher</label>
+          <input style={inputStyle} value={publisher} onChange={e => setPublisher(e.target.value)} placeholder="Publisher name" />
+        </div>
+        <div>
+          <label style={labelStyle}>PRO Affiliation</label>
+          <input style={inputStyle} value={pro} onChange={e => setPro(e.target.value)} placeholder="ASCAP / BMI / SESAC" />
+        </div>
+        <div>
+          <label style={labelStyle}>Work ID (ASCAP/BMI)</label>
+          <input style={inputStyle} value={workId} onChange={e => setWorkId(e.target.value)} placeholder="Work ID" />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <label style={{ ...labelStyle, marginBottom: 10 }}>One-Stop License</label>
+          <button
+            type="button"
+            onClick={() => setOneStop(v => !v)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
+            <span style={{ width: 32, height: 18, borderRadius: 999, background: oneStop ? '#34D399' : 'rgba(255,255,255,0.10)', border: `1px solid ${oneStop ? '#34D399' : C.hairlineStrong}`, position: 'relative', display: 'inline-block', flexShrink: 0, transition: 'background 0.2s' }}>
+              <span style={{ position: 'absolute', top: 2, left: oneStop ? 14 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+            </span>
+            <span style={{ fontSize: 12, color: oneStop ? '#34D399' : C.lavender }}>{oneStop ? 'Yes' : 'No'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Composition sync + lyric license */}
+      <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 9, background: 'rgba(124,58,237,0.07)', border: `1px solid ${C.hairline}` }}>
+        <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.lavender, marginBottom: 8 }}>Composition &amp; Lyric Licenses</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div>
+            <label style={labelStyle}>Sync License Status</label>
+            <select style={{ ...inputStyle, appearance: 'none' }} value={syncLicense} onChange={e => setSyncLicense(e.target.value)}>
+              <option value="">— not set —</option>
+              <option value="CLEARED">Cleared</option>
+              <option value="PENDING">Pending</option>
+              <option value="NOT_CLEARED">Not cleared</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Sync Licensed By</label>
+            <input style={inputStyle} value={syncBy} onChange={e => setSyncBy(e.target.value)} placeholder="Publisher / agency" />
+          </div>
+          <div>
+            <label style={labelStyle}>Lyric License Status</label>
+            <select style={{ ...inputStyle, appearance: 'none' }} value={lyricLicense} onChange={e => setLyricLicense(e.target.value)}>
+              <option value="">— not set —</option>
+              <option value="CLEARED">Cleared</option>
+              <option value="PENDING">Pending</option>
+              <option value="NOT_CLEARED">Not cleared</option>
+              <option value="NOT_APPLICABLE">Not applicable</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Lyric Licensed By</label>
+            <input style={inputStyle} value={lyricBy} onChange={e => setLyricBy(e.target.value)} placeholder="Rights holder" />
+          </div>
+        </div>
+      </div>
+      {error && <p style={{ fontSize: 11, color: C.magenta, marginTop: 8 }}>{error}</p>}
+      <button
+        type="button"
+        onClick={() => void handleSave()}
+        disabled={saving}
+        style={{ marginTop: 12, width: '100%', padding: '9px 0', borderRadius: 8, border: 'none', cursor: saving ? 'wait' : 'pointer', background: `linear-gradient(135deg, ${C.purple}, ${C.magenta})`, color: '#fff', fontFamily: SANS, fontWeight: 700, fontSize: 12, letterSpacing: '0.06em' }}
+      >
+        {saving ? 'Saving…' : 'Save Rights Data'}
+      </button>
+    </div>
+  );
+}
+
 // ── TrackCard (inlined for full visual control) ────────────────
 function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisResult; briefId: BriefId; topScore: number; isFirst: boolean }) {
   const [isPlaying, setIsPlaying]               = useState(false);
   const [currentTime, setCurrentTime]           = useState(0);
   const [duration, setDuration]                 = useState(0);
   const [rightsTooltip, setRightsTooltip]       = useState(false);
+  const [rightsPanel, setRightsPanel]           = useState(false);
   const [playbackMsg, setPlaybackMsg]           = useState(false);
+  const [localRightsProfile, setLocalRightsProfile] = useState(result.rightsProfile);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
   const hasAudio = audioFilePath !== null;
-  const rights = rightsDisplayFor(result.rightsProfile);
+  const rights = rightsDisplayFor(localRightsProfile);
   const score = result.confidenceScore.score;
   const delta = isFirst ? null : topScore - score;
   const title = stripArtist(result.track.title);
@@ -219,24 +401,54 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
       <div style={{ marginTop: 8, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ position: 'relative' }}>
           <span
-            style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', padding: '4px 8px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', background: rights.bgColor, border: `1px solid ${rights.borderColor}`, color: rights.color, cursor: rights.clickable ? 'help' : undefined }}
-            onMouseEnter={() => rights.clickable && setRightsTooltip(true)}
+            style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', padding: '4px 8px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', background: rights.bgColor, border: `1px solid ${rights.borderColor}`, color: rights.color, cursor: 'pointer' }}
+            onMouseEnter={() => !rightsPanel && setRightsTooltip(true)}
             onMouseLeave={() => setRightsTooltip(false)}
-            onClick={() => rights.clickable && setRightsTooltip(v => !v)}
+            onClick={() => { setRightsTooltip(false); setRightsPanel(v => !v); }}
           >
-            {rights.clickable && (
-              <span style={{ width: 13, height: 13, borderRadius: '50%', background: `${rights.color}33`, display: 'inline-grid', placeItems: 'center', fontSize: 9, fontWeight: 800, flexShrink: 0 }}>?</span>
-            )}
+            <span style={{ width: 13, height: 13, borderRadius: '50%', background: `${rights.color}33`, display: 'inline-grid', placeItems: 'center', fontSize: 9, fontWeight: 800, flexShrink: 0 }}>✎</span>
             {rights.label.toUpperCase()}
           </span>
-          {rightsTooltip && (
+          {rightsTooltip && !rightsPanel && (
             <span style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 8, width: 256, fontSize: 11, lineHeight: 1.5, borderRadius: 10, padding: '8px 12px', zIndex: 10, background: '#170B33', border: `1px solid ${C.hairline}`, color: C.silver }}>
-              {rights.tooltip}
+              {rights.tooltip} — Click to enter rights data.
             </span>
           )}
         </span>
         <Chip variant="genre">{BRIEF_LABELS[briefId]}</Chip>
       </div>
+
+      {/* rights intake panel */}
+      {rightsPanel && (
+        <RightsPanel
+          trackId={result.track.id}
+          isrc={result.track.isrc}
+          existing={localRightsProfile}
+          onSaved={(saved) => {
+            setLocalRightsProfile({
+              isOneStop: saved.isOneStop,
+              proAffiliation: saved.proAffiliation,
+              masterVerifiedAt: saved.masterVerifiedAt,
+              masterOwnedBy: saved.masterOwnedBy,
+              publisherName: saved.publisherName,
+              writerName: saved.writerName,
+              blockers: saved.blockers,
+              rightsState: saved.rightsState,
+            });
+            setRightsPanel(false);
+          }}
+          onClose={() => setRightsPanel(false)}
+        />
+      )}
+
+      {/* rights blockers */}
+      {!rightsPanel && localRightsProfile?.blockers && localRightsProfile.blockers.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+          {localRightsProfile.blockers.map(code => (
+            <Chip key={code} variant="warn">{BLOCKER_LABELS[code] ?? code.replace(/_/g, ' ').toLowerCase()}</Chip>
+          ))}
+        </div>
+      )}
 
       {/* waveform player */}
       <div className="no-print" style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px 8px 8px', borderRadius: 11, background: 'rgba(0,0,0,0.28)', border: `1px solid ${C.hairline}` }}>
@@ -255,14 +467,6 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
         <span style={{ fontFamily: 'monospace', fontSize: 10, color: C.lavender, letterSpacing: '0.05em', flexShrink: 0 }}>{timeLabel}</span>
       </div>
 
-      {/* rights blockers */}
-      {result.rightsProfile?.blockers && result.rightsProfile.blockers.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-          {result.rightsProfile.blockers.map(code => (
-            <Chip key={code} variant="warn">{code.replace(/_/g, ' ').toLowerCase()}</Chip>
-          ))}
-        </div>
-      )}
 
       {hasAudio && <audio ref={audioRef} src={audioFilePath ?? undefined} preload="metadata" className="hidden" />}
       {playbackMsg && !hasAudio && <p style={{ fontSize: 11, color: C.lavender, marginTop: 6, fontStyle: 'italic' }}>Audio playback coming soon.</p>}

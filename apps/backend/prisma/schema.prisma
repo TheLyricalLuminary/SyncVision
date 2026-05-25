@@ -93,6 +93,10 @@ model RightsProfile {
   masterVerifiedAt      DateTime?
   rightsState           String?
   rightsLastCheckedAt   DateTime?
+  syncLicenseStatus     String?
+  syncLicensedBy        String?
+  lyricLicenseStatus    String?
+  lyricLicensedBy       String?
   track                 Track     @relation(fields: [trackId], references: [id])
 
   @@schema("scoring")

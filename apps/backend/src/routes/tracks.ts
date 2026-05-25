@@ -380,6 +380,103 @@ router.get("/tracks/:id/rights-report", requirePlan("AGENCY"), async (req: Reque
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/tracks/:id/rights — upsert rights profile, return updated state
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.patch("/tracks/:id/rights", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const track = await prisma.track.findUnique({ where: { id: id as string } });
+    if (!track) {
+      res.status(404).json({ error: "Track not found" });
+      return;
+    }
+
+    const body = req.body as {
+      isrc?: string;
+      writerName?: string;
+      writerIpi?: string;
+      publisherName?: string;
+      proAffiliation?: string;
+      ascapWorkId?: string;
+      bmiWorkId?: string;
+      masterOwnershipPct?: number;
+      masterOwnedBy?: string;
+      isOneStop?: boolean;
+      syncLicenseStatus?: string;
+      syncLicensedBy?: string;
+      lyricLicenseStatus?: string;
+      lyricLicensedBy?: string;
+    };
+
+    // Update Track ISRC if provided and not already a real one
+    if (body.isrc && body.isrc.trim()) {
+      await prisma.track.update({
+        where: { id: id as string },
+        data: { isrc: body.isrc.trim().toUpperCase() },
+      });
+    }
+
+    const rpData = {
+      writerName:         body.writerName         ?? undefined,
+      writerIpi:          body.writerIpi           ?? undefined,
+      publisherName:      body.publisherName       ?? undefined,
+      proAffiliation:     body.proAffiliation      ?? undefined,
+      ascapWorkId:        body.ascapWorkId         ?? undefined,
+      bmiWorkId:          body.bmiWorkId           ?? undefined,
+      masterOwnershipPct: body.masterOwnershipPct  != null ? body.masterOwnershipPct : undefined,
+      masterOwnedBy:      body.masterOwnedBy       ?? undefined,
+      isOneStop:          body.isOneStop           ?? undefined,
+      syncLicenseStatus:  body.syncLicenseStatus   ?? undefined,
+      syncLicensedBy:     body.syncLicensedBy      ?? undefined,
+      lyricLicenseStatus: body.lyricLicenseStatus  ?? undefined,
+      lyricLicensedBy:    body.lyricLicensedBy     ?? undefined,
+      rightsLastCheckedAt: new Date(),
+    };
+
+    const rp = await prisma.rightsProfile.upsert({
+      where:  { trackId: id as string },
+      update: rpData,
+      create: { trackId: id as string, ...rpData },
+    });
+
+    const rightsState = computeRightsState(rp);
+
+    // Persist the computed state
+    await prisma.rightsProfile.update({
+      where: { trackId: id as string },
+      data:  { rightsState },
+    });
+
+    // Compute blockers for response
+    const blockers: string[] = [];
+    if (!rp.writerName)    blockers.push("WRITER_UNIDENTIFIED");
+    if (!rp.writerIpi)     blockers.push("WRITER_IPI_MISSING");
+    if (!rp.publisherName) blockers.push("PUBLISHER_UNKNOWN");
+    if (!rp.proAffiliation && !rp.ascapWorkId && !rp.bmiWorkId) blockers.push("PRO_WORK_ID_MISSING");
+    if (rp.isOneStop !== true) blockers.push("ONE_STOP_NOT_CONFIRMED");
+
+    res.json({
+      rightsState,
+      blockers,
+      isOneStop:          rp.isOneStop,
+      proAffiliation:     rp.proAffiliation,
+      masterVerifiedAt:   rp.masterVerifiedAt?.toISOString() ?? null,
+      masterOwnedBy:      rp.masterOwnedBy,
+      publisherName:      rp.publisherName,
+      writerName:         rp.writerName,
+      syncLicenseStatus:  rp.syncLicenseStatus,
+      syncLicensedBy:     rp.syncLicensedBy,
+      lyricLicenseStatus: rp.lyricLicenseStatus,
+      lyricLicensedBy:    rp.lyricLicensedBy,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DELETE /api/tracks/:id — remove a track and all associated rows
 // ─────────────────────────────────────────────────────────────────────────────
 

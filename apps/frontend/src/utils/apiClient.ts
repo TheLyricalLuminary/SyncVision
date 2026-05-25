@@ -31,6 +31,10 @@ export type AnalysisResult = {
     writerName: string | null;
     blockers?: string[];
     rightsState?: string;
+    syncLicenseStatus?: string | null;
+    syncLicensedBy?: string | null;
+    lyricLicenseStatus?: string | null;
+    lyricLicensedBy?: string | null;
   } | null;
   rank: number;
 };
