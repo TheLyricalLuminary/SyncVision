@@ -261,35 +261,20 @@ export function IngestScreen({ creditBalance, onBack, onAnalyze }: IngestScreenP
         </div>
         {dropError && <div style={{ fontSize: 11, color: C.amber, marginTop: 6 }}>{dropError}</div>}
 
-        {/* ── OR divider ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 10px' }}>
-          <div style={{ flex: 1, height: 1, background: C.hairline }} />
-          <span style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, fontFamily: SANS }}>Or paste a link</span>
-          <div style={{ flex: 1, height: 1, background: C.hairline }} />
-        </div>
-
-        {/* ── URL input ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input
-              type="text"
-              value={urlValue}
-              onChange={e => setUrlValue(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleAddUrl(); }}
-              placeholder="Spotify, SoundCloud, or Dropbox URL"
-              style={{ ...fieldStyle }}
-            />
-            <button type="button" onClick={handleAddUrl} style={addBtnStyle}>ADD</button>
+        {/* ── ISRC input ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <div style={{ flex: 1, height: 1, background: C.hairline }} />
+            <span style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, fontFamily: SANS }}>Or add by ISRC</span>
+            <div style={{ flex: 1, height: 1, background: C.hairline }} />
           </div>
-          {urlError && <div style={{ fontSize: 11, color: C.amber }}>{urlError}</div>}
-
-          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
             <input
               type="text"
               value={isrcValue}
               onChange={e => setIsrcValue(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleAddIsrc(); }}
-              placeholder="ISRC · e.g. QZRP52418558"
+              placeholder="e.g. QZRP52418558"
               style={{ ...fieldStyle, fontFamily: '"JetBrains Mono", monospace', fontSize: 12, letterSpacing: '0.04em' }}
             />
             <button type="button" onClick={handleAddIsrc} style={addBtnStyle}>ADD</button>
