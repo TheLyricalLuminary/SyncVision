@@ -168,7 +168,8 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     }
 
     // ── autoFill — merged from MusicBrainz + Credits.fm ─────────
-    // Credits.fm takes precedence (richer rights graph); MB fills gaps.
+    // Credits.fm = entity resolution layer; MusicBrainz = canonical catalog.
+    // Where both return a value, both are kept — conflicts surface to the supervisor.
     const autoFill = {
       isrc:           resolvedIsrc,
       iswc:           creditsEnrichment?.iswc           ?? mbEnrichment?.iswc           ?? null,
