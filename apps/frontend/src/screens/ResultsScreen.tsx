@@ -177,19 +177,43 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
         )}
       </div>
 
-      {/* score bar */}
-      <div style={{ marginTop: 9, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,0.05)', borderRadius: 999, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${fillPct}%`, background: `linear-gradient(90deg, ${C.purple}, ${C.magenta})`, borderRadius: 999, boxShadow: '0 0 14px rgba(124,58,237,0.4)' }} />
+      {/* AI reasoning box */}
+      <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 11, background: 'linear-gradient(180deg, rgba(219,39,119,0.06), transparent)', border: '1px solid rgba(219,39,119,0.2)' }}>
+        <div style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.magenta, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" /></svg>
+          Why this track
         </div>
-        <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 14, fontWeight: 700, color: C.silver, minWidth: 56, textAlign: 'right', letterSpacing: '-0.01em', fontFamily: SANS }}>
-          {score}<span style={{ color: C.lavender, fontWeight: 500, fontSize: 11, marginLeft: 2 }}>/100</span>
+        <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: C.silver, letterSpacing: '-0.005em' }}>
+          {result.confidenceScore.explanation}
         </div>
       </div>
 
-      {/* narrative */}
-      <div style={{ marginTop: 8, fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, lineHeight: 1.35, color: 'rgba(226,232,240,0.78)', paddingLeft: 10, borderLeft: '2px solid rgba(167,139,250,0.35)' }}>
-        {result.confidenceScore.explanation}
+      {/* score + breakdown axes */}
+      <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 11, background: 'rgba(0,0,0,0.18)', border: `1px solid ${C.hairline}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+          <span style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender }}>Fit · breakdown</span>
+          <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 22, lineHeight: 1, color: score >= 70 ? '#34D399' : score >= 55 ? C.amber : C.magenta, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>
+            {score}<span style={{ fontFamily: SANS, fontStyle: 'normal', fontSize: 10, color: C.lavender, marginLeft: 2 }}>/100</span>
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 14px' }}>
+          {([
+            ['Scene', 'fit',     result.confidenceScore.sceneFitBreakdown],
+            ['Mood',  'match',   result.confidenceScore.metaBreakdown],
+            ['Audio', 'quality', result.confidenceScore.audioBreakdown],
+            ['Rights','score',   result.confidenceScore.rightsBreakdown],
+          ] as [string, string, number][]).map(([label, sub, pct]) => (
+            <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender }}>
+                <span>{label} <span style={{ color: C.silver, fontWeight: 600 }}>{sub}</span></span>
+                <span style={{ color: C.silver, fontFamily: 'monospace' }}>{Math.round(pct)}%</span>
+              </div>
+              <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 999, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, pct))}%`, background: 'linear-gradient(90deg, #F5B544, #F97316)', borderRadius: 999 }} />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* tag row */}
@@ -213,15 +237,23 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
           )}
         </span>
         <Chip variant="genre">{BRIEF_LABELS[briefId]}</Chip>
+      </div>
 
-        {/* play button */}
-        <button type="button" onClick={togglePlayback} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: C.silver, padding: '5px 10px', borderRadius: 999, border: `1px solid ${C.hairlineStrong}`, background: 'transparent', marginLeft: 'auto', cursor: 'pointer', fontFamily: SANS }} aria-label={isPlaying ? 'Pause' : 'Play'}>
+      {/* waveform player */}
+      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px 8px 8px', borderRadius: 11, background: 'rgba(0,0,0,0.28)', border: `1px solid ${C.hairline}` }}>
+        <button type="button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause' : 'Play'} style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', background: isFirst ? `linear-gradient(135deg, ${C.purple}, ${C.magenta})` : C.silver, color: isFirst ? '#fff' : '#0F0823', border: 'none', cursor: 'pointer', boxShadow: isFirst ? '0 6px 14px -6px rgba(219,39,119,0.5)' : undefined }}>
           {isPlaying
-            ? <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden><rect x="1" y="0" width="3" height="10" /><rect x="6" y="0" width="3" height="10" /></svg>
-            : <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden><polygon points="1,0 9,5 1,10" /></svg>
+            ? <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden><rect x="1.5" y="1" width="2.5" height="8" /><rect x="6" y="1" width="2.5" height="8" /></svg>
+            : <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden><path d="M2 1 L8 5 L2 9 Z" /></svg>
           }
-          <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.04em' }}>{timeLabel}</span>
         </button>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1.5, height: 26, overflow: 'hidden' }}>
+          {[30,55,40,72,50,90,60,35,65,48,78,42,62,38,55,80,45,60,30,70,42,55,36,50,65,40,58,32,48,55,38,60,42,50,30,45,38,52,34,48].map((h, i) => {
+            const played = duration > 0 && (i / 40) < (currentTime / duration);
+            return <span key={i} style={{ display: 'block', width: 2, flexShrink: 0, height: `${h}%`, borderRadius: 2, background: played ? `linear-gradient(180deg, ${C.purple}, ${C.magenta})` : 'rgba(167,139,250,0.3)' }} />;
+          })}
+        </div>
+        <span style={{ fontFamily: 'monospace', fontSize: 10, color: C.lavender, letterSpacing: '0.05em', flexShrink: 0 }}>{timeLabel}</span>
       </div>
 
       {/* rights blockers */}
