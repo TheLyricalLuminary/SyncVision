@@ -8,6 +8,8 @@ import { Router, Request, Response } from "express";
 import { spawn } from "child_process";
 import path from "path";
 import prisma from "../lib/prisma";
+import { enrichFromMusicBrainz } from "../lib/musicbrainz";
+import { enrichFromCreditsFm } from "../lib/creditsfm";
 
 const router = Router();
 
@@ -118,23 +120,44 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     const score = top?.score ?? 0;
     const topRecording = top?.recordings?.[0] ?? null;
 
-    // Persist the AcoustID identity on the track
+    const matchQuality =
+      score >= 0.9 ? "HIGH" :
+      score >= 0.7 ? "MEDIUM" :
+      score >  0   ? "LOW"    :
+                     "NO_MATCH";
+
+    // ── MusicBrainz enrichment ───────────────────────────────────
+    let mbEnrichment = null;
+    if (topRecording?.id && matchQuality !== "NO_MATCH") {
+      try {
+        mbEnrichment = await enrichFromMusicBrainz(topRecording.id);
+      } catch { /* non-fatal */ }
+    }
+
+    // ── Credits.fm enrichment ────────────────────────────────────
+    const resolvedIsrc = mbEnrichment?.isrc ?? track.isrc ?? null;
+    let creditsEnrichment = null;
+    if (resolvedIsrc) {
+      try {
+        creditsEnrichment = await enrichFromCreditsFm(resolvedIsrc);
+      } catch { /* non-fatal */ }
+    }
+
+    // ── Persist AcoustID identity ────────────────────────────────
     await prisma.track.update({
       where: { id: id as string },
       data: {
-        acoustidId: top?.id ?? null,
-        acoustidScore: score,
+        acoustidId:        top?.id ?? null,
+        acoustidScore:     score,
         acoustidCheckedAt: new Date(),
-        // If we found a high-confidence ISRC match via MusicBrainz and the
-        // track has no authoritative ISRC yet, surface it for review —
-        // but do NOT auto-write it; that decision belongs to the supervisor.
+        // Surface resolved ISRC for review — do NOT auto-write without supervisor confirm
       },
     });
 
     // ── Reconciliation diff ──────────────────────────────────────
     const discrepancies: { field: string; submitted: string | null; external: string | null }[] = [];
 
-    const extTitle = topRecording?.title ?? null;
+    const extTitle  = topRecording?.title ?? null;
     const extArtist = topRecording?.artists?.[0]?.name ?? null;
 
     if (extTitle && track.title && extTitle.toLowerCase() !== track.title.toLowerCase()) {
@@ -144,17 +167,28 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
       discrepancies.push({ field: "artistName", submitted: track.artistName, external: extArtist });
     }
 
-    const matchQuality =
-      score >= 0.9 ? "HIGH" :
-      score >= 0.7 ? "MEDIUM" :
-      score >  0   ? "LOW" :
-                     "NO_MATCH";
+    // ── autoFill — merged from MusicBrainz + Credits.fm ─────────
+    // Credits.fm takes precedence (richer rights graph); MB fills gaps.
+    const autoFill = {
+      isrc:           resolvedIsrc,
+      iswc:           creditsEnrichment?.iswc           ?? mbEnrichment?.iswc           ?? null,
+      writerName:     creditsEnrichment?.writerName     ?? mbEnrichment?.writerName     ?? null,
+      writerIpi:      creditsEnrichment?.writerIpi      ?? mbEnrichment?.writerIpi      ?? null,
+      publisherName:  creditsEnrichment?.publisherName  ?? mbEnrichment?.publisherName  ?? null,
+      proAffiliation: creditsEnrichment?.proAffiliation ?? null,
+      sources: {
+        isrc:      mbEnrichment?.isrc      ? "musicbrainz" : track.isrc ? "submitted" : null,
+        writer:    creditsEnrichment?.writerName    ? "credits.fm" : mbEnrichment?.writerName    ? "musicbrainz" : null,
+        publisher: creditsEnrichment?.publisherName ? "credits.fm" : mbEnrichment?.publisherName ? "musicbrainz" : null,
+        pro:       creditsEnrichment?.proAffiliation ? "credits.fm" : null,
+      },
+    };
 
     res.json({
-      acoustidId:      top?.id ?? null,
+      acoustidId:   top?.id ?? null,
       score,
       matchQuality,
-      duration:        fpcalcResult.duration,
+      duration:     fpcalcResult.duration,
       topRecording: topRecording
         ? {
             id:       topRecording.id,
@@ -164,9 +198,10 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
           }
         : null,
       discrepancies,
+      autoFill,
       reconciliationNote:
         discrepancies.length > 0
-          ? `Metadata discrepancy detected. Submitted data conflicts with external registry on ${discrepancies.map(d => d.field).join(", ")}.`
+          ? `Metadata discrepancy detected on ${discrepancies.map(d => d.field).join(", ")}.`
           : matchQuality === "NO_MATCH"
           ? "No external match found. Identity unresolved."
           : "Submitted metadata consistent with external registry.",

@@ -85,6 +85,21 @@ function Chip({ children, variant = 'default' }: { children: React.ReactNode; va
 }
 
 // ── RightsPipelineView ─────────────────────────────────────────
+interface AutoFill {
+  isrc: string | null;
+  iswc: string | null;
+  writerName: string | null;
+  writerIpi: string | null;
+  publisherName: string | null;
+  proAffiliation: string | null;
+  sources: {
+    isrc: string | null;
+    writer: string | null;
+    publisher: string | null;
+    pro: string | null;
+  };
+}
+
 interface FingerprintResult {
   acoustidId: string | null;
   score: number;
@@ -92,6 +107,7 @@ interface FingerprintResult {
   topRecording: { id: string; title: string | null; artist: string | null } | null;
   discrepancies: { field: string; submitted: string | null; external: string | null }[];
   reconciliationNote: string;
+  autoFill: AutoFill;
 }
 
 function RightsPipelineView({
@@ -99,7 +115,7 @@ function RightsPipelineView({
 }: {
   rp: AnalysisResult['rightsProfile'];
   trackId: string;
-  onOpenIntake: () => void;
+  onOpenIntake: (autoFill?: AutoFill) => void;
 }) {
   const [fingerprinting, setFingerprinting] = useState(false);
   const [fpResult, setFpResult]             = useState<FingerprintResult | null>(null);
@@ -146,6 +162,11 @@ function RightsPipelineView({
       const data = await res.json() as FingerprintResult & { error?: string; message?: string };
       if (!res.ok) throw new Error(data.message ?? data.error ?? `Server ${res.status}`);
       setFpResult(data);
+      // If the lookup resolved any rights fields, open the intake form pre-populated
+      const af = data.autoFill;
+      if (af && (af.writerName || af.publisherName || af.isrc)) {
+        onOpenIntake(af);
+      }
     } catch (e) {
       setFpError(e instanceof Error ? e.message : 'Fingerprint failed');
     } finally {
@@ -203,11 +224,47 @@ function RightsPipelineView({
       {fpResult && fpResult.discrepancies.length === 0 && fpResult.matchQuality !== 'NO_MATCH' && (
         <div style={{ marginTop: 8, fontSize: 10, color: '#34D399', fontStyle: 'italic' }}>{fpResult.reconciliationNote}</div>
       )}
+
+      {/* autoFill resolved fields summary */}
+      {fpResult?.autoFill && (fpResult.autoFill.writerName || fpResult.autoFill.publisherName || fpResult.autoFill.isrc) && (
+        <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)' }}>
+          <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#34D399', fontWeight: 700, marginBottom: 6 }}>
+            Fields resolved — opening intake form
+          </div>
+          {fpResult.autoFill.writerName && (
+            <div style={{ fontSize: 11, color: C.silver, marginBottom: 2 }}>
+              <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Writer: </span>
+              {fpResult.autoFill.writerName}
+              <span style={{ color: 'rgba(167,139,250,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.writer}</span>
+            </div>
+          )}
+          {fpResult.autoFill.publisherName && (
+            <div style={{ fontSize: 11, color: C.silver, marginBottom: 2 }}>
+              <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Publisher: </span>
+              {fpResult.autoFill.publisherName}
+              <span style={{ color: 'rgba(167,139,250,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.publisher}</span>
+            </div>
+          )}
+          {fpResult.autoFill.isrc && (
+            <div style={{ fontSize: 11, color: C.silver, marginBottom: 2 }}>
+              <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>ISRC: </span>
+              {fpResult.autoFill.isrc}
+            </div>
+          )}
+          {fpResult.autoFill.proAffiliation && (
+            <div style={{ fontSize: 11, color: C.silver }}>
+              <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>PRO: </span>
+              {fpResult.autoFill.proAffiliation}
+            </div>
+          )}
+        </div>
+      )}
+
       {fpError && <div style={{ marginTop: 8, fontSize: 10, color: C.magenta }}>{fpError}</div>}
 
       {/* actions */}
       <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-        <button type="button" onClick={onOpenIntake} style={{ flex: 1, padding: '7px 0', borderRadius: 7, border: `1px solid ${C.hairlineStrong}`, background: 'transparent', color: C.lavender, fontFamily: SANS, fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em' }}>
+        <button type="button" onClick={() => onOpenIntake()} style={{ flex: 1, padding: '7px 0', borderRadius: 7, border: `1px solid ${C.hairlineStrong}`, background: 'transparent', color: C.lavender, fontFamily: SANS, fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em' }}>
           ✎ Edit Rights Data
         </button>
         <button type="button" onClick={() => void runFingerprint()} disabled={fingerprinting} style={{ flex: 1, padding: '7px 0', borderRadius: 7, border: 'none', background: `linear-gradient(135deg, ${C.purple}, ${C.magenta})`, color: '#fff', fontFamily: SANS, fontSize: 11, fontWeight: 700, cursor: fingerprinting ? 'wait' : 'pointer', letterSpacing: '0.04em' }}>
@@ -247,18 +304,19 @@ type RightsSaveResult = {
 };
 
 function RightsPanel({
-  trackId, isrc: initialIsrc, existing, onSaved, onClose,
+  trackId, isrc: initialIsrc, existing, autoFill, onSaved, onClose,
 }: {
   trackId: string;
   isrc: string | null;
   existing: AnalysisResult['rightsProfile'];
+  autoFill?: AutoFill;
   onSaved: (r: RightsSaveResult) => void;
   onClose: () => void;
 }) {
-  const [isrc, setIsrc]               = useState((!initialIsrc || initialIsrc.startsWith('PILOT-')) ? '' : initialIsrc);
-  const [writer, setWriter]           = useState(existing?.writerName ?? '');
-  const [publisher, setPublisher]     = useState(existing?.publisherName ?? '');
-  const [pro, setPro]                 = useState(existing?.proAffiliation ?? '');
+  const [isrc, setIsrc]               = useState(autoFill?.isrc ?? ((!initialIsrc || initialIsrc.startsWith('PILOT-')) ? '' : initialIsrc) ?? '');
+  const [writer, setWriter]           = useState(autoFill?.writerName ?? existing?.writerName ?? '');
+  const [publisher, setPublisher]     = useState(autoFill?.publisherName ?? existing?.publisherName ?? '');
+  const [pro, setPro]                 = useState(autoFill?.proAffiliation ?? existing?.proAffiliation ?? '');
   const [workId, setWorkId]           = useState('');
   const [oneStop, setOneStop]         = useState(existing?.isOneStop ?? false);
   const [syncLicense, setSyncLicense] = useState('');
@@ -313,7 +371,14 @@ function RightsPanel({
   return (
     <div style={{ marginTop: 10, padding: '12px 14px', borderRadius: 11, background: 'rgba(0,0,0,0.35)', border: `1px solid ${C.hairlineStrong}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <span style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender, fontWeight: 700 }}>Rights intake</span>
+        <div>
+          <span style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender, fontWeight: 700 }}>Rights intake</span>
+          {autoFill && (autoFill.writerName || autoFill.publisherName || autoFill.isrc) && (
+            <span style={{ marginLeft: 8, fontSize: 9, color: '#34D399', fontWeight: 600, letterSpacing: '0.1em' }}>
+              ✓ auto-filled from {autoFill.sources.writer ?? autoFill.sources.publisher ?? 'registry'}
+            </span>
+          )}
+        </div>
         <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: C.lavender, cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -409,6 +474,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
   const [playbackMsg, setPlaybackMsg]           = useState(false);
   const [localRightsProfile, setLocalRightsProfile] = useState(result.rightsProfile);
   const [localVector, setLocalVector]               = useState(result.confidenceScore.vector ?? { scene: result.confidenceScore.sceneFitBreakdown / 100, rights: result.confidenceScore.rightsBreakdown / 100, lyrics: result.confidenceScore.lyricsBreakdown / 100, signal: result.confidenceScore.signalBreakdown / 100 });
+  const [pendingAutoFill, setPendingAutoFill]        = useState<AutoFill | undefined>(undefined);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Mirror of backend scoreTrack() — same WEIGHTS, same dot product.
@@ -632,7 +698,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
         <RightsPipelineView
           rp={localRightsProfile}
           trackId={result.track.id}
-          onOpenIntake={() => { setRightsPanel(true); setShowPipeline(false); }}
+          onOpenIntake={(af) => { setPendingAutoFill(af); setRightsPanel(true); setShowPipeline(false); }}
         />
       )}
 
@@ -642,6 +708,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
           trackId={result.track.id}
           isrc={result.track.isrc}
           existing={localRightsProfile}
+          autoFill={pendingAutoFill}
           onSaved={(saved) => {
             const newRp = {
               isOneStop: saved.isOneStop,
