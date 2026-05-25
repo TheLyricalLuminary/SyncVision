@@ -7,6 +7,7 @@ const C = {
   magenta:       '#DB2777',
   silver:        '#E2E8F0',
   lavender:      '#A78BFA',
+  amber:         '#F5B544',
   hairline:      'rgba(167, 139, 250, 0.14)',
   hairlineStrong:'rgba(167, 139, 250, 0.22)',
   bg:            '#0F0823',
@@ -272,7 +273,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                       {on && <span style={{ position: 'absolute', inset: 2, borderRadius: '50%', background: C.magenta }} />}
                     </span>
                     <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 13, color: C.silver, fontWeight: 700, letterSpacing: '-0.005em', flexShrink: 0 }}>{opt.label}</span>
+                      <span style={{ fontSize: 13, color: C.amber, fontWeight: 700, letterSpacing: '-0.005em', flexShrink: 0 }}>{opt.label}</span>
                       <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: on ? 'rgba(226,232,240,0.78)' : C.lavender, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.desc}</span>
                     </span>
                   </button>

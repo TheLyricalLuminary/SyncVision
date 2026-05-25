@@ -155,7 +155,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
       </span>
 
       {/* title */}
-      <div style={{ fontFamily: SERIF, fontSize: 20, lineHeight: 1.1, fontWeight: 400, color: C.silver, letterSpacing: '-0.005em', paddingRight: 50 }}>
+      <div style={{ fontFamily: SERIF, fontSize: 20, lineHeight: 1.1, fontWeight: 400, color: C.amber, letterSpacing: '-0.005em', paddingRight: 50 }}>
         {title}
       </div>
       {result.track.artistName && (
