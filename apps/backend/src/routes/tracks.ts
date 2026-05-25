@@ -17,6 +17,8 @@ import { requirePlan } from "../middleware/auth";
 import { computeRightsState } from "../scoring/rightsStateMachine";
 import { requirePaidEntitlement } from "../middleware/entitlement";
 import { validateTrackIngestion } from "../lib/validateTrackIngestion";
+import { enrichFromMusicBrainz } from "../lib/musicbrainz";
+import { enrichFromCreditsFm } from "../lib/creditsfm";
 
 const router = Router();
 
@@ -407,19 +409,45 @@ router.patch("/tracks/:id/rights", async (req: Request, res: Response) => {
       lyricLicensedBy?: string;
     };
 
-    // Update Track ISRC if provided and not already a real one
+    // Update Track ISRC if provided
+    const resolvedIsrc = body.isrc?.trim().toUpperCase() ?? track.isrc ?? null;
     if (body.isrc && body.isrc.trim()) {
       await prisma.track.update({
         where: { id: id as string },
-        data: { isrc: body.isrc.trim().toUpperCase() },
+        data: { isrc: resolvedIsrc },
       });
     }
 
+    // If ISRC is known and writer/publisher weren't manually supplied,
+    // look them up from MusicBrainz (ISRC → recording → work) and Credits.fm.
+    // Supervisor-submitted values always win — registry fills gaps only.
+    let mbData = null;
+    let creditsData = null;
+    const needsEnrichment = resolvedIsrc && (!body.writerName || !body.publisherName);
+    if (needsEnrichment) {
+      try {
+        // MusicBrainz ISRC lookup → recording MBID → work metadata
+        const isrcRes = await fetch(
+          `https://musicbrainz.org/ws/2/isrc/${resolvedIsrc}?inc=recordings&fmt=json`,
+          { headers: { 'User-Agent': 'SyncVision/1.0 (amigonimark@gmail.com)', Accept: 'application/json' } },
+        );
+        if (isrcRes.ok) {
+          const isrcBody = await isrcRes.json() as { recordings?: { id: string }[] };
+          const mbid = isrcBody.recordings?.[0]?.id;
+          if (mbid) mbData = await enrichFromMusicBrainz(mbid);
+        }
+      } catch { /* non-fatal */ }
+      try {
+        creditsData = await enrichFromCreditsFm(resolvedIsrc);
+      } catch { /* non-fatal */ }
+    }
+
     const rpData = {
-      writerName:         body.writerName         ?? undefined,
-      writerIpi:          body.writerIpi           ?? undefined,
-      publisherName:      body.publisherName       ?? undefined,
-      proAffiliation:     body.proAffiliation      ?? undefined,
+      // Supervisor-submitted values take priority; registry fills what's missing.
+      writerName:     body.writerName     ?? creditsData?.writerName     ?? mbData?.writerName     ?? undefined,
+      writerIpi:      body.writerIpi      ?? creditsData?.writerIpi      ?? mbData?.writerIpi      ?? undefined,
+      publisherName:  body.publisherName  ?? creditsData?.publisherName  ?? mbData?.publisherName  ?? undefined,
+      proAffiliation: body.proAffiliation ?? creditsData?.proAffiliation ?? undefined,
       ascapWorkId:        body.ascapWorkId         ?? undefined,
       bmiWorkId:          body.bmiWorkId           ?? undefined,
       masterOwnershipPct: body.masterOwnershipPct  != null ? body.masterOwnershipPct : undefined,
