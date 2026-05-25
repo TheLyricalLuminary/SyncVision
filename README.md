@@ -69,18 +69,18 @@ Each stage shows a live status indicator. Rights confidence displays as a percen
 
 ### 5. Identity resolution (the key workflow)
 
-One button — "Resolve Identity" — triggers a three-layer lookup:
+One button — "Resolve Identity" — triggers a layered lookup. Each layer has a distinct role; none overrides another. Where datasets conflict, the discrepancy is surfaced to the supervisor rather than resolved automatically.
 
-**Layer 1 — AcoustID / Chromaprint**
-The backend runs `fpcalc` on the uploaded audio file and queries `api.acoustid.org`. Returns a MusicBrainz recording MBID and match confidence (HIGH / MEDIUM / LOW / NO_MATCH).
+**Layer 1 — AcoustID / Chromaprint (audio identity)**
+The backend runs `fpcalc` on the uploaded audio file and queries `api.acoustid.org`. Returns a MusicBrainz recording MBID and match confidence (HIGH / MEDIUM / LOW / NO_MATCH). This is the only layer that can answer "what recording is this?" from the audio signal alone.
 
-**Layer 2 — MusicBrainz**
-Given the recording MBID, the system fetches the full recording: ISRC, work MBID, ISWC, composer name, writer IPI number, publisher name. Two API calls — recording then work.
+**Layer 2 — MusicBrainz (canonical catalog)**
+Given the recording MBID, the system fetches the full recording from the open music encyclopedia: ISRC, work MBID, ISWC, composer name, writer IPI. Two calls — recording then work. MusicBrainz is the canonical public catalog, not a rights database.
 
-**Layer 3 — Credits.fm**
-Given the resolved ISRC, Credits.fm cross-links the ISRC against MLC, CISAC, and ASCAP/BMI/SESAC registries. Returns writer IPI, publisher chain, and PRO affiliation. Credits.fm takes precedence over MusicBrainz where both return data.
+**Layer 3 — Credits.fm (entity resolution)**
+Given the resolved ISRC, Credits.fm resolves identifiers across systems — linking ISRC to ISWC to IPI across MLC, CISAC, and DSP metadata. Its role is graph resolution, not rights authority. Where Credits.fm and MusicBrainz return different values, both are shown.
 
-The result: the rights intake form opens pre-populated — writer name, IPI, publisher, PRO affiliation, ISRC, ISWC — sourced and tagged by registry. The supervisor verifies and confirms. No manual typing. The reconciliation diff flags any conflict between submitted metadata and external registries before a placement decision is made.
+The result: the rights intake form opens pre-populated — writer name, IPI, publisher, PRO affiliation, ISRC, ISWC — with each field tagged by its source registry. The supervisor verifies and confirms. No manual typing. Any conflict between sources is flagged before a placement decision is made.
 
 ### 6. Narrative
 
@@ -96,18 +96,21 @@ One click exports a decision packet — branded, signable, hash-stamped. Another
 
 ---
 
-## Metadata stack
+## Ownership hypothesis stack
 
-Licensing data is not centralized. SyncVision uses a layered approach:
+Licensing data is not centralized and no single source provides clearance truth. SyncVision assembles an ownership hypothesis from layered inputs, each with a defined role:
 
-| Layer | Source | What it resolves |
+| Layer | Source | Role |
 |---|---|---|
-| Identity | AcoustID + Chromaprint | "What recording is this?" |
-| Recording | MusicBrainz | ISRC, ISWC, work MBID, composer |
-| Rights graph | Credits.fm | Writer IPI, publisher chain, PRO affiliation |
-| Intake | Supervisor-submitted | One-stop, sync license, lyric license, master ownership |
+| Audio identity | AcoustID + Chromaprint | What recording is this? |
+| Canonical catalog | MusicBrainz | What officially exists in the world? |
+| Entity resolution | Credits.fm | How do identifiers connect across systems? |
+| Ownership inference | PRO + publisher + label heuristics | Who likely controls what? |
+| Clearance decision | SyncVision scoring engine | Safe / risky / unknown — and why |
 
-No free database provides sync license availability, master clearance status, or publishing clearance rights. Those live in private label systems and PRO databases. SyncVision's rights layer is probabilistic inference from a metadata graph — not clearance confirmation. The system makes that distinction explicit at every stage.
+The output is a structural likelihood, not a legal determination. SyncVision surfaces what the metadata graph implies about ownership; it does not confirm clearance. That distinction is made explicit in the UI at every stage.
+
+The known gap: direct PRO catalog coverage (ASCAP, BMI, SESAC) and publisher splits normalization. Without that layer, identity resolution is accurate but clearance confidence scoring remains an inference. That gap is where most sync products fail — and where the next layer of integration sits.
 
 ---
 
@@ -125,7 +128,7 @@ apps/
 - **Stripe** — four-tier billing (Starter / Pro / Studio / Enterprise)
 - **AcoustID / Chromaprint** — `fpcalc` fingerprinting + `api.acoustid.org` lookup
 - **MusicBrainz** — open music encyclopedia, recording and work metadata
-- **Credits.fm** — ISRC → rights graph (writer IPI, publisher, PRO affiliation)
+- **Credits.fm** — entity resolution: ISRC → ISWC → IPI across MLC, CISAC, DSP metadata (optional, not authoritative)
 - **Render** — Docker-based deployment (Node 20 + Python 3.11 + Chromaprint + ffmpeg)
 
 The scoring read path is purely deterministic — a SHA-256 audit hash on every response enforces the invariant that the same inputs always produce byte-identical output.
