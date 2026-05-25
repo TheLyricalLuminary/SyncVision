@@ -3,7 +3,6 @@ services:
     name: syncvision-backend
     runtime: node
     buildCommand: >-
-      apt-get update -qq && apt-get install -y -q chromaprint ffmpeg &&
       pip install -r apps/worker/requirements.txt &&
       cd apps/backend &&
       npm install &&
