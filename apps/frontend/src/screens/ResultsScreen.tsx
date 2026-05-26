@@ -98,6 +98,13 @@ interface AutoFill {
     publisher: string | null;
     pro: string | null;
   };
+  lyricsLinkage: {
+    hasLyrics: boolean;
+    explicit: boolean;
+    url: string | null;
+    isrc: string | null;
+    source: string;
+  } | null;
 }
 
 interface FingerprintResult {
@@ -255,6 +262,24 @@ function RightsPipelineView({
             <div style={{ fontSize: 11, color: C.silver }}>
               <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>PRO: </span>
               {fpResult.autoFill.proAffiliation}
+            </div>
+          )}
+          {fpResult.autoFill.lyricsLinkage && (
+            <div style={{ fontSize: 11, color: C.silver, marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Lyrics: </span>
+              {fpResult.autoFill.lyricsLinkage.hasLyrics ? (
+                <>
+                  {fpResult.autoFill.lyricsLinkage.explicit && (
+                    <span style={{ background: C.amberSoft, color: C.amber, fontSize: 9, padding: '1px 5px', borderRadius: 4, marginRight: 5, fontWeight: 700 }}>EXPLICIT</span>
+                  )}
+                  {fpResult.autoFill.lyricsLinkage.url
+                    ? <a href={fpResult.autoFill.lyricsLinkage.url} target="_blank" rel="noreferrer" style={{ color: '#34D399', textDecoration: 'none' }}>available via musixmatch ↗</a>
+                    : <span style={{ color: '#34D399' }}>available</span>
+                  }
+                </>
+              ) : (
+                <span style={{ color: 'rgba(226,232,240,0.4)' }}>not found in registry</span>
+              )}
             </div>
           )}
         </div>

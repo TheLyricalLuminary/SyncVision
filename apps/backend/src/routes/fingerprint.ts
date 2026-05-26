@@ -12,6 +12,7 @@ import FormData from "form-data";
 import prisma from "../lib/prisma";
 import { enrichFromMusicBrainz } from "../lib/musicbrainz";
 import { enrichFromCreditsFm } from "../lib/creditsfm";
+import { enrichFromMusixmatch } from "../lib/musixmatch";
 
 const router = Router();
 
@@ -191,6 +192,16 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
       } catch { /* non-fatal */ }
     }
 
+    // ── Musixmatch lyrics linkage ─────────────────────────────────
+    let lyricsData = null;
+    try {
+      lyricsData = await enrichFromMusixmatch({
+        isrc:   resolvedIsrc,
+        artist: resolvedArtist,
+        title:  resolvedTitle,
+      });
+    } catch { /* non-fatal */ }
+
     // ── Persist identity ──────────────────────────────────────────
     try {
       await prisma.track.update({
@@ -226,6 +237,13 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
         publisher: creditsEnrichment?.publisherName ? "credits.fm" : mbEnrichment?.publisherName ? "musicbrainz" : null,
         pro:       creditsEnrichment?.proAffiliation ? "credits.fm" : null,
       },
+      lyricsLinkage: lyricsData ? {
+        hasLyrics: lyricsData.hasLyrics,
+        explicit:  lyricsData.explicit,
+        url:       lyricsData.url,
+        isrc:      lyricsData.isrc,
+        source:    "musixmatch",
+      } : null,
     };
 
     res.json({
