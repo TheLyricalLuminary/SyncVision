@@ -198,7 +198,7 @@ export function classifyBrief(briefText: string): BriefId | null {
   (Object.entries(KEYWORDS) as [BriefId, string[]][]).forEach(
     ([id, keywords]) => {
       const score = keywords.reduce(
-        (acc, kw) => acc + (text.includes(kw) ? 1 : 0),
+        (acc, kw) => acc + (new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(text) ? 1 : 0),
         0,
       );
       if (score > bestScore) {
