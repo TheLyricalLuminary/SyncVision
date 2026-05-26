@@ -204,8 +204,8 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                 placeholder="Describe the emotional turn, what changes, and where the scene lands."
                 style={{
                   width: '100%', background: 'transparent', border: 'none', outline: 'none',
-                  resize: 'none', fontFamily: SERIF, fontStyle: 'italic', fontSize: 15,
-                  lineHeight: 1.3, color: C.silver, letterSpacing: '-0.005em', minHeight: 60,
+                  resize: 'none', fontFamily: SANS, fontStyle: 'normal', fontSize: 16,
+                  lineHeight: 1.6, color: C.silver, letterSpacing: '0em', minHeight: 60,
                   padding: 0, display: 'block',
                   caretColor: C.magenta,
                 }}
