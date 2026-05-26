@@ -56,6 +56,24 @@ export const BRIEF_WEIGHTS: Record<string, BriefWeightProfile> = {
 
   // Ambient / low-stakes — emotional texture leads; rights and metadata balanced
   "nature-pastoral":          { sceneFit: 0.55, rightsClarity: 0.25, metadata: 0.20 },
+
+  // Sports — high placement value, network broadcast rights are the primary blocker
+  "sports-highlight":         { sceneFit: 0.50, rightsClarity: 0.35, metadata: 0.15 },
+
+  // True crime / investigative — mood is primary differentiator; tone must sustain
+  "true-crime-investigative": { sceneFit: 0.55, rightsClarity: 0.30, metadata: 0.15 },
+
+  // Faith / inspirational — emotional resonance leads; broadcast PRO rates apply
+  "faith-inspirational":      { sceneFit: 0.55, rightsClarity: 0.30, metadata: 0.15 },
+
+  // Kids / family — explicit flag is a hard gate; emotional safety leads
+  "kids-family":              { sceneFit: 0.50, rightsClarity: 0.35, metadata: 0.15 },
+
+  // Trailer / promo — theatrical and broadcast rights are the primary gating factor
+  "trailer-promo":            { sceneFit: 0.45, rightsClarity: 0.40, metadata: 0.15 },
+
+  // Period / historical — instrumentation and tonal authenticity lead; metadata for editorial
+  "period-historical":        { sceneFit: 0.55, rightsClarity: 0.25, metadata: 0.20 },
 };
 
 /** Throws if any profile's weights do not sum to 1.0 within floating-point tolerance. */

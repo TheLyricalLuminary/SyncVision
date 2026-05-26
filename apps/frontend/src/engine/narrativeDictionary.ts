@@ -634,6 +634,168 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   // -------------------------------------------------------------------------
   // 20. URBAN / GRITTY — Brand energy, confident, modern, no lyric conflict
   // -------------------------------------------------------------------------
+  "sports-highlight": {
+    PASS: [
+      "Rhythmic engine is locked to broadcast tempo — the four-on-the-floor kick and snare placement gives the editor natural cut points every eight bars, and the arrangement never drops below the arousal floor a highlight reel requires. Viable for network broadcast and streaming platform use.",
+      "High-arousal ceiling with a dynamic arc that mirrors a game's momentum swing — verse holds tension, chorus delivers the payoff hit on the winning moment. Stems allow the music editor to extend the verse under slow-motion replay and crash into chorus on the final score.",
+      "Percussion-forward mix with the low end sitting in the sub-kick pocket that broadcast sports audio favors — translates cleanly from arena monitors to broadcast normalization without losing impact. No lyric narrative that competes with commentator V/O.",
+      "Cue builds from a single rhythmic cell into a full-band swell, giving the editor a ramp structure that maps directly onto the final-minute comeback arc. Emotional trajectory reads determination before it reads triumph — exactly what the format needs before the payoff.",
+      "Instrumental arrangement with a tempo that sits at the upper end of the athletic-feature pocket — no lyric content to duck under commentary, and the melodic hook is strong enough to carry network-brand recognition across a full season of placements.",
+      "Energy ceiling is high enough for a championship moment but the verse dynamics allow it to track a training sequence at half the perceived intensity — one cue, two distinct editorial uses, both viable on the same master license.",
+    ],
+    MAYBE: [
+      "Arousal ceiling is right but the vocal hook enters at 0:08 and recurs on a sixteen-bar cycle — will compete with commentator voice-over during any replay coverage. Instrumental stems pull resolves the conflict but the label needs to confirm deliverables.",
+      "Forward propulsion is intact but the cue's melodic register reads anthemic rather than athletic — better fit for a post-game award moment than an in-game highlight. Worth a placement conversation if the brief includes ceremony or award-ceremony coverage.",
+      "Rhythmic engine works under highlight coverage but the arrangement peaks at 1:20 and sustains without an escalation arc — highlight reels need a second lift for the final moment. Needs an edit or an alternate longer version with a second build.",
+      "Tempo sits at 95 BPM which reads lower than the athletic pocket most sports editors target — may work for a features segment or a human-interest sidebar but won't hold a fast-cut highlight sequence. Director call on whether the editorial pace matches.",
+      "High production quality throughout but the cue's musical genre markers are narrow enough to code the placement to a specific sport — strong for basketball or soccer, potentially distracting for football or baseball coverage. Editor-level call.",
+      "Broadcast-viable arrangement but the publishing has an unresolved share with a co-writer in a jurisdiction with a holdback on sports-league use. Pre-clear with legal before committing to broadcast.",
+    ],
+    FAIL: [
+      "Arousal floor sits below what any competitive sports moment requires — the cue reads atmospheric where the brief needs kinetic. Dimensional shortfall that an edit cannot resolve without rebuilding the arrangement.",
+      "Tempo is locked to a ballad pocket that cannot be reframed as athletic regardless of editorial treatment. Wrong fundamental energy for a brief built on physical competition.",
+      "Lyric narrative centers on loss and defeat — the emotional arc moves in the wrong direction for a highlight reel whose purpose is to celebrate athletic achievement. Thematic conflict with the brief.",
+      "Production aesthetic is genre-coded in a way that conflicts with the broadcaster's established sonic identity for the sport — placing this cue would read as an editorial accident, not a creative choice. Wrong surface for the format.",
+      "Master is held by an artist with a standing opt-out from sports-league broadcast licensing as a personal policy — confirmed with their management. Non-viable category regardless of fee.",
+      "Composition contains an interpolation of an existing sports-broadcast anthem under a co-ownership structure that prohibits competitive-league use by a rival broadcaster. Legal barrier at the clearance level.",
+    ],
+  },
+
+  "true-crime-investigative": {
+    PASS: [
+      "Harmonic stasis sits unresolved across the full arrangement — no tonic landing, no harmonic relief — which sustains the psychological weight a cold-case segment needs without dictating a narrative outcome to the picture. Clears cleanly for documentary and streaming investigative use.",
+      "Low-register melodic line enters at 0:12 and moves in half-steps throughout, giving the cue a forensic deliberateness that tracks an evidence-review sequence without competing with interview audio in the mid-register. Mix hierarchy is documentary-grade.",
+      "Arrangement holds a narrow dynamic window — no dramatic swell, no release — which is exactly what sustained-dread investigative coverage requires when the facts are doing the emotional heavy lifting. Fades cleanly under any talking-head cut.",
+      "Tonal palette is desaturated and procedural — no emotional color that would editorialize the subject's guilt or innocence before the picture has established it. The cue functions as forensic texture rather than verdict, which is the correct editorial stance.",
+      "Tempo reads methodical rather than urgent, matching the deliberate pacing of a cold-case re-examination rather than a breaking-news format. Holds its emotional register across extended coverage without fatigue.",
+      "Sparse arrangement with air between elements — the silence is load-bearing. Yields to narrator V/O and archival audio without conflict, and returns between interview cuts without editorial seams.",
+    ],
+    MAYBE: [
+      "Dread register is correct but the cue resolves harmonically at 2:30 — investigative documentaries need suspension maintained through the act break, not resolved before it. An alternate mix looping before the resolution would fix the structural issue.",
+      "Atmosphere is right for the investigative genre but the arrangement's melodic hook is recognizable enough to pull the audience's attention toward the music rather than the evidence. Non-descript underscore version would serve the brief better.",
+      "Tonal register works for the briefed segment but the cue's tempo suggests urgency rather than deliberateness — better fit for a breaking-news format than a cold-case narrative. Director call on the pacing.",
+      "Psychological weight is present but the cue's production has a modern polish that may not serve a historical cold-case set in an earlier decade. Period-coded alternate or a drier mix may be needed.",
+      "Low-end frequency emphasis is strong for a crime-scene sequence but will need to be mixed low under any forensic expert testimony where vocal intelligibility is essential. Stems confirm the low-end is separable.",
+      "Atmosphere and register are correct but the master is held by an aggregator with a blanket streaming holdback that excludes true-crime documentary use by category. Pre-clear before committing.",
+    ],
+    FAIL: [
+      "Valence reads warm and melodically resolved — the cue's emotional palette is the opposite of the unsettled forensic register investigative documentary requires. Wrong dimension for a brief built on unresolved truth.",
+      "Rhythmic propulsion reads like a chase brief rather than an investigation — the energy level communicates physical urgency where the scene needs psychological weight. Fundamentally wrong arousal axis.",
+      "Lyric narrative names a specific real-world location in a way that creates potential defamation exposure when placed against documentary footage of that location. Legal flag at the clearance level.",
+      "Production aesthetic is genre-coded as pop rather than documentary underscore — the cue will editorialize the subject in a way that conflicts with the journalistic stance the series is committed to. Tonal register failure.",
+      "Melodic hook is too emotionally declarative — it tells the audience how to feel about the subject before the evidence has been presented. Editorially inappropriate for a format that requires the audience to form its own conclusions.",
+      "Master is subject to a pending rights dispute between the original producer and a co-writer whose estate is contesting the catalog — non-viable for documentary licensing until the dispute is resolved.",
+    ],
+  },
+
+  "faith-inspirational": {
+    PASS: [
+      "Harmonic arc resolves from tension to major-key affirmation across the full arrangement — the emotional journey mirrors the redemption structure faith-based content is built around. Lyrics carry uplift without denominational specificity, broadening placement viability across the category.",
+      "Dynamic build from sparse verse to full-choir swell gives the editor a natural arc for a testimony or transformation sequence. Tempo holds steady through the build, giving the music editor clean loop points under extended coverage.",
+      "Lyric register reads universal rather than doctrinally specific — the language of hope and perseverance plays across faith-based, inspirational, and uplifting-drama categories without narrowing to a single audience. Broad placement window on one license.",
+      "Organic instrumentation — acoustic guitar, piano, strings — with no production elements that date the cue to a specific commercial era. The arrangement reads as timeless, which is the correct aesthetic for content with a long distribution tail.",
+      "Chorus resolves to a major tonic with a lift in the upper strings at 1:32 — gives the editor a natural hit point on a character's moment of decision or acceptance. Emotional payoff is earned rather than manufactured.",
+      "Instrumental version confirmed at intake — removes any lyric-conflict risk for placements where the brand or network needs to own the emotional message. Stems available for cutdowns.",
+    ],
+    MAYBE: [
+      "Uplift register is correct but the lyric in the bridge references a specific denominational practice that may limit placement outside the explicitly faith-branded category. Instrumental version broadens the window significantly.",
+      "Emotional arc is right but the production aesthetic reads contemporary Christian radio rather than broadly inspirational — the sound is genre-coded in a way that will limit placement to explicitly faith-based programming. Director call on the audience.",
+      "Harmonic resolution is present but arrives early — the cue resolves at 1:45 in a three-minute track, leaving a minute of post-resolution content that has nowhere to go editorially. A shorter edit would serve the brief better.",
+      "Uplifting register is intact but the tempo sits above the contemplative window the brief's scene length requires — the cue will feel rushed against footage that is asking for a slower emotional metabolism.",
+      "Lyric content is broadly inspirational but contains one line in the second verse that carries potential for political interpretation — pre-clear with the network standards team before committing to a broadcast placement.",
+      "Master is strong but the publishing is split across three writers with PRO affiliations in two jurisdictions — the sync fee will require separate approvals from each society on an accelerated timeline. Operational risk for a fast-turnaround brief.",
+    ],
+    FAIL: [
+      "Lyric narrative is thematically inconsistent with the redemptive register the brief requires — the song's emotional arc ends in unresolved ambiguity where the content needs affirmation. Wrong structural arc for the category.",
+      "Production aesthetic is sonically dark in a way that contradicts the uplift the content is built around. Tonal register failure regardless of lyric content.",
+      "Explicit content flag confirmed — non-viable for faith-based and family-adjacent programming without an edited version. Clean version does not exist in the catalog.",
+      "Tempo and energy read secular-contemporary in a way that will feel categorically misaligned against faith-based visual content regardless of lyric content. Surface register failure.",
+      "Co-writer has publicly stated objections to placement in faith-based content as a creative-integrity position — confirmed via the artist's management. Non-viable category.",
+      "Publishing contains an uncleared interpolation of a hymn still under copyright in several territories — the interpolation is load-bearing to the arrangement and cannot be removed. Operational clearance failure.",
+    ],
+  },
+
+  "kids-family": {
+    PASS: [
+      "Harmonic palette stays entirely in major-key territory with a melodic register that reads bright and forward — no emotional ambiguity, no tonal shadow, exactly the safe-for-all-ages surface a family placement requires. Explicit content confirmed clear at intake.",
+      "Tempo sits at the upper end of the playful-energetic pocket — fast enough to track an animated sequence or a physical-comedy beat, measured enough to read as fun rather than chaotic. Lyrics are age-appropriate and thematically adventure-forward.",
+      "Orchestral arrangement with a melodic hook that is immediately singable — the kind of theme a child retains and associates with the character across a multi-episode arc. Clears cleanly for home-video, streaming, and educational distribution.",
+      "Playful rhythmic figure with percussion that reads toy-box rather than club — the production choices signal imagination and safety simultaneously, which is the correct register for content targeted at the under-eight audience.",
+      "Lyric narrative follows a simple emotional arc from challenge to resolution — models the emotional processing structure that child development practitioners recommend for media targeting early-age audiences. Content is as structurally sound as it is musically appropriate.",
+      "Instrumental version available — removes any lyric-complexity risk for scenes where the picture needs to carry the narrative and the music needs to serve as texture. Stems allow the music editor to isolate the melodic hook for a title-card moment.",
+    ],
+    MAYBE: [
+      "Playful register is correct but the cue's harmonic language introduces a minor-key bridge at 1:30 that reads as emotionally ambiguous — acceptable for content targeting older children but may be flagged in a strict under-six content review. Director call on age target.",
+      "Energy and tempo are right but the lyric in the second verse uses adult-coded language that will require a review by the network's standards team before a kids-programming placement can be approved. Clean edit requested.",
+      "Musical register is family-appropriate but the production aesthetic reads adult-contemporary rather than children's media — the arrangement may feel sonically incongruous against animated or live-action kids content. Tone-matching issue.",
+      "Melodic hook is strong but the tempo varies across the arrangement in a way that will complicate editorial loop points for extended coverage of a recurring scene. A locked-tempo alternate would improve usability.",
+      "Content is age-appropriate and the register is correct, but the master is held by a distributor whose standard license excludes educational and non-theatrical distribution — a category this content likely targets. Pre-clear before commit.",
+      "Playful energy is present but the cue's arrangement is melody-forward in a way that will compete with dialogue in a scene where young performers are delivering primary narrative. Stems pull to a reduced-melody version before committing.",
+    ],
+    FAIL: [
+      "Explicit content flag confirmed — categorically non-viable for any kids or family placement without a clean version that does not exist in the catalog.",
+      "Lyric narrative addresses adult emotional themes — romantic content, substance references, complex loss — that are categorically inappropriate for content targeting audiences under thirteen.",
+      "Production aesthetic is sonically adult — the register communicates cool and contemporary in a way that is the opposite of the safe, bright surface kids content requires. Surface failure regardless of lyric content.",
+      "Harmonic language is built around unresolved dissonance and minor-mode tension that reads as psychologically threatening for a young audience. Wrong emotional register for the category.",
+      "Tempo and rhythmic complexity are calibrated for adult listening attention spans — the arrangement does not hold the attention of a child audience and will not serve as an effective underscore for the target demographic.",
+      "Artist's catalog contains explicit content that creates brand-safety risk for a network or platform committed to family-friendly programming — even a clean version carries association risk. Non-viable for the category.",
+    ],
+  },
+
+  "trailer-promo": {
+    PASS: [
+      "Dynamic architecture is built for trailer use — a measured intro, a tension-building middle section, and a full-ensemble drop that lands on the title card with impact. Stems confirm the drop is isolatable for a shorter cutdown. Theatrical and broadcast rights clear under the same brief.",
+      "Rhythmic momentum locks to the trailer's visual tempo from the first bar — no editorial drift, no phase-slip — and the arrangement's dynamic ceiling is high enough to carry a theatrical release preview at reference level.",
+      "The build structure gives the editor three distinct energy states — atmosphere, tension, and release — that map directly onto a standard three-act trailer arc. Each transition is clean and loopable, and the drop hits without telegraphing the cut.",
+      "Orchestral-hybrid arrangement with a tempo that sits in the industry-standard trailer pocket. No lyric content that creates clearance complexity for a wide-release theatrical placement. Stems and alternate mixes confirmed at intake.",
+      "Cue carries enough sonic identity to anchor a campaign across multiple formats — theatrical, digital, social cutdown — without requiring a rescore for each deliverable. One master license covers the full campaign window.",
+      "Emotional register reads tension-resolving rather than genre-specific — the track will serve a thriller, an action film, and an awards-season drama on the same master. Broad placement window for a single clearance.",
+    ],
+    MAYBE: [
+      "Dynamic build is structurally correct for trailer use but the emotional register of the drop reads cinematic-epic rather than genre-neutral — strong for a fantasy or sci-fi placement, potentially misaligned for a grounded dramatic feature. Director call.",
+      "Impact ceiling is high but the cue's arrangement peaks at 1:45 in a two-minute track, leaving a tail that has no editorial purpose in a 90-second theatrical trailer. A custom edit to 90 seconds would close the brief cleanly.",
+      "Trailer architecture is present but the recognizable melodic hook may conflict with the studio's established sonic identity for the franchise. Pre-clear with the brand team before committing to a wide-release campaign.",
+      "High-impact cue but the master is held by a trailer-house with a competing placement in the same theatrical window — sonic-conflict risk for a wide-release campaign. Exclusivity conversation required at the licensing level.",
+      "Structural build is correct but the vocal content in the outro creates clearance complexity for international theatrical releases where the lyric requires translation review. Instrumental version resolves the issue.",
+      "Trailer-viable arrangement but the publishing split includes a co-writer with a theatrical-use holdback in the EU market — non-trivial if the campaign is a wide international release. Legal flag before commit.",
+    ],
+    FAIL: [
+      "Dynamic architecture does not support trailer use — the cue holds a consistent energy level without escalation, which eliminates the structural build-and-release arc a trailer requires.",
+      "Tempo and energy read too low for any format that requires immediate audience engagement — trailers have seconds to establish tone, and this cue takes too long to arrive at its emotional register.",
+      "Lyric narrative is legible and thematically specific — it will pull audience attention toward the song rather than the film, which is the opposite of what a trailer placement requires.",
+      "Explicit content flag confirmed — non-viable for any theatrical or broadcast promotional placement without a clean version that does not exist in the catalog.",
+      "Master is licensed exclusively to a competing studio's theatrical campaign in the same release window — placement would create direct sonic conflict in the same audience demographic. Non-viable.",
+      "The artist has a standing opt-out from promotional and advertising use as a career policy — confirmed with their management. The cue is non-viable for any promo or trailer brief regardless of fee.",
+    ],
+  },
+
+  "period-historical": {
+    PASS: [
+      "Orchestral voicing and harmonic language are period-consistent with the briefed era — no anachronistic production element surfaces at any point in the arrangement, which eliminates the tonal-incongruity risk that period placement editors flag in a first-pass listen.",
+      "Instrumentation choices are era-appropriate without being academically restrictive — the cue reads as belonging to the period while remaining emotionally accessible to a contemporary audience. The balance is what period placement requires.",
+      "Sparse arrangement with organic decay on every instrument — no digital processing artifact that would date the cue to the production era rather than the story era. Mix reads archival rather than contemporary-recorded, which serves the brief's visual grammar.",
+      "Tempo and rhythmic vocabulary are consistent with the dance and social music of the briefed decade — gives the scene authentic source-music credibility for a ballroom, salon, or period-social setting without requiring a custom composition.",
+      "Harmonic language sits inside the tonal vocabulary of the briefed era — no modal borrowing or chromatic alteration that would read as compositionally anachronistic to a period-drama music editor. Clears the first authenticity gate cleanly.",
+      "Melodic register reads as memory rather than present tense — a quality period-historical content consistently needs when the scene is set in a character's past rather than their present. Emotional texture is precisely calibrated to the temporal distance the brief requires.",
+    ],
+    MAYBE: [
+      "Period instrumentation is correct but the recording's production quality reads modern in the low-end treatment — the sub-bass behavior is contemporary studio work, not period-authentic. A high-pass filter at 80 Hz and a subtle tape-saturation pass would close the gap.",
+      "Harmonic and melodic language are era-consistent but the arrangement's dynamic range is wider than the period's recording technology would have produced — may pull a close-listening period-drama editor out of the scene. Director call on the authenticity threshold.",
+      "Instrumentation and tempo read period-appropriate but the performance has a contemporary rhythmic looseness — the ensemble's pocket reads modern rather than formally correct for the briefed era. May pass in a cinematic context; may not survive a strict documentary review.",
+      "Tonal register is correct for the era but the cue's length and arc suggest a concert performance rather than a source-music moment in a social or domestic scene. An edit to a more modular length would improve editorial usability.",
+      "Period-appropriate surface throughout but the publishing research flags a composer whose catalog has been subject to contested attribution in the briefed era — the work may carry academic controversy that creates reputational risk for a documentary placement. Legal flag.",
+      "Instrumental palette is era-consistent but the cue was recorded with a modern orchestra tuned to A440, while the briefed period used a lower pitch standard — audible to specialists, potentially flagged by a period-drama musical consultant.",
+    ],
+    FAIL: [
+      "Production aesthetic is contemporary studio work with no period-consistent element — synthesized bass, modern drum programming, digital compression signature. Wrong era for any period-drama placement brief.",
+      "Harmonic language is built on post-bop jazz vocabulary developed decades after the briefed period — the cue is anachronistic at the compositional level, not merely the production level. Cannot be resolved with a mix treatment.",
+      "Electric guitar and modern amplifier distortion are the cue's defining sonic elements — categorically non-viable for any period-historical brief set before the electrification era.",
+      "Lyric vocabulary contains contemporary slang and cultural references that are date-coded to the production era rather than the story era — will break the period illusion in any scene where the lyric is legible.",
+      "Tempo and rhythmic vocabulary are rooted in contemporary genre conventions that did not exist in the briefed period — the cue would read as satirical rather than period-authentic in any serious historical drama.",
+      "Co-writer credit research surfaces an unresolved dispute over the composition's original provenance — the work may be a reconstruction of traditional material with contested copyright status. Non-viable for commercial placement until the clearance chain is resolved.",
+    ],
+  },
+
   "urban-gritty": {
     PASS: [
       "Cue holds modern production aesthetics — clean drum programming, a single forward synth lead, and a minimal harmonic bed — exactly the contemporary surface a product launch is asking for. Drives the cut without dictating it through the unboxing.",

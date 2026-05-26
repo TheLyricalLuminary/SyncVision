@@ -18,7 +18,13 @@ export type BriefId =
   | 'triumph-victory'
   | 'grief-loss'
   | 'contemplative-reflective'
-  | 'urban-gritty';
+  | 'urban-gritty'
+  | 'sports-highlight'
+  | 'true-crime-investigative'
+  | 'faith-inspirational'
+  | 'kids-family'
+  | 'trailer-promo'
+  | 'period-historical';
 
 export const BRIEF_LABELS: Record<BriefId, string> = {
   'chase-tension': 'Chase / Tension',
@@ -41,6 +47,12 @@ export const BRIEF_LABELS: Record<BriefId, string> = {
   'grief-loss': 'Grief / Loss',
   'contemplative-reflective': 'Contemplative / Reflective',
   'urban-gritty': 'Urban / Gritty',
+  'sports-highlight': 'Sports / Highlight',
+  'true-crime-investigative': 'True Crime / Investigative',
+  'faith-inspirational': 'Faith / Inspirational',
+  'kids-family': 'Kids / Family',
+  'trailer-promo': 'Trailer / Promo',
+  'period-historical': 'Period / Historical',
 };
 
 const KEYWORDS: Record<BriefId, string[]> = {
@@ -90,6 +102,8 @@ const KEYWORDS: Record<BriefId, string[]> = {
   'opening-closing-title': [
     'opening', 'title', 'intro', 'end credits', 'closing', 'prologue',
     'epilogue', 'opening sequence', 'main title', 'title card',
+    'cold open', 'tag scene', 'act break', 'stinger', 'end card',
+    'pre-title', 'title sequence', 'recap',
   ],
   'euphoria-celebration': [
     'euphoria', 'celebration', 'party', 'joy', 'exuberant', 'ecstatic',
@@ -110,7 +124,8 @@ const KEYWORDS: Record<BriefId, string[]> = {
   ],
   'montage-transition': [
     'montage', 'transition', 'passing', 'sequence', 'progress', 'change',
-    'time lapse', 'in between',
+    'time lapse', 'in between', 'needle drop', 'source music',
+    'interstitial', 'wipe', 'dissolve', 'b-roll',
   ],
   'triumph-victory': [
     'triumph', 'victory', 'won', 'prevail', 'overcome', 'finish',
@@ -123,10 +138,49 @@ const KEYWORDS: Record<BriefId, string[]> = {
   'contemplative-reflective': [
     'contemplative', 'reflective', 'quiet', 'introspective', 'meditative',
     'calm', 'peaceful', 'still', 'pondering', 'thoughtful', 'solitude',
+    'bed', 'underscore', 'score adjacent', 'ambient', 'texture', 'pad',
+    'background', 'atmospheric', 'instrumental',
   ],
   'urban-gritty': [
     'urban', 'gritty', 'city', 'street', 'raw', 'rough', 'hustle',
     'alley', 'neon', 'underbelly', 'concrete',
+  ],
+  'sports-highlight': [
+    'sports', 'highlight', 'athlete', 'game', 'match', 'stadium', 'training',
+    'competition', 'tournament', 'comeback', 'rally', 'halftime', 'play',
+    'score', 'championship', 'coach', 'locker room', 'draft', 'combine',
+    'ESPN', 'NFL', 'NBA', 'MLB', 'soccer', 'football', 'basketball',
+  ],
+  'true-crime-investigative': [
+    'true crime', 'investigation', 'detective', 'evidence', 'witness',
+    'case', 'murder', 'suspect', 'interview', 'surveillance', 'crime scene',
+    'arrest', 'trial', 'cold case', 'unsolved', 'documentary', 'interrogation',
+    'forensic', 'crime', 'criminal', 'victim', 'perpetrator', 'tip line',
+  ],
+  'faith-inspirational': [
+    'faith', 'church', 'prayer', 'spiritual', 'redemption', 'inspirational',
+    'gospel', 'devotion', 'worship', 'congregation', 'sermon', 'hope',
+    'blessing', 'testimony', 'ministry', 'uplift', 'healing', 'grace',
+    'salvation', 'Hallmark', 'faith-based', 'christian', 'religious',
+  ],
+  'kids-family': [
+    'kids', 'children', 'family', 'animated', 'playful', 'adventure',
+    'magical', 'wonder', 'toy', 'playground', 'school', 'innocence',
+    'cartoon', 'storybook', 'fairy tale', 'bedtime', 'childhood',
+    'wholesome', 'G-rated', 'PG', 'family friendly', 'young',
+  ],
+  'trailer-promo': [
+    'trailer', 'promo', 'teaser', 'campaign', 'commercial', 'spot',
+    'broadcast', 'launch', 'preview', 'sizzle', 'reel', 'brand film',
+    'ad', 'TVC', 'key art', 'one sheet', 'marketing', 'theatrical',
+    'greenband', 'redband', 'tune', 'anthem', 'TV spot',
+  ],
+  'period-historical': [
+    'period', 'historical', 'era', 'vintage', 'wartime', 'costume',
+    'civil war', 'world war', 'ancient', 'medieval', 'Victorian',
+    '1920s', '1930s', '1940s', '1950s', '1960s', '1970s', '1980s',
+    'period drama', 'historical drama', 'archival', 'nostalgia',
+    'prohibition', 'colonial', 'renaissance', 'bygone',
   ],
 };
 
