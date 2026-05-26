@@ -1,10 +1,10 @@
 # SyncVision
 
-**Pre-clearance risk engine for music supervisors and composers.**
+**Sync licensing intelligence for music supervisors and composers.**
 
-A music supervisor sitting down to score a scene shouldn't be working from a spreadsheet, a Spotify playlist, and a gut feeling. SyncVision replaces that workflow with a ranked, rights-checked, audit-stamped shortlist in under five seconds — and a PDF they can hand to a director or a label.
+A music supervisor scoring a scene shouldn't be working from a spreadsheet, a Spotify playlist, and a gut feeling. SyncVision compresses that workload into a ranked, rights-checked shortlist in under five seconds — and a PDF they can hand to a director or a label.
 
-It is **not** an AI recommendation engine. It is a deterministic scoring system. Same inputs produce the same outputs every time, and every number on the screen can be traced back to the rule that produced it.
+It is not an AI recommendation engine. It is a deterministic scoring system that surfaces what you need to decide, faster. Same inputs produce the same outputs every time. Every number on screen traces back to the rule that produced it. The system filters and ranks; the supervisor decides.
 
 Built by a working singer-songwriter signed to a sync music company — designed against how supervisors actually clear placements, not how a generic recommender thinks they do.
 
@@ -12,22 +12,37 @@ Built by a working singer-songwriter signed to a sync music company — designed
 
 ## Who it's for
 
-SyncVision is built around the two people who actually decide what music ends up on screen:
+SyncVision is built around the two people who actually decide what music ends up on screen.
 
-- **The composer** — uploads their catalogue and gets their work scored against real scene briefs. They see exactly why a track passed or failed and what they'd need to fix to clear faster.
-- **The music supervisor** — sits down with a scene to score, hits Analyze, and gets a shortlist ranked by fit, rights clarity, and metadata completeness. They walk into a director meeting with a defensible decision packet, not a Spotify playlist.
+**The composer** uploads their catalogue and gets their work scored against real scene briefs. They see exactly why a track placed or didn't, and what needs fixing to clear faster.
 
-The two sides go hand-in-hand. The composer's catalogue is the supply. The supervisor's brief is the demand. SyncVision is the layer that matches them with math instead of memory.
+**The music supervisor** enters a scene description, hits Analyze, and gets a shortlist ranked by fit, rights exposure, and metadata completeness. They walk into a director meeting with a defensible decision packet — not a playlist.
+
+The two sides go hand-in-hand. The composer's catalogue is the supply. The supervisor's brief is the demand. SyncVision is the matching layer — math instead of memory, structure instead of instinct.
+
+---
+
+## What it produces
+
+SyncVision outputs are labeled to reflect what they are: compressed signals for human judgment, not verdicts.
+
+| Output | What it means |
+|---|---|
+| **Fit Index** | Dot product of four weighted axes — not a pass/fail decision |
+| **Sync assessment** | Deterministic, audit-stable phrase from a 360-entry dictionary — structural fit only |
+| **Rights exposure** | How much clearance risk is visible given current metadata completeness |
+| **Best fit in shortlist** | Highest-scoring track under current constraints — not a recommendation |
+| **−N pts separation** | Score gap between top track and alternatives — ordering is informational, not prescriptive |
+
+The system makes no claim to editorial taste, cultural context, or legal determination. It compresses what the metadata graph implies; the supervisor decides what it means.
 
 ---
 
 ## The flow — brief to PDF
 
-The entire app is a single linear pipeline. No branching, no dead ends.
-
 ### 1. Brief
 
-The supervisor selects a scene type from **26 industry-standard categories** (chase tension, romance intimacy, grief loss, trailer promo, true crime investigative, sports highlight, kids family, faith inspirational, period historical — and more) or writes a free-text description. The classifier auto-detects the brief type from natural language; the supervisor can override it manually via a full picker grid. Pacing, emotional register (43 mood tags across 7 families), and scene length are captured as structured parameters alongside the free-text brief.
+The supervisor selects a scene type from **26 industry-standard categories** (chase tension, romance intimacy, grief loss, trailer promo, true crime investigative, sports highlight, kids family, faith inspirational, period historical — and more) or writes a free-text description. The classifier auto-detects the brief type from natural language; the supervisor can override it manually via a full picker grid. Pacing, emotional register (43 mood tags across 7 families), and scene length are captured as structured parameters.
 
 **Mood families:** Connection · Conflict · Resolution · Dark · Memory · Energy · Style
 
@@ -48,10 +63,12 @@ One deterministic vector, one scalar rank.
 ```
 TrackVector = { scene, rights, lyrics, signal }   // all axes 0–1
 WEIGHTS     = { scene: 0.45, rights: 0.25, lyrics: 0.25, signal: 0.05 }
-score       = dot(vector, weights) × 100
+FitIndex    = dot(vector, weights) × 100
 ```
 
 Per-brief weight profiles fine-tune the scene/rights/metadata balance for each of the 26 scene types. High-clearance-risk briefs (trailer, broadcast, sports, kids) carry higher rights weight. Intimate/grief/romance briefs weight scene fit higher.
+
+The axis bar visualization makes the compression explicit: bar width is proportional to axis weight, bar fill is proportional to axis value. The legend reads: *bar width = weight · bar fill = axis value*.
 
 ### 4. Rights pipeline
 
@@ -66,20 +83,20 @@ The rights layer is an 8-stage intake and verification pipeline:
 7. Fingerprint identity resolution (AudD → AcoustID → MusicBrainz → Credits.fm)
 8. PRO cross-check
 
-Each stage shows a live status indicator. Rights confidence displays as a percentage. When rights data saves, the rights axis recomputes locally and the match score updates immediately — no page reload.
+Each stage shows a live status indicator. Rights exposure displays as a percentage of pipeline stages complete. When rights data saves, the rights axis recomputes locally and the Fit Index updates immediately — no page reload.
 
-### 5. Identity resolution (the key workflow)
+### 5. Identity resolution
 
 One button — "Resolve Identity" — triggers a layered lookup. Each layer has a distinct role; none overrides another. Where datasets conflict, the discrepancy is surfaced to the supervisor rather than resolved automatically.
 
 **Layer 1 — AudD (audio recognition, primary)**
-Shazam-style audio recognition against AudD's commercial catalog. Returns artist, title, ISRC, and MusicBrainz ID from the audio signal alone — works even with degraded or watermarked audio. Primary fingerprint provider.
+Shazam-style audio recognition against AudD's commercial catalog. Returns artist, title, ISRC, and MusicBrainz ID from the audio signal alone — works even with degraded or watermarked audio.
 
 **Layer 2 — AcoustID / Chromaprint (audio identity, fallback)**
-When AudD returns no match, `fpcalc` generates a Chromaprint fingerprint and queries `api.acoustid.org`. Returns a MusicBrainz recording MBID and match confidence. Fallback identity layer.
+When AudD returns no match, `fpcalc` generates a Chromaprint fingerprint and queries `api.acoustid.org`. Returns a MusicBrainz recording MBID and match confidence.
 
 **Layer 3 — MusicBrainz (canonical catalog)**
-Given the recording MBID, fetches the full recording: ISRC, work MBID, ISWC, composer name, writer IPI. MusicBrainz is the canonical public catalog, not a rights database.
+Given the recording MBID, fetches the full recording: ISRC, work MBID, ISWC, composer name, writer IPI. Canonical public catalog, not a rights database.
 
 **Layer 4 — Credits.fm (entity resolution)**
 Given the resolved ISRC, Credits.fm resolves identifiers across systems — linking ISRC to ISWC to IPI across MLC, CISAC, and DSP metadata. Graph resolution, not rights authority.
@@ -91,17 +108,19 @@ The result: the rights intake form opens pre-populated — writer name, IPI, pub
 
 ### 6. Narrative
 
-For every track-brief pairing, the engine selects one of **360 hand-authored phrases** from the narrative dictionary. Selection is `sha256(trackId + briefId + verdict) % poolSize`. Same track, same brief, same phrase — every time. No LLM in the loop. Phrases are written in working music-supervisor trade language (cue sheet, one-stop, MFN, controlled comp, dialogue ducking, button ending, needle drop). Phrases describe structural fit only — no invented timestamps, no scene-specific elements the system cannot verify.
+For every track-brief pairing, the engine selects one of **360 hand-authored phrases** from the narrative dictionary. Selection is `sha256(trackId + briefId + verdict) % poolSize`. Same track, same brief, same phrase — every time. No LLM in the loop.
+
+Phrases are written in working music-supervisor trade language (cue sheet, one-stop, MFN, controlled comp, dialogue ducking, button ending, needle drop). Phrases describe structural fit only — no invented timestamps, no scene-specific elements the system cannot verify. The label reads *deterministic · audit-stable* because that is what it is: a reproducible summary tag, not a justification.
 
 Verdict tiers: PASS_STRONG · PASS_SOFT · MAYBE_HIGH · MAYBE_LOW · FAIL_CLOSE · FAIL_HARD
 
 ### 7. Shortlist
 
-The supervisor sees a ranked list with the scalar SyncVision Score, match narrative, and a weighted axis bar breakdown. Bar width is proportional to axis weight; bar fill is proportional to axis value. Delta scores show how much better the top pick is than the alternatives.
+The supervisor sees a ranked list with the Fit Index, sync assessment, and a weighted axis bar breakdown. The top track is labeled *Best fit in shortlist*. Other tracks show *−N pts separation* — how far behind the leader they are. Both labels are informational. The shortlist is a compressed input to a decision, not the decision itself.
 
 ### 8. PDF + Share
 
-One click exports a decision packet — branded, signable, hash-stamped. Another click copies a share link the director can open without logging in to approve or pass on each track. Both ship with `scoringVersion` and `inputHash` baked in so the document is reproducible months later.
+One click exports a decision packet — branded, signable, hash-stamped. Another click copies a share link the director can open without logging in. Both ship with `scoringVersion` and `inputHash` baked in so the document is reproducible months later.
 
 ---
 
@@ -115,9 +134,9 @@ One click exports a decision packet — branded, signable, hash-stamped. Another
 | Entity resolution | Credits.fm | How do identifiers connect across systems? |
 | Lyrics linkage | Musixmatch | Is this track lyric-safe and what language? |
 | Ownership inference | PRO + publisher + label heuristics | Who likely controls what? |
-| Clearance decision | SyncVision scoring engine | Safe / risky / unknown — and why |
+| Fit scoring | SyncVision engine | Compressed signal for human judgment |
 
-The output is a structural likelihood, not a legal determination. SyncVision surfaces what the metadata graph implies about ownership; it does not confirm clearance. That distinction is made explicit in the UI at every stage.
+The output is a structural likelihood, not a legal determination. SyncVision surfaces what the metadata graph implies about ownership; it does not confirm clearance. That distinction is explicit in the UI at every stage.
 
 ---
 
@@ -155,7 +174,7 @@ Chase / Tension · Action / Combat · Triumph / Victory · Euphoria / Celebratio
 | Tier       | Price      | Catalogue          | Features                                                                               |
 |------------|------------|--------------------|----------------------------------------------------------------------------------------|
 | Starter    | $149/mo    | Up to 100 tracks   | Rights FSM, scene fit scoring (26 briefs), deterministic audit hash, CSV export        |
-| Pro ★      | $299/mo    | Up to 500 tracks   | Everything in Starter, confidence score ranking, ROI calculator, priority support      |
+| Pro ★      | $299/mo    | Up to 500 tracks   | Everything in Starter, Fit Index ranking, ROI calculator, priority support             |
 | Studio     | $499/mo    | Up to 2,000 tracks | Everything in Pro, multi-catalog management, team member access, rights report export  |
 | Enterprise | $1,999/mo  | Unlimited          | Everything in Studio, API access, dedicated account manager, custom SLA / SAML SSO    |
 
@@ -165,7 +184,7 @@ Chase / Tension · Action / Combat · Triumph / Victory · Euphoria / Celebratio
 
 ## Status
 
-End-to-end pipeline operational — brief → ingest → score → shortlist → PDF running on real audio files. Identity resolution via AudD + AcoustID + MusicBrainz + Credits.fm + Musixmatch live in production. Rights intake auto-populates from registry lookups. 26 scene types with per-brief weight profiles and a 360-phrase narrative dictionary. Iterated based on direct feedback from an active music supervisor in the sync licensing space.
+End-to-end pipeline operational — brief → ingest → score → shortlist → PDF running on real audio files. Identity resolution via AudD + AcoustID + MusicBrainz + Credits.fm + Musixmatch live in production. Rights intake auto-populates from registry lookups. 26 scene types with per-brief weight profiles and a 360-phrase narrative dictionary. Output labels reflect the correct epistemic model: compressed signals for human judgment, not verdicts. Iterated based on direct feedback from an active music supervisor in the sync licensing space.
 
 **Demo on request.** If you're a composer with a catalogue to score or a supervisor with briefs to test, reach out.
 
