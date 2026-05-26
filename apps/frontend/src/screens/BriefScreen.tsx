@@ -22,6 +22,17 @@ const EXAMPLES = [
   'Late-night highway escape after betrayal.',
   'First kiss after emotional collapse.',
   'Team walks into impossible final battle.',
+  'Detective uncovers the last piece of a cold case.',
+  'Athlete crosses the finish line after years of injury.',
+  'A parent watches their child leave for the last time.',
+  'Corporate whistleblower walks out the front door.',
+  'War-torn couple separated at the border.',
+  'Underdog team hits the court-winning shot.',
+  'Soldier returns home to an empty house.',
+  'Montage of a failing relationship — three years in two minutes.',
+  'Opening title sequence — gritty urban crime drama.',
+  'Faith community gathers after a tragedy.',
+  'The heist goes wrong at the worst possible moment.',
 ];
 
 const PACING_OPTIONS: Array<{ value: SceneParams['pacing']; label: string; desc: string }> = [
@@ -31,36 +42,54 @@ const PACING_OPTIONS: Array<{ value: SceneParams['pacing']; label: string; desc:
 ];
 
 const MOOD_FAMILIES: Array<{ name: string; moods: string[]; isStyle?: boolean }> = [
-  { name: 'Connection', moods: ['Intimate', 'Romantic', 'Vulnerable', 'Yearning'] },
-  { name: 'Conflict',   moods: ['Tense', 'Defiant', 'Desperate', 'Eerie'] },
-  { name: 'Resolution', moods: ['Hopeful', 'Triumphant', 'Euphoric', 'Serene'] },
-  { name: 'Memory',     moods: ['Nostalgic', 'Bittersweet', 'Melancholic'] },
-  { name: 'Style modifiers', moods: ['Cinematic', 'Playful'], isStyle: true },
+  { name: 'Connection',   moods: ['Intimate', 'Romantic', 'Vulnerable', 'Yearning', 'Tender', 'Longing'] },
+  { name: 'Conflict',     moods: ['Tense', 'Defiant', 'Desperate', 'Eerie', 'Foreboding', 'Dread', 'Volatile'] },
+  { name: 'Resolution',   moods: ['Hopeful', 'Triumphant', 'Euphoric', 'Serene', 'Cathartic', 'Redemptive'] },
+  { name: 'Dark',         moods: ['Grief', 'Haunted', 'Numb', 'Rage', 'Sinister', 'Desolate'] },
+  { name: 'Memory',       moods: ['Nostalgic', 'Bittersweet', 'Melancholic', 'Wistful', 'Reflective'] },
+  { name: 'Energy',       moods: ['Urgent', 'Relentless', 'Pulse', 'Kinetic', 'Brooding', 'Sparse'] },
+  { name: 'Style',        moods: ['Cinematic', 'Playful', 'Quirky', 'Epic', 'Gritty', 'Underscore'], isStyle: true },
 ];
 
 
 const MOOD_ADJ: Record<string, string> = {
   Intimate: 'intimate', Romantic: 'romantic', Vulnerable: 'vulnerable', Yearning: 'yearning',
+  Tender: 'tender', Longing: 'longing',
   Tense: 'tense', Defiant: 'defiant', Desperate: 'desperate', Eerie: 'eerie',
+  Foreboding: 'foreboding', Dread: 'dread-laden', Volatile: 'volatile',
   Hopeful: 'hopeful', Triumphant: 'triumphant', Euphoric: 'euphoric', Serene: 'serene',
-  Nostalgic: 'nostalgic', Bittersweet: 'bittersweet', Melancholic: 'melancholic',
-  Cinematic: 'cinematic', Playful: 'playful',
+  Cathartic: 'cathartic', Redemptive: 'redemptive',
+  Grief: 'grief-stricken', Haunted: 'haunted', Numb: 'numb', Rage: 'furious', Sinister: 'sinister', Desolate: 'desolate',
+  Nostalgic: 'nostalgic', Bittersweet: 'bittersweet', Melancholic: 'melancholic', Wistful: 'wistful', Reflective: 'reflective',
+  Urgent: 'urgent', Relentless: 'relentless', Pulse: 'pulsing', Kinetic: 'kinetic', Brooding: 'brooding', Sparse: 'sparse',
+  Cinematic: 'cinematic', Playful: 'playful', Quirky: 'quirky', Epic: 'epic', Gritty: 'gritty', Underscore: 'understated',
 };
 
 const MOOD_NOUN: Record<string, string> = {
   Intimate: 'intimacy', Romantic: 'romance', Vulnerable: 'vulnerability', Yearning: 'longing',
+  Tender: 'tenderness', Longing: 'longing',
   Tense: 'tension', Defiant: 'defiance', Desperate: 'desperation', Eerie: 'unease',
+  Foreboding: 'dread', Dread: 'dread', Volatile: 'volatility',
   Hopeful: 'hope', Triumphant: 'triumph', Euphoric: 'euphoria', Serene: 'serenity',
-  Nostalgic: 'nostalgia', Bittersweet: 'bittersweetness', Melancholic: 'melancholy',
-  Cinematic: 'grandeur', Playful: 'levity',
+  Cathartic: 'release', Redemptive: 'redemption',
+  Grief: 'grief', Haunted: 'haunting', Numb: 'numbness', Rage: 'fury', Sinister: 'menace', Desolate: 'desolation',
+  Nostalgic: 'nostalgia', Bittersweet: 'bittersweetness', Melancholic: 'melancholy', Wistful: 'wistfulness', Reflective: 'reflection',
+  Urgent: 'urgency', Relentless: 'relentlessness', Pulse: 'pulse', Kinetic: 'momentum', Brooding: 'weight', Sparse: 'restraint',
+  Cinematic: 'grandeur', Playful: 'levity', Quirky: 'oddness', Epic: 'scale', Gritty: 'grit', Underscore: 'texture',
 };
 
 const DRIVING_ACTION: Record<string, string> = {
   Tense: 'escape', Defiant: 'standoff', Desperate: 'pursuit', Eerie: 'unraveling',
+  Foreboding: 'descent', Dread: 'unraveling', Volatile: 'eruption',
   Triumphant: 'breakthrough', Euphoric: 'surge', Hopeful: 'push',
+  Cathartic: 'release', Redemptive: 'reclamation',
   Intimate: 'reckoning', Romantic: 'collision', Vulnerable: 'unraveling',
+  Tender: 'approach', Longing: 'reach',
   Yearning: 'pursuit', Serene: 'descent', Nostalgic: 'return',
-  Bittersweet: 'departure', Melancholic: 'spiral', Cinematic: 'charge', Playful: 'chase',
+  Bittersweet: 'departure', Melancholic: 'spiral', Wistful: 'fade', Reflective: 'turn',
+  Grief: 'collapse', Haunted: 'spiral', Numb: 'drift', Rage: 'explosion', Sinister: 'closing', Desolate: 'emptying',
+  Urgent: 'charge', Relentless: 'drive', Pulse: 'surge', Kinetic: 'rush', Brooding: 'build', Sparse: 'strip',
+  Cinematic: 'charge', Playful: 'chase', Quirky: 'veer', Epic: 'ascent', Gritty: 'grind', Underscore: 'hold',
 };
 
 function buildSynthesis(pacing: SceneParams['pacing'], moods: string[]): string | null {
