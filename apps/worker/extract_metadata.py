@@ -3,15 +3,17 @@ extract_metadata.py — read embedded tags from a WAV/MP3 file using mutagen.
 
 Usage: python extract_metadata.py <audio_file>
 Prints a single-line JSON object on stdout:
-    {"isrc": "...", "title": "..."}     // present keys only
+    {"isrc": "...", "title": "...", "artist": "..."}   // present keys only
 Exits 0 on success (even if no tags were found — JSON may be empty {}).
 Exits 1 on file-not-found or unreadable file.
 
 Tag sources, in priority order:
 - ID3 TSRC frame (MP3 / tagged WAV) → "isrc"
 - ID3 TIT2 frame                    → "title"
-- Vorbis / FLAC "ISRC" comment      → "isrc"  (fallback)
-- Vorbis / FLAC "TITLE" comment     → "title" (fallback)
+- ID3 TPE1 frame                    → "artist"
+- Vorbis / FLAC "ISRC" comment      → "isrc"   (fallback)
+- Vorbis / FLAC "TITLE" comment     → "title"  (fallback)
+- Vorbis / FLAC "ARTIST" comment    → "artist" (fallback)
 """
 
 import json
@@ -54,6 +56,15 @@ def extract(path: str) -> dict:
         except (AttributeError, KeyError):
             pass
 
+        try:
+            artist_frames = tags.getall("TPE1")
+            if artist_frames:
+                value = str(artist_frames[0]).strip()
+                if value:
+                    out["artist"] = value
+        except (AttributeError, KeyError):
+            pass
+
         # Vorbis-style fallback (FLAC, OGG, some WAVs)
         if "isrc" not in out:
             for key in ("ISRC", "isrc"):
@@ -72,6 +83,15 @@ def extract(path: str) -> dict:
                     s = str(s).strip()
                     if s:
                         out["title"] = s
+                        break
+        if "artist" not in out:
+            for key in ("ARTIST", "artist"):
+                v = tags.get(key)
+                if v:
+                    s = (v[0] if isinstance(v, list) else v)
+                    s = str(s).strip()
+                    if s:
+                        out["artist"] = s
                         break
 
     return out

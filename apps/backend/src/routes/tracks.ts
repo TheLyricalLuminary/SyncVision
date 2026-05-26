@@ -55,7 +55,33 @@ const upload = multer({
   },
 });
 
-function extractMetadata(audioPath: string): Promise<{ isrc?: string; title?: string }> {
+function parseFilename(originalName: string): { title: string; artist: string | null } {
+  const base = path.basename(originalName, path.extname(originalName));
+  // Strip UUID prefix added by multer (e.g. "a3f9b2c1_")
+  const withoutPrefix = base.replace(/^[0-9a-f]{6,}_/i, "");
+  // Replace underscores with spaces
+  const spaced = withoutPrefix.replace(/_/g, " ");
+  // Strip trailing track numbers like " 2 22" or " 01"
+  const denum = spaced.replace(/\s+\d{1,3}(\s+\d{1,3})*\s*$/, "").trim();
+  // Strip noise words: "watermarked", "background vocals", "Official Video", etc.
+  const cleaned = denum
+    .replace(/\b(watermarked?|official\s+video|official\s+audio|lyric\s+video|background\s+vocals?|HD|HQ|4K)\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  // "Artist - Title" or "Artist – Title" split
+  const sep = /\s[-–]\s/;
+  if (sep.test(cleaned)) {
+    const idx = cleaned.search(sep);
+    const artist = cleaned.slice(0, idx).trim();
+    const title = cleaned.slice(idx + 3).trim();
+    if (artist && title) return { artist, title };
+  }
+
+  return { artist: null, title: cleaned || base };
+}
+
+function extractMetadata(audioPath: string): Promise<{ isrc?: string; title?: string; artist?: string }> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
     const errs: Buffer[] = [];
@@ -131,10 +157,10 @@ router.post("/tracks/inspect", upload.array("files", 50), async (req: Request, r
           sizeBytes: f.size,
           detectedTitle: (() => {
             const t = detected.title ?? null;
-            // underscores with no spaces = filename, not a real tag — return null
             if (t && t.includes("_") && !t.includes(" ")) return null;
             return t;
           })(),
+          detectedArtist: detected.artist?.trim() || null,
           detectedIsrc: detected.isrc ?? null,
         };
       })
@@ -167,14 +193,36 @@ router.post("/tracks/upload", (req: Request, res: Response) => {
     const savedAbsPath = req.file.path;
     const savedFilename = req.file.filename;
     const originalName = req.file.originalname;
-    const title = path.basename(originalName, path.extname(originalName)) || savedFilename;
+
+    // 1. Try embedded tags (ID3 / Vorbis / MP4)
+    const tags = await extractMetadata(savedAbsPath);
+
+    // 2. Validate tags: reject if title looks like a raw filename (no spaces, underscores)
+    const tagTitle = (() => {
+      const t = tags.title ?? null;
+      if (!t) return null;
+      if (t.includes("_") && !t.includes(" ")) return null; // filename leaked into tag
+      return t;
+    })();
+    const tagArtist = tags.artist?.trim() || null;
+
+    // 3. Filename fallback when tags absent
+    const parsed = (!tagTitle || !tagArtist) ? parseFilename(originalName) : null;
+
+    const title = tagTitle ?? parsed?.title ?? path.basename(originalName, path.extname(originalName));
+    const artistName = tagArtist ?? parsed?.artist ?? null;
+    const isrc = tags.isrc ?? null;
+
+    console.log(`[tracks/upload] identity: title="${title}" artist="${artistName}" isrc="${isrc}" source=${tagTitle ? "id3" : "filename"}`);
 
     try {
-      validateTrackIngestion({ audioFilePath: savedAbsPath, title, isrc: null });
+      validateTrackIngestion({ audioFilePath: savedAbsPath, title, isrc });
 
       const track = await prisma.track.create({
         data: {
           title,
+          artistName,
+          isrc,
           audioFilePath: savedFilename,
           trackStatus: "uploaded",
         },
