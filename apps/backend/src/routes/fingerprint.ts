@@ -1,12 +1,14 @@
 // POST /api/tracks/:id/fingerprint
 //
-// Runs fpcalc (Chromaprint) on the stored audio file, queries AcoustID,
-// stores the top match, and returns a reconciliation diff against the
-// track's current metadata. No side effects if fpcalc is absent.
+// Primary: AudD API — sends the audio file, returns artist/title/ISRC like Shazam.
+//          Works with degraded audio, screen recordings, MP3s.
+// Fallback: AcoustID (fpcalc + chromaprint) if AUDD_API_TOKEN not set.
 
 import { Router, Request, Response } from "express";
 import { spawn } from "child_process";
 import path from "path";
+import fs from "fs";
+import FormData from "form-data";
 import prisma from "../lib/prisma";
 import { enrichFromMusicBrainz } from "../lib/musicbrainz";
 import { enrichFromCreditsFm } from "../lib/creditsfm";
@@ -18,11 +20,47 @@ const UPLOAD_DIR = process.env.AUDIO_STORAGE_PATH ?? AUDIO_DIR;
 const FPCALC_BIN = process.env.FPCALC_BIN ?? "fpcalc";
 const ACOUSTID_APP_ID = process.env.ACOUSTID_APP_ID ?? "";
 const ACOUSTID_API = "https://api.acoustid.org/v2/lookup";
+const AUDD_API_TOKEN = process.env.AUDD_API_TOKEN ?? "";
+const AUDD_API = "https://api.audd.io/";
 
-interface FpcalcResult {
-  fingerprint: string;
-  duration: number;
+// ── AudD ─────────────────────────────────────────────────────────────────────
+
+interface AudDResult {
+  artist: string;
+  title: string;
+  album?: string;
+  release_date?: string;
+  label?: string;
+  timecode?: string;
+  song_link?: string;
+  apple_music?: { isrc?: string };
+  spotify?: { external_ids?: { isrc?: string } };
+  musicbrainz?: Array<{ id: string }>;
 }
+
+async function queryAudD(audioPath: string, apiToken: string): Promise<AudDResult | null> {
+  const form = new FormData();
+  form.append("api_token", apiToken);
+  form.append("file", fs.createReadStream(audioPath));
+  form.append("return", "musicbrainz,apple_music,spotify");
+
+  const res = await fetch(AUDD_API, {
+    method: "POST",
+    // form-data sets content-type + boundary via getHeaders()
+    headers: form.getHeaders() as Record<string, string>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    body: form as any,
+  });
+
+  if (!res.ok) throw new Error(`AudD API ${res.status}`);
+  const body = await res.json() as { status: string; result?: AudDResult };
+  if (body.status !== "success") return null;
+  return body.result ?? null;
+}
+
+// ── AcoustID fallback ─────────────────────────────────────────────────────────
+
+interface FpcalcResult { fingerprint: string; duration: number; }
 
 function runFpcalc(audioPath: string): Promise<FpcalcResult> {
   return new Promise((resolve, reject) => {
@@ -31,41 +69,24 @@ function runFpcalc(audioPath: string): Promise<FpcalcResult> {
     proc.stdout.on("data", (d: Buffer) => chunks.push(d));
     proc.on("close", (code) => {
       if (code !== 0) { reject(new Error(`fpcalc exited ${code}`)); return; }
-      try {
-        const out = JSON.parse(Buffer.concat(chunks).toString("utf8")) as FpcalcResult;
-        resolve(out);
-      } catch (e) {
-        reject(new Error(`fpcalc produced invalid JSON: ${String(e)}`));
-      }
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")) as FpcalcResult); }
+      catch (e) { reject(new Error(`fpcalc invalid JSON: ${String(e)}`)); }
     });
     proc.on("error", (e) => reject(new Error(`fpcalc not available: ${e.message}`)));
   });
 }
 
-interface AcoustIDRecording {
-  id: string;
-  title?: string;
-  artists?: { name: string }[];
-  releasegroups?: { title?: string; type?: string }[];
-}
-
 interface AcoustIDResult {
-  id: string;
-  score: number;
-  recordings?: AcoustIDRecording[];
+  id: string; score: number;
+  recordings?: Array<{ id: string; title?: string; artists?: { name: string }[]; releasegroups?: { title?: string }[] }>;
 }
 
-async function queryAcoustID(
-  fingerprint: string,
-  duration: number,
-  appId: string,
-): Promise<AcoustIDResult[]> {
+async function queryAcoustID(fingerprint: string, duration: number, appId: string): Promise<AcoustIDResult[]> {
   const url = new URL(ACOUSTID_API);
   url.searchParams.set("client", appId);
   url.searchParams.set("meta", "recordings+releasegroups");
   url.searchParams.set("duration", String(Math.round(duration)));
   url.searchParams.set("fingerprint", fingerprint);
-
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error(`AcoustID API ${res.status}`);
   const body = await res.json() as { status: string; results?: AcoustIDResult[] };
@@ -73,13 +94,15 @@ async function queryAcoustID(
   return body.results ?? [];
 }
 
+// ── Route ─────────────────────────────────────────────────────────────────────
+
 router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  if (!ACOUSTID_APP_ID) {
+  if (!AUDD_API_TOKEN && !ACOUSTID_APP_ID) {
     res.status(503).json({
       error: "fingerprint_unavailable",
-      message: "ACOUSTID_APP_ID not configured",
+      message: "Neither AUDD_API_TOKEN nor ACOUSTID_APP_ID is configured",
       stage: "PENDING_CONFIG",
     });
     return;
@@ -89,58 +112,78 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     const track = await prisma.track.findUnique({ where: { id: id as string } });
     if (!track) { res.status(404).json({ error: "Track not found" }); return; }
 
-    const filename = track.audioFilePath
-      ? path.basename(track.audioFilePath)
-      : null;
+    const filename = track.audioFilePath ? path.basename(track.audioFilePath) : null;
     if (!filename) { res.status(409).json({ error: "No audio file attached" }); return; }
 
     const audioPath = path.join(UPLOAD_DIR, filename);
-
-    // ── Fingerprint ──────────────────────────────────────────────
-    let fpcalcResult: FpcalcResult;
-    try {
-      fpcalcResult = await runFpcalc(audioPath);
-    } catch (e) {
-      res.status(503).json({
-        error: "fingerprint_unavailable",
-        message: e instanceof Error ? e.message : String(e),
-        stage: "FINGERPRINT_FAILED",
-      });
+    if (!fs.existsSync(audioPath)) {
+      res.status(409).json({ error: "Audio file not found on disk", filename });
       return;
     }
 
-    // ── AcoustID lookup ──────────────────────────────────────────
-    let results: AcoustIDResult[] = [];
-    try {
-      results = await queryAcoustID(
-        fpcalcResult.fingerprint,
-        fpcalcResult.duration,
-        ACOUSTID_APP_ID,
-      );
-    } catch (e) {
-      console.warn("[fingerprint] AcoustID lookup failed:", e instanceof Error ? e.message : e);
+    // ── Primary: AudD ────────────────────────────────────────────
+    let auddResult: AudDResult | null = null;
+    if (AUDD_API_TOKEN) {
+      try {
+        auddResult = await queryAudD(audioPath, AUDD_API_TOKEN);
+      } catch (e) {
+        console.warn("[fingerprint] AudD failed:", e instanceof Error ? e.message : e);
+      }
     }
 
-    const top = results[0] ?? null;
-    const score = top?.score ?? 0;
-    const topRecording = top?.recordings?.[0] ?? null;
+    // ── Fallback: AcoustID ────────────────────────────────────────
+    let acoustidTopId: string | null = null;
+    let acoustidScore = 0;
+    let acoustidMbid: string | null = null;
+    let acoustidTitle: string | null = null;
+    let acoustidArtist: string | null = null;
 
-    const matchQuality =
-      score >= 0.9 ? "HIGH" :
-      score >= 0.7 ? "MEDIUM" :
-      score >  0   ? "LOW"    :
-                     "NO_MATCH";
-
-    // ── MusicBrainz enrichment ───────────────────────────────────
-    let mbEnrichment = null;
-    if (topRecording?.id && matchQuality !== "NO_MATCH") {
+    if (!auddResult && ACOUSTID_APP_ID) {
       try {
-        mbEnrichment = await enrichFromMusicBrainz(topRecording.id);
+        const fpcalcResult = await runFpcalc(audioPath);
+        const results = await queryAcoustID(fpcalcResult.fingerprint, fpcalcResult.duration, ACOUSTID_APP_ID);
+        const top = results[0] ?? null;
+        acoustidTopId   = top?.id ?? null;
+        acoustidScore   = top?.score ?? 0;
+        const rec       = top?.recordings?.[0] ?? null;
+        acoustidMbid    = rec?.id ?? null;
+        acoustidTitle   = rec?.title ?? null;
+        acoustidArtist  = rec?.artists?.[0]?.name ?? null;
+      } catch (e) {
+        console.warn("[fingerprint] AcoustID fallback failed:", e instanceof Error ? e.message : e);
+      }
+    }
+
+    // ── Determine match ───────────────────────────────────────────
+    const matched = !!(auddResult || acoustidMbid);
+    const matchQuality = auddResult ? "HIGH"
+      : acoustidScore >= 0.9 ? "HIGH"
+      : acoustidScore >= 0.7 ? "MEDIUM"
+      : acoustidScore >  0   ? "LOW"
+      : "NO_MATCH";
+
+    // Resolved identity fields
+    const resolvedTitle  = auddResult?.title  ?? acoustidTitle  ?? null;
+    const resolvedArtist = auddResult?.artist ?? acoustidArtist ?? null;
+
+    // ISRC: AudD returns it via apple_music or spotify sub-objects
+    const auddIsrc = auddResult?.apple_music?.isrc
+      ?? auddResult?.spotify?.external_ids?.isrc
+      ?? null;
+
+    // MusicBrainz recording ID
+    const mbRecordingId = auddResult?.musicbrainz?.[0]?.id ?? acoustidMbid ?? null;
+
+    // ── MusicBrainz enrichment ────────────────────────────────────
+    let mbEnrichment = null;
+    if (mbRecordingId && matched) {
+      try {
+        mbEnrichment = await enrichFromMusicBrainz(mbRecordingId);
       } catch { /* non-fatal */ }
     }
 
-    // ── Credits.fm enrichment ────────────────────────────────────
-    const resolvedIsrc = mbEnrichment?.isrc ?? track.isrc ?? null;
+    // ── Credits.fm enrichment ─────────────────────────────────────
+    const resolvedIsrc = auddIsrc ?? mbEnrichment?.isrc ?? track.isrc ?? null;
     let creditsEnrichment = null;
     if (resolvedIsrc) {
       try {
@@ -148,47 +191,37 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
       } catch { /* non-fatal */ }
     }
 
-    // ── Persist AcoustID identity ────────────────────────────────
-    // Non-fatal: if the column doesn't exist yet on this deploy, skip silently.
+    // ── Persist identity ──────────────────────────────────────────
     try {
       await prisma.track.update({
         where: { id: id as string },
         data: {
-          acoustidId:        top?.id ?? null,
-          acoustidScore:     score,
+          acoustidId:        acoustidTopId,
+          acoustidScore:     acoustidScore,
           acoustidCheckedAt: new Date(),
         },
       });
     } catch (e) {
-      console.warn("[fingerprint] acoustid persist skipped:", e instanceof Error ? e.message : e);
+      console.warn("[fingerprint] persist skipped:", e instanceof Error ? e.message : e);
     }
 
-    // ── Reconciliation diff ──────────────────────────────────────
+    // ── Reconciliation diff ───────────────────────────────────────
     const discrepancies: { field: string; submitted: string | null; external: string | null }[] = [];
+    if (resolvedTitle  && track.title      && resolvedTitle.toLowerCase()  !== track.title.toLowerCase())
+      discrepancies.push({ field: "title",      submitted: track.title,      external: resolvedTitle });
+    if (resolvedArtist && track.artistName && resolvedArtist.toLowerCase() !== track.artistName.toLowerCase())
+      discrepancies.push({ field: "artistName", submitted: track.artistName, external: resolvedArtist });
 
-    const extTitle  = topRecording?.title ?? null;
-    const extArtist = topRecording?.artists?.[0]?.name ?? null;
-
-    if (extTitle && track.title && extTitle.toLowerCase() !== track.title.toLowerCase()) {
-      discrepancies.push({ field: "title", submitted: track.title, external: extTitle });
-    }
-    if (extArtist && track.artistName && extArtist.toLowerCase() !== track.artistName.toLowerCase()) {
-      discrepancies.push({ field: "artistName", submitted: track.artistName, external: extArtist });
-    }
-
-    // ── autoFill — translated from each layer into a single form payload ──
-    // MusicBrainz: catalog translation (recording → ISRC, ISWC, composer)
-    // Credits.fm:  cross-reference translation (ISRC → IPI, publisher, PRO links)
-    // Neither layer decides truth. Conflicts surface to the supervisor, not the engine.
+    // ── autoFill ──────────────────────────────────────────────────
     const autoFill = {
       isrc:           resolvedIsrc,
-      iswc:           creditsEnrichment?.iswc           ?? mbEnrichment?.iswc           ?? null,
-      writerName:     creditsEnrichment?.writerName     ?? mbEnrichment?.writerName     ?? null,
-      writerIpi:      creditsEnrichment?.writerIpi      ?? mbEnrichment?.writerIpi      ?? null,
-      publisherName:  creditsEnrichment?.publisherName  ?? mbEnrichment?.publisherName  ?? null,
+      iswc:           creditsEnrichment?.iswc        ?? mbEnrichment?.iswc        ?? null,
+      writerName:     creditsEnrichment?.writerName  ?? mbEnrichment?.writerName  ?? null,
+      writerIpi:      creditsEnrichment?.writerIpi   ?? mbEnrichment?.writerIpi   ?? null,
+      publisherName:  creditsEnrichment?.publisherName ?? mbEnrichment?.publisherName ?? null,
       proAffiliation: creditsEnrichment?.proAffiliation ?? null,
       sources: {
-        isrc:      mbEnrichment?.isrc      ? "musicbrainz" : track.isrc ? "submitted" : null,
+        isrc:      auddIsrc ? "audd" : mbEnrichment?.isrc ? "musicbrainz" : track.isrc ? "submitted" : null,
         writer:    creditsEnrichment?.writerName    ? "credits.fm" : mbEnrichment?.writerName    ? "musicbrainz" : null,
         publisher: creditsEnrichment?.publisherName ? "credits.fm" : mbEnrichment?.publisherName ? "musicbrainz" : null,
         pro:       creditsEnrichment?.proAffiliation ? "credits.fm" : null,
@@ -196,18 +229,17 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     };
 
     res.json({
-      acoustidId:   top?.id ?? null,
-      score,
+      provider:     auddResult ? "audd" : "acoustid",
+      acoustidId:   acoustidTopId,
+      score:        auddResult ? 1.0 : acoustidScore,
       matchQuality,
-      duration:     fpcalcResult.duration,
-      topRecording: topRecording
-        ? {
-            id:       topRecording.id,
-            title:    topRecording.title ?? null,
-            artist:   topRecording.artists?.[0]?.name ?? null,
-            releases: topRecording.releasegroups?.map(r => r.title).filter(Boolean) ?? [],
-          }
-        : null,
+      topRecording: matched ? {
+        id:       mbRecordingId,
+        title:    resolvedTitle,
+        artist:   resolvedArtist,
+        album:    auddResult?.album ?? null,
+        releases: [],
+      } : null,
       discrepancies,
       autoFill,
       reconciliationNote:

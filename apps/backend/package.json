@@ -38,6 +38,7 @@
     "bullmq": "^5.76.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "form-data": "^4.0.5",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
