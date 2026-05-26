@@ -632,7 +632,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
           </div>
           <span style={{ fontSize: 8, color: 'rgba(219,39,119,0.45)', letterSpacing: '0.08em' }}>deterministic · audit-stable</span>
         </div>
-        <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: C.silver, letterSpacing: '-0.005em' }}>
+        <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 15, lineHeight: 1.6, color: '#F1F5F9', letterSpacing: '0.005em' }}>
           {result.confidenceScore.explanation}
         </div>
       </div>
