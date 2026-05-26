@@ -27,15 +27,23 @@ The entire app is a single linear pipeline. No branching, no dead ends.
 
 ### 1. Brief
 
-The supervisor selects a scene type (chase tension, romance intimacy, grief loss, product launch — 20 categories total) or writes a free-text description. Pacing, emotional register, and scene length are captured as structured parameters alongside the free-text brief.
+The supervisor selects a scene type from **26 industry-standard categories** (chase tension, romance intimacy, grief loss, trailer promo, true crime investigative, sports highlight, kids family, faith inspirational, period historical — and more) or writes a free-text description. The classifier auto-detects the brief type from natural language; the supervisor can override it manually via a full picker grid. Pacing, emotional register (43 mood tags across 7 families), and scene length are captured as structured parameters alongside the free-text brief.
+
+**Mood families:** Connection · Conflict · Resolution · Dark · Memory · Energy · Style
 
 ### 2. Ingest
 
-The composer uploads tracks. The Python worker runs librosa-based audio analysis to extract tempo, tonal character, energy, RMS, and spectral centroid. ISRC is not required at upload — identity resolution happens asynchronously via fingerprinting after the track is in the system.
+The composer uploads tracks. Canonical track identity is resolved at ingestion using a three-tier chain:
+
+1. **Embedded tags** — ID3 (TIT2/TPE1/TSRC), Vorbis/FLAC comments: title, artist, ISRC extracted directly
+2. **Filename parsing** — strips UUID prefixes, noise words (watermarked, background vocals, official video), trailing numbers, splits on `Artist - Title` delimiter
+3. **Raw filename** — last resort only
+
+The Python worker runs librosa-based audio analysis to extract tempo, tonal character, energy, RMS, and spectral centroid. Identity resolution continues asynchronously via fingerprinting after the track is in the system.
 
 ### 3. Score
 
-One deterministic vector, one scalar rank. No per-brief weight variants.
+One deterministic vector, one scalar rank.
 
 ```
 TrackVector = { scene, rights, lyrics, signal }   // all axes 0–1
@@ -43,14 +51,7 @@ WEIGHTS     = { scene: 0.45, rights: 0.25, lyrics: 0.25, signal: 0.05 }
 score       = dot(vector, weights) × 100
 ```
 
-Four axis constructors feed the vector:
-
-- **Scene** — weighted mix of PAD scene fit and DSP match score
-- **Rights** — starts at 1.0, deducted by clearance blockers (unidentified writer, unknown publisher, missing PRO work ID, one-stop unconfirmed, master ownership unset) and identity uncertainty
-- **Lyrics** — neutral 0.5 until lyric data is available; then sentiment/mood alignment
-- **Signal** — audio completeness: has audio file, has lyrics, metadata completeness
-
-Weights are fixed constants. The architecture adjusts embeddings and normalization inputs — never the weights.
+Per-brief weight profiles fine-tune the scene/rights/metadata balance for each of the 26 scene types. High-clearance-risk briefs (trailer, broadcast, sports, kids) carry higher rights weight. Intimate/grief/romance briefs weight scene fit higher.
 
 ### 4. Rights pipeline
 
@@ -62,7 +63,7 @@ The rights layer is an 8-stage intake and verification pipeline:
 4. One-stop confirmed
 5. Sync license cleared
 6. Lyric license cleared
-7. Fingerprint identity resolution (AcoustID → MusicBrainz → Credits.fm)
+7. Fingerprint identity resolution (AudD → AcoustID → MusicBrainz → Credits.fm)
 8. PRO cross-check
 
 Each stage shows a live status indicator. Rights confidence displays as a percentage. When rights data saves, the rights axis recomputes locally and the match score updates immediately — no page reload.
@@ -71,20 +72,28 @@ Each stage shows a live status indicator. Rights confidence displays as a percen
 
 One button — "Resolve Identity" — triggers a layered lookup. Each layer has a distinct role; none overrides another. Where datasets conflict, the discrepancy is surfaced to the supervisor rather than resolved automatically.
 
-**Layer 1 — AcoustID / Chromaprint (audio identity)**
-The backend runs `fpcalc` on the uploaded audio file and queries `api.acoustid.org`. Returns a MusicBrainz recording MBID and match confidence (HIGH / MEDIUM / LOW / NO_MATCH). This is the only layer that can answer "what recording is this?" from the audio signal alone.
+**Layer 1 — AudD (audio recognition, primary)**
+Shazam-style audio recognition against AudD's commercial catalog. Returns artist, title, ISRC, and MusicBrainz ID from the audio signal alone — works even with degraded or watermarked audio. Primary fingerprint provider.
 
-**Layer 2 — MusicBrainz (canonical catalog)**
-Given the recording MBID, the system fetches the full recording from the open music encyclopedia: ISRC, work MBID, ISWC, composer name, writer IPI. Two calls — recording then work. MusicBrainz is the canonical public catalog, not a rights database.
+**Layer 2 — AcoustID / Chromaprint (audio identity, fallback)**
+When AudD returns no match, `fpcalc` generates a Chromaprint fingerprint and queries `api.acoustid.org`. Returns a MusicBrainz recording MBID and match confidence. Fallback identity layer.
 
-**Layer 3 — Credits.fm (entity resolution)**
-Given the resolved ISRC, Credits.fm resolves identifiers across systems — linking ISRC to ISWC to IPI across MLC, CISAC, and DSP metadata. Its role is graph resolution, not rights authority. Where Credits.fm and MusicBrainz return different values, both are shown.
+**Layer 3 — MusicBrainz (canonical catalog)**
+Given the recording MBID, fetches the full recording: ISRC, work MBID, ISWC, composer name, writer IPI. MusicBrainz is the canonical public catalog, not a rights database.
 
-The result: the rights intake form opens pre-populated — writer name, IPI, publisher, PRO affiliation, ISRC, ISWC — with each field tagged by its source registry. The supervisor verifies and confirms. No manual typing. Any conflict between sources is flagged before a placement decision is made.
+**Layer 4 — Credits.fm (entity resolution)**
+Given the resolved ISRC, Credits.fm resolves identifiers across systems — linking ISRC to ISWC to IPI across MLC, CISAC, and DSP metadata. Graph resolution, not rights authority.
+
+**Layer 5 — Musixmatch (lyrics linkage)**
+ISRC or artist+title lookup returns lyrics availability, explicit flag, language, and a direct Musixmatch URL. Feeds the lyrics axis of the scoring vector.
+
+The result: the rights intake form opens pre-populated — writer name, IPI, publisher, PRO affiliation, ISRC, ISWC — with each field tagged by its source registry. Any conflict between sources is flagged before a placement decision is made.
 
 ### 6. Narrative
 
-For every track-brief pairing, the engine selects one of 360 hand-authored phrases from the narrative dictionary. Selection is `sha256(trackId + briefId) % poolSize`. Same track, same brief, same phrase — every time. No LLM in the loop. Phrases are written in working music-supervisor trade language (cue sheet, one-stop, MFN, controlled comp, dialogue ducking, button ending, needle drop).
+For every track-brief pairing, the engine selects one of **360 hand-authored phrases** from the narrative dictionary. Selection is `sha256(trackId + briefId + verdict) % poolSize`. Same track, same brief, same phrase — every time. No LLM in the loop. Phrases are written in working music-supervisor trade language (cue sheet, one-stop, MFN, controlled comp, dialogue ducking, button ending, needle drop). Phrases describe structural fit only — no invented timestamps, no scene-specific elements the system cannot verify.
+
+Verdict tiers: PASS_STRONG · PASS_SOFT · MAYBE_HIGH · MAYBE_LOW · FAIL_CLOSE · FAIL_HARD
 
 ### 7. Shortlist
 
@@ -98,19 +107,17 @@ One click exports a decision packet — branded, signable, hash-stamped. Another
 
 ## Ownership hypothesis stack
 
-Licensing data is not centralized and no single source provides clearance truth. SyncVision assembles an ownership hypothesis from layered inputs, each with a defined role:
-
 | Layer | Source | Role |
 |---|---|---|
-| Audio identity | AcoustID + Chromaprint | What recording is this? |
+| Audio recognition | AudD | What track is this? (commercial fingerprint) |
+| Audio identity | AcoustID + Chromaprint | What recording is this? (open fingerprint, fallback) |
 | Canonical catalog | MusicBrainz | What officially exists in the world? |
 | Entity resolution | Credits.fm | How do identifiers connect across systems? |
+| Lyrics linkage | Musixmatch | Is this track lyric-safe and what language? |
 | Ownership inference | PRO + publisher + label heuristics | Who likely controls what? |
 | Clearance decision | SyncVision scoring engine | Safe / risky / unknown — and why |
 
 The output is a structural likelihood, not a legal determination. SyncVision surfaces what the metadata graph implies about ownership; it does not confirm clearance. That distinction is made explicit in the UI at every stage.
-
-The known gap: direct PRO catalog coverage (ASCAP, BMI, SESAC) and publisher splits normalization. Without that layer, identity resolution is accurate but clearance confidence scoring remains an inference. That gap is where most sync products fail — and where the next layer of integration sits.
 
 ---
 
@@ -124,14 +131,22 @@ apps/
 ```
 
 - **Postgres (Neon)** — tracks, briefs, scores, rights state, audit hashes
-- **Prisma** — schema management, deployed via `prisma migrate deploy`
+- **Prisma** — schema management, multiSchema (all tables in `scoring` schema)
 - **Stripe** — four-tier billing (Starter / Pro / Studio / Enterprise)
-- **AcoustID / Chromaprint** — `fpcalc` fingerprinting + `api.acoustid.org` lookup
+- **AudD** — Shazam-style audio recognition, primary fingerprint provider
+- **AcoustID / Chromaprint** — `fpcalc` fingerprinting + `api.acoustid.org` lookup (fallback)
 - **MusicBrainz** — open music encyclopedia, recording and work metadata
-- **Credits.fm** — entity resolution: ISRC → ISWC → IPI across MLC, CISAC, DSP metadata (optional, not authoritative)
+- **Credits.fm** — entity resolution: ISRC → ISWC → IPI across MLC, CISAC, DSP metadata
+- **Musixmatch** — lyrics availability, explicit flag, language detection
 - **Render** — Docker-based deployment (Node 20 + Python 3.11 + Chromaprint + ffmpeg)
 
 The scoring read path is purely deterministic — a SHA-256 audit hash on every response enforces the invariant that the same inputs always produce byte-identical output.
+
+---
+
+## Scene types (26)
+
+Chase / Tension · Action / Combat · Triumph / Victory · Euphoria / Celebration · Suspense / Dread · Horror / Psychological · Drama / Confrontation · Urban / Gritty · Romance / Intimacy · Heartbreak / Separation · Grief / Loss · Contemplative / Reflective · Emotional Resolution · Comedy / Light · Quirky / Offbeat · Montage / Transition · Opening / Closing Title · Cinematic / Epic · Corporate / Aspirational · Nature / Pastoral · Sports / Highlight · True Crime / Investigative · Faith / Inspirational · Kids / Family · Trailer / Promo · Period / Historical
 
 ---
 
@@ -139,7 +154,7 @@ The scoring read path is purely deterministic — a SHA-256 audit hash on every 
 
 | Tier       | Price      | Catalogue          | Features                                                                               |
 |------------|------------|--------------------|----------------------------------------------------------------------------------------|
-| Starter    | $149/mo    | Up to 100 tracks   | Rights FSM, scene fit scoring (20 briefs), deterministic audit hash, CSV export        |
+| Starter    | $149/mo    | Up to 100 tracks   | Rights FSM, scene fit scoring (26 briefs), deterministic audit hash, CSV export        |
 | Pro ★      | $299/mo    | Up to 500 tracks   | Everything in Starter, confidence score ranking, ROI calculator, priority support      |
 | Studio     | $499/mo    | Up to 2,000 tracks | Everything in Pro, multi-catalog management, team member access, rights report export  |
 | Enterprise | $1,999/mo  | Unlimited          | Everything in Studio, API access, dedicated account manager, custom SLA / SAML SSO    |
@@ -150,7 +165,7 @@ The scoring read path is purely deterministic — a SHA-256 audit hash on every 
 
 ## Status
 
-End-to-end pipeline operational — brief → ingest → score → shortlist → PDF running on real audio files. Identity resolution via AcoustID + MusicBrainz + Credits.fm live in production. Rights intake auto-populates from registry lookups. Iterated based on direct feedback from an active music supervisor in the sync licensing space.
+End-to-end pipeline operational — brief → ingest → score → shortlist → PDF running on real audio files. Identity resolution via AudD + AcoustID + MusicBrainz + Credits.fm + Musixmatch live in production. Rights intake auto-populates from registry lookups. 26 scene types with per-brief weight profiles and a 360-phrase narrative dictionary. Iterated based on direct feedback from an active music supervisor in the sync licensing space.
 
 **Demo on request.** If you're a composer with a catalogue to score or a supervisor with briefs to test, reach out.
 
