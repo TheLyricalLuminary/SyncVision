@@ -234,7 +234,7 @@ function buildBriefNarrative(
   trackId: string,
   briefId: string,
   sceneFit: number,
-  track: { tempo: number | null; tonalCharacter: string | null; energyCharacter: string | null }
+  _track: { tempo: number | null; tonalCharacter: string | null; energyCharacter: string | null }
 ): string {
   const brief = NARRATIVE_DICTIONARY[briefId];
   if (!brief) {
@@ -246,14 +246,7 @@ function buildBriefNarrative(
   const h = createHash("sha256").update(`${trackId}:${briefId}:${verdict}`).digest("hex");
   const phrase = pool[parseInt(h.slice(0, 8), 16) % pool.length];
 
-  const parts = [
-    track.tonalCharacter ?? "",
-    track.energyCharacter ?? "",
-    track.tempo != null ? `${Math.round(track.tempo)} BPM` : "",
-  ].filter(Boolean);
-  const dsp = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-
-  return `${phrase}${dsp}`;
+  return phrase;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -513,10 +506,6 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
       for (const match of matches) {
         const mSceneFit  = match.sceneFit  as number;
         const mTrackId   = match.trackId   as string;
-        const mTempo     = match.tempo     as number | null;
-        const mTonal     = match.tonalCharacter  as string | null;
-        const mEnergy    = match.energyCharacter as string | null;
-
         const verdict    = verdictFor(mSceneFit);
         const briefEntry = NARRATIVE_DICTIONARY[sceneId];
 
@@ -545,11 +534,7 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
         taken.add(slot);
 
         const phrase = pool[slot];
-        const parts  = [mTonal ?? "", mEnergy ?? "",
-          mTempo != null ? `${Math.round(mTempo)} BPM` : ""]
-          .filter(Boolean);
-        const dsp = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-        match.sonicNarrative = `${phrase}${dsp}`;
+        match.sonicNarrative = phrase;
       }
     }
 

@@ -65,7 +65,7 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
       "Bass pulse enters at 0:08 and never lets up; the arrangement withholds the downbeat resolution every eight bars, which lets the editor land hard cuts on the suspended beat. Dominance reads cold and procedural — the track stalks the picture rather than chasing it.",
       "Rhythmic propulsion is built from a single repeated cell, so the music editor can lift any sixteen-bar block and loop it under extended coverage without phrase-end artifacts. Underscores without competing, leads the cut on the corner-turn at 1:42.",
       "Spectral weight sits in the 80–250 Hz pocket where dialogue does not live, which means the cue can run hot under footfall foley and radio chatter without ducking. Arousal ceiling is high but the harmonic floor never settles — exactly what sustained-threat coverage needs.",
-      "The breakdown into verse 2 strips back to kick and breath, giving the editor a natural reset point before the third-act stairwell sequence. Clears for trailer use under the same brief and the stems separate cleanly for a music-editor-driven recut.",
+      "The breakdown into verse 2 strips back to kick and breath, giving the editor a natural reset point before the third-act escalation. Clears for trailer use under the same brief and the stems separate cleanly for a music-editor-driven recut.",
       "Tonal palette stays in a narrow modal window — no major-key reprieve anywhere in the arrangement — so the cue carries pursuit energy without ever signaling escape. Yields to dialogue when the protagonist speaks at the transit-stop beat and lifts again on the cut to the rooftop.",
     ],
     MAYBE: [
@@ -121,7 +121,7 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   // -------------------------------------------------------------------------
   "heartbreak-separation": {
     PASS: [
-      "Piano ostinato carries the verse with the string pad entering at 0:38 — exactly the kind of additive arrangement that lets the editor drop in cuts on every fourth bar without the music protesting. Yields to dialogue and lifts on the photograph reveal.",
+      "Arrangement builds additively from a minimal verse bed — exactly the kind of layering that lets the editor drop in cuts on every fourth bar without the music protesting. Yields to dialogue throughout and lifts naturally on the emotional turn.",
       "Tonal palette stays in a single modal color across three minutes, which means the montage can compress a decade of relationship beats without the cue announcing scene transitions. Underscores without competing.",
       "Vocal entry at 0:46 brings emotional residue to the back half — the lyric is general enough to read as character interiority over almost any retrospective coverage. Clears for episodic; viable under closing-act montage.",
       "Dynamic arc lifts gently into the chorus at 1:20 and pulls back for the bridge, giving the editor two clean emotional gear changes inside one cue. Lands the turn on the bittersweet beat without sentimentalizing it.",
@@ -152,11 +152,11 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   "romance-intimacy": {
     PASS: [
       "Arrangement is two elements — fingerpicked guitar and a breath-close vocal — and that intimacy of arrangement matches the proximity the scene is asking for. Yields to dialogue completely; the cue knows when not to be heard.",
-      "Vocal sits right on the threshold of breath, so the cue carries vulnerability without leaning on lyric specificity. Underscores without competing through the bedside coverage and lifts only on the cut to the hand.",
+      "Vocal sits right on the threshold of breath, so the cue carries vulnerability without leaning on lyric specificity. Underscores without competing through quiet coverage and yields completely when the actors need the room.",
       "Tonal palette is warm and narrow, dominated by a single tape-saturated keyboard that occupies the same register as a soft-spoken line — the music sits with the characters rather than around them. Clears for episodic on a standard rate.",
       "Dynamic floor is genuinely quiet — the cue holds at a level where it would never need to be ducked under whispered dialogue. Mix hierarchy gives the picture full ownership of the emotional foreground.",
-      "The bridge at 1:38 adds a single string line and pulls it out again before the verse return, giving the editor exactly one emotional lift to align with the kiss without the cue overstaying. Lands the turn quietly.",
-      "Outro decay holds a single sustained note for fifteen seconds, which lets the editor extend the post-coital coverage without cutting the cue artificially. Strong candidate for the morning-after callback as well.",
+      "The arrangement adds a single sustained element at the structural midpoint and withdraws it before the final section — giving the editor one clean emotional lift without the cue overstaying. Lands the turn quietly.",
+      "Outro decay holds a single sustained note, letting the editor extend quiet coverage without cutting the cue artificially. Strong candidate for a callback placement later in the episode arc as well.",
     ],
     MAYBE: [
       "Intimacy is present in the verse but the chorus opens the arrangement up to a full band at 1:12 — that scale change will pull the audience out of the proximity the scene has built. Edit out of the chorus or pull an alt mix.",
@@ -181,10 +181,10 @@ const NARRATIVE_DICTIONARY: Record<string, BriefPool> = {
   // -------------------------------------------------------------------------
   "emotional-resolution": {
     PASS: [
-      "Verse-chorus-verse arrangement maps cleanly onto a three-stage relationship montage — the editor gets a natural beat at 0:48, 1:32, and 2:16 to align with the date, the move-in, and the argument. Drives the cut without dictating it.",
-      "Warmth is in the instrumentation — Wurlitzer, brushed kit, upright bass — and the longing is in the topline melody, which keeps reaching for a resolution it doesn't quite land. Yields to dialogue on the porch beat.",
+      "Verse-chorus-verse arrangement maps cleanly onto a multi-stage relationship montage — each structural section gives the editor a natural landing beat to align with the sequence's emotional turns. Drives the cut without dictating it.",
+      "Warmth is in the instrumentation and longing is in the topline melody, which keeps reaching for a resolution it doesn't quite land. Yields to dialogue wherever the actors lead; the music waits rather than fills.",
       "Tonal palette holds across the relationship arc without modulating away from its emotional center, so the montage can compress eighteen months without the cue announcing scene changes. Clears for episodic on standard terms.",
-      "The lift at the bridge at 1:44 is the cue's emotional peak and it aligns naturally with whatever the picture wants to make the centerpiece of the sequence. Lands the turn on the apartment-key reveal.",
+      "The lift at the bridge is the cue's emotional peak and it aligns naturally with whatever the picture wants to make the centerpiece of the sequence. Gives the editor one high-value beat to weight without forcing it.",
       "Vocal entry at 0:14 establishes the emotional register early and the lyric stays general enough across the verse-chorus structure to read as either character's interiority. Strong candidate for a recurring callback in episode arc.",
       "Outro decay at 3:02 fades on a suspended chord rather than resolving — leaves the relationship in question, which is the right register for a montage that is setting up a later turn. Candidate for end-credits as well.",
     ],
@@ -744,15 +744,6 @@ export function selectNarrative(
   // Inline {tempo} substitution for phrases that reference it directly.
   const tempoStr = meta?.tempo != null ? String(Math.round(meta.tempo)) : null;
   if (tempoStr) phrase = phrase.replace(/\{tempo\}/g, tempoStr);
-
-  // Append actual librosa features as a parenthetical suffix so every phrase
-  // references the specific track rather than a hypothetical one.
-  const parts = [
-    meta?.tonalCharacter ?? null,
-    meta?.energyCharacter ?? null,
-    tempoStr != null ? `${tempoStr} BPM` : null,
-  ].filter((v): v is string => v !== null);
-  if (parts.length > 0) phrase += ` (${parts.join(', ')})`;
 
   return phrase;
 }
