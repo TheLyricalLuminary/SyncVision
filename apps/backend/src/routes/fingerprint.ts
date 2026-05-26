@@ -8,7 +8,6 @@ import { Router, Request, Response } from "express";
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
-import FormData from "form-data";
 import prisma from "../lib/prisma";
 import { enrichFromMusicBrainz } from "../lib/musicbrainz";
 import { enrichFromCreditsFm } from "../lib/creditsfm";
@@ -40,22 +39,23 @@ interface AudDResult {
 }
 
 async function queryAudD(audioPath: string, apiToken: string): Promise<AudDResult | null> {
+  // Use Node 20 native FormData + Blob — compatible with built-in fetch.
+  // The npm form-data package uses Node streams which native fetch can't pipe.
+  const fileBuffer = fs.readFileSync(audioPath);
+  const blob = new Blob([fileBuffer]);
   const form = new FormData();
   form.append("api_token", apiToken);
-  form.append("file", fs.createReadStream(audioPath));
+  form.append("file", blob, path.basename(audioPath));
   form.append("return", "musicbrainz,apple_music,spotify");
 
-  const res = await fetch(AUDD_API, {
-    method: "POST",
-    // form-data sets content-type + boundary via getHeaders()
-    headers: form.getHeaders() as Record<string, string>,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    body: form as any,
-  });
+  const res = await fetch(AUDD_API, { method: "POST", body: form });
 
   if (!res.ok) throw new Error(`AudD API ${res.status}`);
-  const body = await res.json() as { status: string; result?: AudDResult };
-  if (body.status !== "success") return null;
+  const body = await res.json() as { status: string; result?: AudDResult; error?: { error_code: number; error_message: string } };
+  if (body.status !== "success") {
+    console.warn("[fingerprint] AudD no match:", body.error?.error_message ?? body.status);
+    return null;
+  }
   return body.result ?? null;
 }
 
