@@ -615,19 +615,22 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
         {result.track.tonalCharacter && <Chip>{result.track.tonalCharacter}</Chip>}
         {delta != null && delta > 0 && (
           <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(226,232,240,0.55)', letterSpacing: '0.02em', marginLeft: 'auto' }}>
-            −{delta} pts
+            −{delta} pts separation
           </span>
         )}
         {isFirst && (
-          <span style={{ fontSize: 11, fontWeight: 600, color: C.magenta, letterSpacing: '0.02em', marginLeft: 'auto' }}>— LEADER</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: C.magenta, letterSpacing: '0.02em', marginLeft: 'auto' }}>Best fit in shortlist</span>
         )}
       </div>
 
-      {/* AI reasoning box */}
+      {/* Sync assessment box */}
       <div className="sv-reasoning" style={{ marginTop: 10, padding: '10px 12px', borderRadius: 11, background: 'linear-gradient(180deg, rgba(219,39,119,0.06), transparent)', border: '1px solid rgba(219,39,119,0.2)' }}>
-        <div style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.magenta, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" /></svg>
-          Why this track
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+          <div style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.magenta, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" /></svg>
+            Sync assessment
+          </div>
+          <span style={{ fontSize: 8, color: 'rgba(219,39,119,0.45)', letterSpacing: '0.08em' }}>deterministic · audit-stable</span>
         </div>
         <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: C.silver, letterSpacing: '-0.005em' }}>
           {result.confidenceScore.explanation}
@@ -639,7 +642,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
 
         {/* scalar score */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
-          <span style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender }}>Match score</span>
+          <span style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender }}>Fit Index</span>
           <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 22, lineHeight: 1, color: score >= 70 ? '#34D399' : score >= 55 ? C.amber : C.magenta, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em', transition: 'color 0.3s' }}>
             {score}<span style={{ fontFamily: SANS, fontStyle: 'normal', fontSize: 10, color: C.lavender, marginLeft: 2 }}>/100</span>
           </span>
@@ -649,7 +652,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
         <div style={{ display: 'flex', gap: 2, width: '100%' }}>
           {([
             { key: 'scene',  label: 'Scene',  sub: 'fit',     weight: 0.45, value: localVector.scene,  actionable: false },
-            { key: 'rights', label: 'Rights', sub: 'clarity', weight: 0.25, value: localVector.rights, actionable: true  },
+            { key: 'rights', label: 'Rights', sub: 'exposure', weight: 0.25, value: localVector.rights, actionable: true  },
             { key: 'lyrics', label: 'Lyrics', sub: 'fit',     weight: 0.25, value: localVector.lyrics, actionable: false, pending: !localRightsProfile },
             { key: 'signal', label: 'Signal', sub: 'quality', weight: 0.05, value: localVector.signal, actionable: false },
           ] as { key: string; label: string; sub: string; weight: number; value: number; actionable: boolean; pending?: boolean }[]).map((axis, _i, arr) => {
@@ -705,6 +708,11 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
           <span style={{ fontSize: 8, color: 'rgba(167,139,250,0.35)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
             bar width = weight · bar fill = axis value
           </span>
+        </div>
+
+        {/* epistemic line */}
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.hairline}`, fontSize: 9, color: 'rgba(167,139,250,0.45)', letterSpacing: '0.06em', lineHeight: 1.5 }}>
+          Surfaces what you need to decide, faster — does not decide for you.
         </div>
       </div>
 
