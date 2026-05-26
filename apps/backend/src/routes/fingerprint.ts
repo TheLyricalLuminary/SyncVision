@@ -110,11 +110,16 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     }
 
     // ── AcoustID lookup ──────────────────────────────────────────
-    const results = await queryAcoustID(
-      fpcalcResult.fingerprint,
-      fpcalcResult.duration,
-      ACOUSTID_APP_ID,
-    );
+    let results: AcoustIDResult[] = [];
+    try {
+      results = await queryAcoustID(
+        fpcalcResult.fingerprint,
+        fpcalcResult.duration,
+        ACOUSTID_APP_ID,
+      );
+    } catch (e) {
+      console.warn("[fingerprint] AcoustID lookup failed:", e instanceof Error ? e.message : e);
+    }
 
     const top = results[0] ?? null;
     const score = top?.score ?? 0;
