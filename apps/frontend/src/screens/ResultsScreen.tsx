@@ -58,8 +58,22 @@ function formatTime(s: number): string {
   return `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
 }
 
-function stripArtist(title: string) {
-  return title.includes(' - ') ? title.slice(title.indexOf(' - ') + 3) : title;
+function cleanTrackTitle(raw: string): string {
+  let t = raw;
+  // strip leading UUID-style prefix (e.g. "a1b2c3d4_")
+  t = t.replace(/^[0-9a-f]{6,}_/i, '');
+  // replace underscores with spaces
+  t = t.replace(/_/g, ' ');
+  // strip common file-noise suffixes
+  t = t.replace(/\.(mp3|wav|flac|aiff?)$/i, '');
+  t = t.replace(/\b(Official\s+Video|Official\s+Audio|Lyric\s+Video|HD|HQ|4K|Audio|Video|background\s+vocals?\s*\d*)\b/gi, '');
+  // strip trailing numbers/noise left by watermarking tools
+  t = t.replace(/\s+\d{1,3}\s*$/, '');
+  // collapse multiple spaces
+  t = t.replace(/\s{2,}/g, ' ').trim();
+  // strip "Artist - " prefix
+  if (t.includes(' - ')) t = t.slice(t.indexOf(' - ') + 3).trim();
+  return t || raw;
 }
 
 // ── sub-components ─────────────────────────────────────────────
@@ -531,7 +545,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
   const rights = rightsDisplayFor(localRightsProfile);
   const score = liveScore;
   const delta = isFirst ? null : topScore - score;
-  const title = stripArtist(result.track.title);
+  const title = cleanTrackTitle(result.track.title);
   const timeLabel = duration > 0 ? `${formatTime(currentTime)} / ${formatTime(duration)}` : formatTime(currentTime);
 
   useEffect(() => {
@@ -803,8 +817,20 @@ type ResultsScreenProps = {
   onBack?: () => void;
 };
 
+function useWindowWidth() {
+  const [w, setW] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1024);
+  useEffect(() => {
+    const handler = () => setW(window.innerWidth);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return w;
+}
+
 export function ResultsScreen({ briefText, briefId, sceneParams, results, readOnly, onBack }: ResultsScreenProps) {
   const [toast, setToast] = useState<string | null>(null);
+  const windowWidth = useWindowWidth();
+  const isDesktop = windowWidth >= 768;
 
   const onExportPdf = () => {
     try { window.print(); } catch (e) { setToast(e instanceof Error ? e.message : 'Print failed.'); }
@@ -826,7 +852,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
 
   return (
     <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: BG }}>
-      <div style={{ maxWidth: 520, margin: '0 auto', padding: '0 20px 48px' }}>
+      <div style={{ maxWidth: isDesktop ? 720 : 520, margin: '0 auto', padding: isDesktop ? '0 40px 48px' : '0 20px 48px' }}>
 
         {/* ── sticky header ── */}
         <div style={{ position: 'sticky', top: 0, zIndex: 20, padding: '12px 0 10px', background: 'rgba(15,8,35,0.85)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${C.hairline}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0 }}>

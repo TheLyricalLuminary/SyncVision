@@ -125,6 +125,8 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
     initialSceneParams?.sceneLengthSec != null ? String(initialSceneParams.sceneLengthSec) : '',
   );
   const [detectedBriefId, setDetectedBriefId] = useState<BriefId | null>(null);
+  const [manualBriefId, setManualBriefId] = useState<BriefId | null>(null);
+  const [showBriefPicker, setShowBriefPicker] = useState(false);
   const [exampleIdx, setExampleIdx] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -141,7 +143,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
 
   const handleSubmit = () => {
     if (!canContinue) return;
-    const briefId = classifyBrief(briefText) ?? 'montage-transition';
+    const briefId = manualBriefId ?? classifyBrief(briefText) ?? 'montage-transition';
     const parsedLen = sceneLengthSec.trim() ? Number(sceneLengthSec) : null;
     onContinue({
       briefText: briefText.trim(),
@@ -209,8 +211,34 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                 }}
               />
               {wordCount > 0 && (
-                <div style={{ marginTop: 6, fontSize: 10, letterSpacing: '0.06em', color: C.lavender, display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{wordCount} word{wordCount === 1 ? '' : 's'}{detectedBriefId ? ` · ${BRIEF_LABELS[detectedBriefId]}` : ''}</span>
+                <div style={{ marginTop: 6, fontSize: 10, letterSpacing: '0.06em', color: C.lavender, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {wordCount} word{wordCount === 1 ? '' : 's'}
+                      {(manualBriefId ?? detectedBriefId) && (
+                        <span
+                          onClick={() => setShowBriefPicker(v => !v)}
+                          style={{ cursor: 'pointer', background: 'rgba(124,58,237,0.15)', border: `1px solid rgba(124,58,237,0.3)`, borderRadius: 999, padding: '1px 8px', color: C.lavender, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', userSelect: 'none' }}
+                          title="Click to change scene type"
+                        >
+                          {BRIEF_LABELS[manualBriefId ?? detectedBriefId!]} ✎
+                        </span>
+                      )}
+                    </span>
+                    {showBriefPicker && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+                        {(Object.entries(BRIEF_LABELS) as [BriefId, string][]).map(([id, label]) => (
+                          <span
+                            key={id}
+                            onClick={() => { setManualBriefId(id); setShowBriefPicker(false); }}
+                            style={{ cursor: 'pointer', padding: '2px 8px', borderRadius: 999, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', border: `1px solid ${(manualBriefId ?? detectedBriefId) === id ? C.lavender : C.hairline}`, color: (manualBriefId ?? detectedBriefId) === id ? C.silver : C.lavender, background: (manualBriefId ?? detectedBriefId) === id ? 'rgba(124,58,237,0.2)' : 'transparent', userSelect: 'none' }}
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <input
                       type="number"
