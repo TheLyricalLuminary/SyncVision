@@ -344,6 +344,22 @@ function RightsPipelineView({
 
       {fpError && <div style={{ marginTop: 8, fontSize: 10, color: C.magenta }}>{fpError}</div>}
 
+      {/* Open items — chips for stages not yet complete */}
+      {stages.filter(s => !s.done).length > 0 && (
+        <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+          <span style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, opacity: 0.6, flexShrink: 0 }}>Open:</span>
+          {stages.filter(s => !s.done).map(s => (
+            <span key={s.label} style={{
+              fontSize: 9, padding: '3px 8px', borderRadius: 999,
+              background: s.warn ? 'rgba(219,39,119,0.10)' : 'rgba(167,139,250,0.08)',
+              border: `1px solid ${s.warn ? 'rgba(219,39,119,0.25)' : C.hairline}`,
+              color: s.warn ? C.magenta : 'rgba(226,232,240,0.5)',
+              letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap',
+            }}>{s.label}</span>
+          ))}
+        </div>
+      )}
+
       {/* actions */}
       <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
         <button type="button" onClick={() => onOpenIntake()} style={{ flex: 1, padding: '7px 0', borderRadius: 7, border: `1px solid ${C.hairlineStrong}`, background: 'transparent', color: C.lavender, fontFamily: SANS, fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em' }}>
@@ -379,6 +395,7 @@ type RightsSaveResult = {
   masterOwnedBy: string | null;
   publisherName: string | null;
   writerName: string | null;
+  workId: string | null;
   syncLicenseStatus: string | null;
   syncLicensedBy: string | null;
   lyricLicenseStatus: string | null;
@@ -399,12 +416,12 @@ function RightsPanel({
   const [writer, setWriter]           = useState(autoFill?.writerName ?? existing?.writerName ?? '');
   const [publisher, setPublisher]     = useState(autoFill?.publisherName ?? existing?.publisherName ?? '');
   const [pro, setPro]                 = useState(autoFill?.proAffiliation ?? existing?.proAffiliation ?? '');
-  const [workId, setWorkId]           = useState('');
+  const [workId, setWorkId]           = useState(existing?.workId ?? '');
   const [oneStop, setOneStop]         = useState(existing?.isOneStop ?? false);
-  const [syncLicense, setSyncLicense] = useState('');
-  const [syncBy, setSyncBy]           = useState('');
-  const [lyricLicense, setLyricLicense] = useState('');
-  const [lyricBy, setLyricBy]         = useState('');
+  const [syncLicense, setSyncLicense] = useState(existing?.syncLicenseStatus ?? '');
+  const [syncBy, setSyncBy]           = useState(existing?.syncLicensedBy ?? '');
+  const [lyricLicense, setLyricLicense] = useState(existing?.lyricLicenseStatus ?? '');
+  const [lyricBy, setLyricBy]         = useState(existing?.lyricLicensedBy ?? '');
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState<string | null>(null);
 
@@ -808,6 +825,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
               masterOwnedBy: saved.masterOwnedBy,
               publisherName: saved.publisherName,
               writerName: saved.writerName,
+              workId: saved.workId,
               blockers: saved.blockers,
               rightsState: saved.rightsState,
               syncLicenseStatus: saved.syncLicenseStatus,

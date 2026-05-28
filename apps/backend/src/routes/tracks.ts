@@ -516,6 +516,7 @@ router.patch("/tracks/:id/rights", async (req: Request, res: Response) => {
       masterOwnedBy:      rp.masterOwnedBy,
       publisherName:      rp.publisherName,
       writerName:         rp.writerName,
+      workId:             rp.ascapWorkId ?? (rp as Record<string, unknown>).workId as string ?? null,
       syncLicenseStatus:  rp.syncLicenseStatus,
       syncLicensedBy:     rp.syncLicensedBy,
       lyricLicenseStatus: rp.lyricLicenseStatus,
