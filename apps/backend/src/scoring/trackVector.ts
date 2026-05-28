@@ -75,8 +75,12 @@ export function buildSceneAxis(
 }
 
 // Rights axis:
-//   Starts at 1.0 (fully cleared). Subtract risk components.
-//   Designed so that each resolved blocker moves the axis upward.
+//   Clearance score 0–100 maps to a base contribution of 0.30–1.00.
+//   The 0.30 floor ensures "no rights data entered yet" reads as
+//   uncertain (~0.30), not blocked (0). Absence ≠ confirmed risk.
+//   Each resolved blocker moves the axis upward toward 1.0.
+//   Small residual penalties for missing ISRC / unverified identity
+//   are intentionally kept minor — they flag open questions, not problems.
 export interface RightsInputs {
   clearanceScore: number;       // 0–100 from computeClearance()
   hasIsrc: boolean;             // ISRC present and non-synthetic
@@ -84,16 +88,20 @@ export interface RightsInputs {
 }
 
 export function buildRightsAxis(inputs: RightsInputs): number {
-  const clearanceRisk       = 1 - clamp(inputs.clearanceScore / 100, 0, 1);
-  const metadataUncertainty = inputs.hasIsrc ? 0 : 0.08;
+  // Map clearance 0→100 to 0.30→1.00 so unverified tracks start in
+  // "uncertain" territory rather than bottoming out at 0.
+  const clearanceContrib = 0.30 + clamp(inputs.clearanceScore / 100, 0, 1) * 0.70;
+
+  // Residual uncertainty — small by design.
+  const metadataUncertainty = inputs.hasIsrc ? 0 : 0.04;
   const identityUncertainty =
-    inputs.acoustidScore === null ? 0.04 :  // not yet checked — small residual
-    inputs.acoustidScore >= 0.9  ? 0 :      // high confidence
-    inputs.acoustidScore >= 0.7  ? 0.02 :   // medium confidence
-                                    0.06;   // low confidence / no match
+    inputs.acoustidScore === null ? 0.02 :  // not yet checked — tiny residual
+    inputs.acoustidScore >= 0.9  ? 0 :      // confirmed match
+    inputs.acoustidScore >= 0.7  ? 0.02 :   // probable match
+                                    0.05;   // weak / no match
 
   return clamp(
-    1 - clearanceRisk - metadataUncertainty - identityUncertainty,
+    clearanceContrib - metadataUncertainty - identityUncertainty,
     0, 1,
   );
 }
