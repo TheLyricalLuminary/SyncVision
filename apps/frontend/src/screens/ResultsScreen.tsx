@@ -108,6 +108,8 @@ interface AutoFill {
   proAffiliation: string | null;
   enrichmentSources?: string[];
   territory?: string | null;
+  workId?: string | null;
+  genreTags?: string[];
   sources: {
     isrc: string | null;
     writer: string | null;
@@ -249,77 +251,91 @@ function RightsPipelineView({
       )}
 
       {/* autoFill resolved fields summary */}
-      {fpResult?.autoFill && (fpResult.autoFill.writerName || fpResult.autoFill.publisherName || fpResult.autoFill.isrc) && (
+      {fpResult?.autoFill && (
         <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)' }}>
           {/* Source attribution header */}
-          <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#34D399', fontWeight: 700, marginBottom: 6 }}>
+          <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#34D399', fontWeight: 700, marginBottom: 8 }}>
             {fpResult.autoFill.enrichmentSources && fpResult.autoFill.enrichmentSources.length > 0
               ? `✓ auto-filled from ${fpResult.autoFill.enrichmentSources.join(' + ')}`
-              : 'Fields resolved — opening intake form'}
+              : 'No external data found'}
           </div>
 
-          {/* Field status list */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+          {/* Auto-fillable field checklist */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
+            <div style={{ fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.lavender, marginBottom: 2, opacity: 0.7 }}>Auto-fillable</div>
             <div style={{ fontSize: 11, color: fpResult.autoFill.isrc ? '#34D399' : C.amber }}>
-              {fpResult.autoFill.isrc ? `✅ ISRC` : '⚠️ ISRC — enter manually'}
+              {fpResult.autoFill.isrc ? '✅ ISRC' : '⚠️ ISRC — enter manually'}
+            </div>
+            <div style={{ fontSize: 11, color: fpResult.autoFill.writerName ? '#34D399' : C.amber }}>
+              {fpResult.autoFill.writerName ? '✅ Writer' : '⚠️ Writer — enter manually'}
             </div>
             <div style={{ fontSize: 11, color: fpResult.autoFill.publisherName ? '#34D399' : C.amber }}>
-              {fpResult.autoFill.publisherName ? `✅ Publisher` : '⚠️ Publisher — enter manually'}
+              {fpResult.autoFill.publisherName ? '✅ Publisher' : '⚠️ Publisher — enter manually'}
+            </div>
+            <div style={{ fontSize: 11, color: fpResult.autoFill.proAffiliation ? '#34D399' : C.amber }}>
+              {fpResult.autoFill.proAffiliation ? `✅ PRO Affiliation — ${fpResult.autoFill.proAffiliation}` : '⚠️ PRO Affiliation — enter manually'}
+            </div>
+            <div style={{ fontSize: 11, color: fpResult.autoFill.workId ? '#34D399' : C.amber }}>
+              {fpResult.autoFill.workId ? `✅ Work ID — ${fpResult.autoFill.workId}` : '⚠️ Work ID — enter manually'}
             </div>
             <div style={{ fontSize: 11, color: fpResult.autoFill.territory ? '#34D399' : C.amber }}>
-              {fpResult.autoFill.territory ? `✅ Territory` : '⚠️ Territory — unknown'}
+              {fpResult.autoFill.territory ? `✅ Territory — ${fpResult.autoFill.territory}` : '⚠️ Territory — unknown'}
             </div>
-            <div style={{ fontSize: 11, color: C.amber }}>⚠️ PRO Affiliation — enter manually</div>
-            <div style={{ fontSize: 11, color: C.amber }}>⚠️ One-stop license — self-reported</div>
-            <div style={{ fontSize: 11, color: C.amber }}>⚠️ Work ID — requires PRO login</div>
           </div>
 
-          {/* Resolved field values */}
-          {fpResult.autoFill.writerName && (
-            <div style={{ fontSize: 11, color: C.silver, marginBottom: 2, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 4 }}>
-              <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Writer: </span>
-              {fpResult.autoFill.writerName}
-              {fpResult.autoFill.sources.writer && (
-                <span style={{ color: 'rgba(167,139,250,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.writer}</span>
-              )}
-            </div>
-          )}
-          {fpResult.autoFill.publisherName && (
-            <div style={{ fontSize: 11, color: C.silver, marginBottom: 2 }}>
-              <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Publisher: </span>
-              {fpResult.autoFill.publisherName}
-              {fpResult.autoFill.sources.publisher && (
-                <span style={{ color: 'rgba(167,139,250,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.publisher}</span>
-              )}
-            </div>
-          )}
-          {fpResult.autoFill.isrc && (
-            <div style={{ fontSize: 11, color: C.silver, marginBottom: 2 }}>
-              <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>ISRC: </span>
-              {fpResult.autoFill.isrc}
-            </div>
-          )}
-          {fpResult.autoFill.proAffiliation && (
-            <div style={{ fontSize: 11, color: C.silver }}>
-              <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>PRO: </span>
-              {fpResult.autoFill.proAffiliation}
-            </div>
-          )}
-          {fpResult.autoFill.lyricsLinkage && (
-            <div style={{ fontSize: 11, color: C.silver, marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Lyrics: </span>
-              {fpResult.autoFill.lyricsLinkage.hasLyrics ? (
-                <>
-                  {fpResult.autoFill.lyricsLinkage.explicit && (
-                    <span style={{ background: C.amberSoft, color: C.amber, fontSize: 9, padding: '1px 5px', borderRadius: 4, marginRight: 5, fontWeight: 700 }}>EXPLICIT</span>
+          {/* Permanent manual-entry fields */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.lavender, marginBottom: 2, opacity: 0.7 }}>Always manual</div>
+            <div style={{ fontSize: 11, color: C.amber }}>⚠️ One-stop license — self-reported</div>
+            <div style={{ fontSize: 11, color: C.amber }}>⚠️ Master ownership % — self-reported</div>
+            <div style={{ fontSize: 11, color: C.amber }}>⚠️ Sync license status — negotiated privately</div>
+            <div style={{ fontSize: 11, color: C.amber }}>⚠️ Lyric license status — negotiated privately</div>
+          </div>
+
+          {/* Resolved field values detail */}
+          {(fpResult.autoFill.writerName || fpResult.autoFill.publisherName || fpResult.autoFill.isrc || fpResult.autoFill.lyricsLinkage) && (
+            <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {fpResult.autoFill.writerName && (
+                <div style={{ fontSize: 11, color: C.silver }}>
+                  <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Writer: </span>
+                  {fpResult.autoFill.writerName}
+                  {fpResult.autoFill.sources.writer && (
+                    <span style={{ color: 'rgba(167,139,250,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.writer}</span>
                   )}
-                  {fpResult.autoFill.lyricsLinkage.url
-                    ? <a href={fpResult.autoFill.lyricsLinkage.url} target="_blank" rel="noreferrer" style={{ color: '#34D399', textDecoration: 'none' }}>available via musixmatch ↗</a>
-                    : <span style={{ color: '#34D399' }}>available</span>
-                  }
-                </>
-              ) : (
-                <span style={{ color: 'rgba(226,232,240,0.4)' }}>not found in registry</span>
+                </div>
+              )}
+              {fpResult.autoFill.publisherName && (
+                <div style={{ fontSize: 11, color: C.silver }}>
+                  <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Publisher: </span>
+                  {fpResult.autoFill.publisherName}
+                  {fpResult.autoFill.sources.publisher && (
+                    <span style={{ color: 'rgba(167,139,250,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.publisher}</span>
+                  )}
+                </div>
+              )}
+              {fpResult.autoFill.isrc && (
+                <div style={{ fontSize: 11, color: C.silver }}>
+                  <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>ISRC: </span>
+                  {fpResult.autoFill.isrc}
+                </div>
+              )}
+              {fpResult.autoFill.lyricsLinkage && (
+                <div style={{ fontSize: 11, color: C.silver, marginTop: 2 }}>
+                  <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Lyrics: </span>
+                  {fpResult.autoFill.lyricsLinkage.hasLyrics ? (
+                    <>
+                      {fpResult.autoFill.lyricsLinkage.explicit && (
+                        <span style={{ background: C.amberSoft, color: C.amber, fontSize: 9, padding: '1px 5px', borderRadius: 4, marginRight: 5, fontWeight: 700 }}>EXPLICIT</span>
+                      )}
+                      {fpResult.autoFill.lyricsLinkage.url
+                        ? <a href={fpResult.autoFill.lyricsLinkage.url} target="_blank" rel="noreferrer" style={{ color: '#34D399', textDecoration: 'none' }}>available via musixmatch ↗</a>
+                        : <span style={{ color: '#34D399' }}>available</span>
+                      }
+                    </>
+                  ) : (
+                    <span style={{ color: 'rgba(226,232,240,0.4)' }}>not found in registry</span>
+                  )}
+                </div>
               )}
             </div>
           )}

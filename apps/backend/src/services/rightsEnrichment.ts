@@ -1,16 +1,17 @@
 /**
  * Rights Enrichment Pipeline
  *
- * Fires parallel lookups against MusicBrainz, Discogs, iTunes, and Last.fm,
- * merges results with priority rules, persists the merged data, and
- * re-runs the rights state machine.
+ * Fires parallel lookups against MusicBrainz, Discogs, iTunes, Last.fm,
+ * TheAudioDB, Deezer, Genius, ASCAP, BMI, and SESAC.
  *
- * All source failures are soft — the pipeline continues if one or more
- * sources are unavailable. Returns null only when ALL sources fail.
+ * All source failures are soft — the pipeline never throws. Returns null
+ * only when ALL sources fail. ASCAP/BMI/SESAC are HTTP-only scrapes with
+ * cheerio; if the site is JS-rendered they return null silently.
  */
 
 import prisma from "../lib/prisma";
 import { computeRightsState } from "../scoring/rightsStateMachine";
+import * as cheerio from "cheerio";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,10 @@ interface EnrichmentResult {
   publisherName?: string | null;
   territory?: string | null;
   explicitFlag?: boolean | null;
+  proAffiliation?: string | null;
+  workId?: string | null;
+  genreTags?: string[];
+  popularityScore?: number | null;
   enrichmentSources: string[];
 }
 
@@ -39,11 +44,41 @@ interface ItunesResult {
   explicitFlag?: boolean | null;
 }
 
+interface LastfmResult {
+  tags: string[];
+  listeners?: string | null;
+}
+
+interface TheAudioDbResult {
+  label?: string | null;
+  genre?: string | null;
+  mbId?: string | null;
+}
+
+interface DeezerResult {
+  label?: string | null;
+  explicitFlag?: boolean | null;
+}
+
+interface GeniusResult {
+  artistName?: string | null;
+}
+
+interface ProResult {
+  found: boolean;
+  writer?: string | null;
+  publisher?: string | null;
+  workId?: string | null;
+  proAffiliation?: string | null;
+}
+
 // ─── Timeout helper ───────────────────────────────────────────────────────────
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), ms);
   return Promise.race([
-    promise,
+    promise.finally(() => clearTimeout(id)),
     new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
     ),
@@ -82,7 +117,6 @@ async function fetchMusicBrainz(isrc: string): Promise<MusicBrainzResult> {
 async function fetchDiscogs(title: string, artist: string): Promise<DiscogsResult> {
   const token = process.env.DISCOGS_TOKEN;
   if (!token) {
-    console.warn("[enrichment] DISCOGS_TOKEN not set — skipping Discogs lookup");
     throw new Error("DISCOGS_TOKEN not configured");
   }
 
@@ -113,9 +147,7 @@ async function fetchDiscogs(title: string, artist: string): Promise<DiscogsResul
 async function fetchItunes(title: string, artist: string): Promise<ItunesResult> {
   const term = encodeURIComponent(`${title} ${artist}`);
   const url = `https://itunes.apple.com/search?term=${term}&media=music&limit=5`;
-  const res = await fetch(url, {
-    headers: { Accept: "application/json" },
-  });
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error(`iTunes HTTP ${res.status}`);
   const data = (await res.json()) as Record<string, unknown>;
 
@@ -133,10 +165,9 @@ async function fetchItunes(title: string, artist: string): Promise<ItunesResult>
 
 // ─── Source: Last.fm ─────────────────────────────────────────────────────────
 
-async function fetchLastfm(title: string, artist: string): Promise<{ tags: string[] }> {
+async function fetchLastfm(title: string, artist: string): Promise<LastfmResult> {
   const apiKey = process.env.LASTFM_API_KEY;
   if (!apiKey) {
-    console.warn("[enrichment] LASTFM_API_KEY not set — skipping Last.fm lookup");
     throw new Error("LASTFM_API_KEY not configured");
   }
 
@@ -156,8 +187,124 @@ async function fetchLastfm(title: string, artist: string): Promise<{ tags: strin
   const toptags = track?.["toptags"] as Record<string, unknown> | undefined;
   const tagList = toptags?.["tag"] as Array<{ name: string }> | undefined;
   const tags = tagList?.map((t) => t.name).filter(Boolean) ?? [];
+  const listeners = (track?.["listeners"] as string | undefined) ?? null;
 
-  return { tags };
+  return { tags, listeners };
+}
+
+// ─── Source: TheAudioDB ───────────────────────────────────────────────────────
+
+async function fetchTheAudioDb(title: string, artist: string): Promise<TheAudioDbResult> {
+  const url = `https://theaudiodb.com/api/v1/json/2/searchtrack.php?s=${encodeURIComponent(artist)}&t=${encodeURIComponent(title)}`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`TheAudioDB HTTP ${res.status}`);
+  const data = (await res.json()) as Record<string, unknown>;
+
+  const tracks = data["track"] as Array<Record<string, unknown>> | null;
+  if (!tracks || tracks.length === 0) return {};
+
+  const first = tracks[0];
+  return {
+    label: (first["strLabel"] as string | undefined) ?? null,
+    genre: (first["strGenre"] as string | undefined) ?? null,
+    mbId: (first["strMusicBrainzID"] as string | undefined) ?? null,
+  };
+}
+
+// ─── Source: Deezer ───────────────────────────────────────────────────────────
+
+async function fetchDeezer(title: string, artist: string): Promise<DeezerResult> {
+  const q = `track:"${title}" artist:"${artist}"`;
+  const url = `https://api.deezer.com/search?q=${encodeURIComponent(q)}&limit=5`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`Deezer HTTP ${res.status}`);
+  const data = (await res.json()) as Record<string, unknown>;
+
+  const results = data["data"] as Array<Record<string, unknown>> | undefined;
+  if (!results || results.length === 0) return {};
+
+  const first = results[0];
+  const album = first["album"] as Record<string, unknown> | undefined;
+  const label = (album?.["label"] as string | undefined) ?? null;
+  const explicitFlag = first["explicit_lyrics"] === true ? true : first["explicit_lyrics"] === false ? false : null;
+
+  return { label, explicitFlag };
+}
+
+// ─── Source: Genius ───────────────────────────────────────────────────────────
+
+async function fetchGenius(title: string, artist: string): Promise<GeniusResult> {
+  const token = process.env.GENIUS_ACCESS_TOKEN;
+  if (!token) {
+    throw new Error("GENIUS_ACCESS_TOKEN not configured");
+  }
+
+  const q = `${title} ${artist}`;
+  const url = `https://api.genius.com/search?q=${encodeURIComponent(q)}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) throw new Error(`Genius HTTP ${res.status}`);
+  const data = (await res.json()) as Record<string, unknown>;
+
+  const response = data["response"] as Record<string, unknown> | undefined;
+  const hits = response?.["hits"] as Array<Record<string, unknown>> | undefined;
+  if (!hits || hits.length === 0) return {};
+
+  const firstHit = hits[0];
+  const result = firstHit["result"] as Record<string, unknown> | undefined;
+  const primaryArtist = result?.["primary_artist"] as Record<string, unknown> | undefined;
+  const artistName = (primaryArtist?.["name"] as string | undefined) ?? null;
+
+  return { artistName };
+}
+
+// ─── Source: ASCAP (HTTP scrape, may return null if JS-rendered) ──────────────
+
+async function fetchAscap(title: string): Promise<ProResult> {
+  const url = `https://www.ascap.com/repertory#ace/search/workID/${encodeURIComponent(title)}`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (compatible; SyncVision/1.0)",
+      Accept: "text/html",
+    },
+  });
+  if (!res.ok) throw new Error(`ASCAP HTTP ${res.status}`);
+  const html = await res.text();
+  const $ = cheerio.load(html);
+
+  // If there's no real result table, the site is JS-rendered
+  const rows = $("table tr, .search-result").length;
+  if (rows === 0) {
+    console.log("[enrichment] ASCAP: no data (JS-rendered, skipped)");
+    return { found: false };
+  }
+
+  // Try to extract data if present
+  const workId = $("[data-work-id]").first().attr("data-work-id") ?? null;
+  const writer = $(".writer-name").first().text().trim() || null;
+  const publisher = $(".publisher-name").first().text().trim() || null;
+
+  return { found: Boolean(workId || writer), workId, writer, publisher, proAffiliation: "ASCAP" };
+}
+
+// ─── Source: BMI (HTTP scrape, stub — JS-rendered) ───────────────────────────
+
+async function fetchBmi(_title: string, _artist: string): Promise<ProResult> {
+  // BMI repertoire requires JS rendering — HTTP-only returns an empty shell
+  console.log("[enrichment] BMI: no data (JS-rendered, skipped)");
+  return { found: false };
+}
+
+// ─── Source: SESAC (HTTP scrape, stub — JS-rendered) ─────────────────────────
+
+async function fetchSesac(_title: string, _artist: string): Promise<ProResult> {
+  // SESAC repertoire requires JS rendering — HTTP-only returns an empty shell
+  console.log("[enrichment] SESAC: no data (JS-rendered, skipped)");
+  return { found: false };
 }
 
 // ─── Main enrichment function ─────────────────────────────────────────────────
@@ -168,77 +315,169 @@ export async function enrichRightsProfile(
   artist: string,
   isrc: string | null
 ): Promise<Record<string, unknown> | null> {
-  const TIMEOUT_MS = 5000;
+  const API_TIMEOUT_MS = 5000;
+  const SCRAPER_TIMEOUT_MS = 8000;
 
   // Fetch existing rights profile for merge fallbacks
   const existing = await prisma.rightsProfile.findUnique({ where: { trackId } });
 
   // Fire all lookups in parallel, each with a timeout
-  const [mbSettled, discogsSettled, itunesSettled, lastfmSettled] = await Promise.allSettled([
+  const [
+    mbSettled,
+    discogsSettled,
+    itunesSettled,
+    lastfmSettled,
+    theaudiodbSettled,
+    deezerSettled,
+    geniusSettled,
+    ascapSettled,
+    bmiSettled,
+    sesacSettled,
+  ] = await Promise.allSettled([
     isrc
-      ? withTimeout(fetchMusicBrainz(isrc), TIMEOUT_MS)
+      ? withTimeout(fetchMusicBrainz(isrc), API_TIMEOUT_MS)
       : Promise.reject(new Error("No ISRC for MusicBrainz lookup")),
-    withTimeout(fetchDiscogs(title, artist), TIMEOUT_MS),
-    withTimeout(fetchItunes(title, artist), TIMEOUT_MS),
-    withTimeout(fetchLastfm(title, artist), TIMEOUT_MS),
+    withTimeout(fetchDiscogs(title, artist), API_TIMEOUT_MS),
+    withTimeout(fetchItunes(title, artist), API_TIMEOUT_MS),
+    withTimeout(fetchLastfm(title, artist), API_TIMEOUT_MS),
+    withTimeout(fetchTheAudioDb(title, artist), API_TIMEOUT_MS),
+    withTimeout(fetchDeezer(title, artist), API_TIMEOUT_MS),
+    withTimeout(fetchGenius(title, artist), API_TIMEOUT_MS),
+    withTimeout(fetchAscap(title), SCRAPER_TIMEOUT_MS),
+    withTimeout(fetchBmi(title, artist), SCRAPER_TIMEOUT_MS),
+    withTimeout(fetchSesac(title, artist), SCRAPER_TIMEOUT_MS),
   ]);
 
   // Log individual failures (soft errors)
-  if (mbSettled.status === "rejected") {
-    console.warn("[enrichment] MusicBrainz failed:", mbSettled.reason instanceof Error ? mbSettled.reason.message : mbSettled.reason);
-  }
-  if (discogsSettled.status === "rejected") {
-    console.warn("[enrichment] Discogs failed:", discogsSettled.reason instanceof Error ? discogsSettled.reason.message : discogsSettled.reason);
-  }
-  if (itunesSettled.status === "rejected") {
-    console.warn("[enrichment] iTunes failed:", itunesSettled.reason instanceof Error ? itunesSettled.reason.message : itunesSettled.reason);
-  }
-  if (lastfmSettled.status === "rejected") {
-    console.warn("[enrichment] Last.fm failed:", lastfmSettled.reason instanceof Error ? lastfmSettled.reason.message : lastfmSettled.reason);
-  }
+  const logIfFailed = (name: string, settled: PromiseSettledResult<unknown>) => {
+    if (settled.status === "rejected") {
+      const msg = settled.reason instanceof Error ? settled.reason.message : String(settled.reason);
+      // Suppress expected config-missing warnings at warn level
+      if (!msg.includes("not configured")) {
+        console.warn(`[enrichment] ${name} failed:`, msg);
+      } else {
+        console.log(`[enrichment] ${name}: skipped (${msg})`);
+      }
+    }
+  };
 
-  // If all failed, bail out — leave existing data unchanged
-  const allFailed =
-    mbSettled.status === "rejected" &&
-    discogsSettled.status === "rejected" &&
-    itunesSettled.status === "rejected" &&
-    lastfmSettled.status === "rejected";
+  logIfFailed("MusicBrainz", mbSettled);
+  logIfFailed("Discogs", discogsSettled);
+  logIfFailed("iTunes", itunesSettled);
+  logIfFailed("Last.fm", lastfmSettled);
+  logIfFailed("TheAudioDB", theaudiodbSettled);
+  logIfFailed("Deezer", deezerSettled);
+  logIfFailed("Genius", geniusSettled);
+  logIfFailed("ASCAP", ascapSettled);
+  logIfFailed("BMI", bmiSettled);
+  logIfFailed("SESAC", sesacSettled);
+
+  const mb           = mbSettled.status           === "fulfilled" ? mbSettled.value           : null;
+  const discogs      = discogsSettled.status       === "fulfilled" ? discogsSettled.value       : null;
+  const itunes       = itunesSettled.status        === "fulfilled" ? itunesSettled.value        : null;
+  const lastfm       = lastfmSettled.status        === "fulfilled" ? lastfmSettled.value        : null;
+  const theaudiodb   = theaudiodbSettled.status    === "fulfilled" ? theaudiodbSettled.value    : null;
+  const deezer       = deezerSettled.status        === "fulfilled" ? deezerSettled.value        : null;
+  // genius is resolved but we only use it for writerName hint
+  const genius       = geniusSettled.status        === "fulfilled" ? geniusSettled.value        : null;
+  const ascap        = ascapSettled.status         === "fulfilled" ? ascapSettled.value         : null;
+  const bmi          = bmiSettled.status           === "fulfilled" ? bmiSettled.value           : null;
+  const sesac        = sesacSettled.status         === "fulfilled" ? sesacSettled.value         : null;
+
+  // Check if all sources failed
+  const allFailed = [
+    mbSettled, discogsSettled, itunesSettled, lastfmSettled,
+    theaudiodbSettled, deezerSettled, geniusSettled,
+    ascapSettled, bmiSettled, sesacSettled,
+  ].every(s => s.status === "rejected");
 
   if (allFailed) {
-    console.warn(`[enrichment] All sources failed for trackId=${trackId} — leaving data unchanged`);
+    console.warn(`[enrichment] All sources failed for trackId=${trackId} — marking status=failed`);
+    await prisma.rightsProfile.upsert({
+      where: { trackId },
+      create: { trackId, enrichmentStatus: "failed", enrichmentSources: [] },
+      update: { enrichmentStatus: "failed" },
+    });
     return null;
   }
 
-  const mb = mbSettled.status === "fulfilled" ? mbSettled.value : null;
-  const discogs = discogsSettled.status === "fulfilled" ? discogsSettled.value : null;
-  const itunes = itunesSettled.status === "fulfilled" ? itunesSettled.value : null;
-
   // Track which sources returned usable data
   const sources: string[] = [];
-  if (mb && (mb.isrc || mb.writerName)) sources.push("MusicBrainz");
-  if (discogs && (discogs.publisherName || discogs.territory)) sources.push("Discogs");
-  if (itunes && (itunes.publisherName || itunes.territory || itunes.explicitFlag != null)) sources.push("iTunes");
-  if (lastfmSettled.status === "fulfilled" && lastfmSettled.value.tags.length > 0) sources.push("Last.fm");
+  if (mb && (mb.isrc || mb.writerName))                                                      sources.push("MusicBrainz");
+  if (discogs && (discogs.publisherName || discogs.territory))                               sources.push("Discogs");
+  if (itunes && (itunes.publisherName || itunes.territory || itunes.explicitFlag != null))   sources.push("iTunes");
+  if (lastfm && lastfm.tags.length > 0)                                                      sources.push("Last.fm");
+  if (theaudiodb && (theaudiodb.label || theaudiodb.genre))                                  sources.push("TheAudioDB");
+  if (deezer && (deezer.label || deezer.explicitFlag != null))                               sources.push("Deezer");
+  if (genius?.artistName)                                                                     sources.push("Genius");
+  if (ascap?.found)                                                                           sources.push("ASCAP");
+  if (bmi?.found)                                                                             sources.push("BMI");
+  if (sesac?.found)                                                                           sources.push("SESAC");
+
+  // Resolve genreTags
+  const genreTags: string[] =
+    (lastfm && lastfm.tags.length > 0) ? lastfm.tags :
+    (theaudiodb?.genre)                 ? [theaudiodb.genre] :
+    (existing?.genreTags?.length)       ? existing.genreTags :
+    [];
+
+  // Resolve popularityScore
+  const popularityScore: number | undefined =
+    lastfm?.listeners ? parseInt(lastfm.listeners, 10) || undefined : undefined;
+
+  // Determine proAffiliation
+  const proAffiliation: string | null =
+    ascap?.found   ? "ASCAP" :
+    bmi?.found     ? "BMI"   :
+    sesac?.found   ? "SESAC" :
+    (existing as Record<string, unknown> | null)?.["proAffiliation"] as string | null ?? null;
+
+  // Resolve workId
+  const workId: string | null =
+    ascap?.workId ?? bmi?.workId ??
+    (existing as Record<string, unknown> | null)?.["workId"] as string | null ?? null;
 
   // Merge with priority rules
   const merged: EnrichmentResult = {
-    isrc: mb?.isrc ?? existing?.["isrc" as keyof typeof existing] as string | null ?? null,
-    writerName: mb?.writerName ?? existing?.writerName ?? null,
-    publisherName: discogs?.publisherName ?? itunes?.publisherName ?? existing?.publisherName ?? null,
-    territory: itunes?.territory ?? discogs?.territory ?? (existing as Record<string, unknown> | null)?.["territory"] as string | null ?? null,
-    explicitFlag: itunes?.explicitFlag ?? (existing as Record<string, unknown> | null)?.["explicitFlag"] as boolean | null ?? null,
+    isrc: mb?.isrc ?? (existing as Record<string, unknown> | null)?.["isrc"] as string | null ?? null,
+    writerName:
+      ascap?.writer ?? bmi?.writer ?? sesac?.writer ??
+      mb?.writerName ?? genius?.artistName ??
+      existing?.writerName ?? null,
+    publisherName:
+      ascap?.publisher ?? bmi?.publisher ?? sesac?.publisher ??
+      discogs?.publisherName ??
+      theaudiodb?.label ??
+      deezer?.label ??
+      itunes?.publisherName ??
+      existing?.publisherName ?? null,
+    territory:
+      itunes?.territory ?? discogs?.territory ??
+      (existing as Record<string, unknown> | null)?.["territory"] as string | null ?? null,
+    explicitFlag:
+      itunes?.explicitFlag ?? deezer?.explicitFlag ??
+      (existing as Record<string, unknown> | null)?.["explicitFlag"] as boolean | null ?? null,
+    proAffiliation,
+    workId,
+    genreTags,
+    popularityScore: popularityScore ?? null,
     enrichmentSources: sources,
   };
 
-  // Build the update payload — only set fields that have values
+  // Build the update payload
   const updateData: Record<string, unknown> = {
     enrichmentSources: merged.enrichmentSources,
     enrichedAt: new Date(),
+    enrichmentStatus: "complete",
+    genreTags: merged.genreTags,
   };
-  if (merged.writerName != null) updateData.writerName = merged.writerName;
-  if (merged.publisherName != null) updateData.publisherName = merged.publisherName;
-  if (merged.territory != null) updateData.territory = merged.territory;
-  if (merged.explicitFlag != null) updateData.explicitFlag = merged.explicitFlag;
+  if (merged.writerName      != null) updateData.writerName      = merged.writerName;
+  if (merged.publisherName   != null) updateData.publisherName   = merged.publisherName;
+  if (merged.territory       != null) updateData.territory       = merged.territory;
+  if (merged.explicitFlag    != null) updateData.explicitFlag    = merged.explicitFlag;
+  if (merged.proAffiliation  != null) updateData.proAffiliation  = merged.proAffiliation;
+  if (merged.workId          != null) updateData.workId          = merged.workId;
+  if (merged.popularityScore != null) updateData.popularityScore = merged.popularityScore;
 
   // Also update the ISRC on the Track record if MusicBrainz resolved it
   if (mb?.isrc) {
@@ -251,10 +490,7 @@ export async function enrichRightsProfile(
   // Upsert RightsProfile with merged data
   const updatedProfile = await prisma.rightsProfile.upsert({
     where: { trackId },
-    create: {
-      trackId,
-      ...updateData,
-    },
+    create: { trackId, ...updateData },
     update: updateData,
   });
 

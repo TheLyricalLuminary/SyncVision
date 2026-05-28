@@ -104,6 +104,10 @@ model RightsProfile {
   enrichedAt            DateTime?
   territory             String?
   explicitFlag          Boolean?
+  workId                String?
+  genreTags             String[]
+  popularityScore       Int?
+  enrichmentStatus      String?   @default("pending")
   track                 Track     @relation(fields: [trackId], references: [id])
 
   @@schema("scoring")

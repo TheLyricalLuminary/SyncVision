@@ -41,6 +41,10 @@ export type AnalysisResult = {
     enrichedAt?: string | null;
     territory?: string | null;
     explicitFlag?: boolean | null;
+    workId?: string | null;
+    genreTags?: string[];
+    popularityScore?: number | null;
+    enrichmentStatus?: string | null;
   } | null;
   rank: number;
 };
