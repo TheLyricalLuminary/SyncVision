@@ -4,7 +4,7 @@ import prisma from "../lib/prisma";
 import { computeRightsState } from "../scoring/rightsStateMachine";
 import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
 import { computeSyncVisionScoreV2 } from "../scoring/scoringV2";
-import { selectNarrative } from "../scoring/narrativeDictionary";
+import { composeNarrative } from "../scoring/narrativeDictionary";
 
 // ─── In-memory rate limiter: 10 req / IP / hour ───────────────────────────────
 
@@ -249,7 +249,7 @@ router.post("/demo/check", async (req: Request, res: Response) => {
         (track as any).modelVersion ?? null,
       );
 
-      const narrative = selectNarrative(track!.id, briefId, sceneFit, padValues, {
+      const narrative = composeNarrative(track!.id, briefId, sceneFit, padValues, {
         tempo: track?.tempo ?? null,
         tonalCharacter: (track as any).tonalCharacter ?? null,
         energyCharacter: (track as any).energyCharacter ?? null,

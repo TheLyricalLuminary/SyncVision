@@ -62,8 +62,46 @@ def analyze(path):
 
     duration = float(len(y)) / sr
 
-    tempo_arr, _ = librosa.beat.beat_track(y=y, sr=sr)
-    tempo = float(np.atleast_1d(tempo_arr)[0])
+    # ── Tempo detection with multi-prior octave consensus ──────────────────
+    # librosa.beat.beat_track has a well-known double-tempo failure mode:
+    # off-beats are mistaken for on-beats and the reported BPM is 2× the
+    # true musical tempo. A single start_bpm cannot fix this because the
+    # doubled value often still lands inside the musically reasonable range
+    # (e.g., a 78 BPM ballad reads as 156 BPM, which is plausible on its own).
+    #
+    # The robust fix is to detect twice with different priors:
+    #   - start_bpm=80   biases the autocorrelation toward slower peaks
+    #   - start_bpm=140  biases toward faster peaks
+    # If the two estimates are octave-related (ratio ≈ 2.0), the slower one
+    # is almost always the true fundamental (the faster one is the off-beat
+    # artefact). Otherwise the two estimates agree and we average them.
+    onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+    tempo_slow_arr, _ = librosa.beat.beat_track(
+        onset_envelope=onset_env, sr=sr, start_bpm=80
+    )
+    tempo_fast_arr, _ = librosa.beat.beat_track(
+        onset_envelope=onset_env, sr=sr, start_bpm=140
+    )
+    t_slow = float(np.atleast_1d(tempo_slow_arr)[0])
+    t_fast = float(np.atleast_1d(tempo_fast_arr)[0])
+    if t_slow > 0:
+        ratio = t_fast / t_slow
+        if 1.85 < ratio < 2.15:
+            # Octave disagreement → slower is the true fundamental
+            tempo = t_slow
+        elif ratio > 2.15:
+            # Faster estimator drifted; clamp later
+            tempo = t_fast / 2
+        else:
+            # Both estimates agree within an octave — average
+            tempo = (t_slow + t_fast) / 2
+    else:
+        tempo = t_fast
+    # Final safety clamp — keep within [55, 175]
+    while tempo > 175:
+        tempo = tempo / 2
+    while tempo < 55:
+        tempo = tempo * 2
 
     valence_mean  = float(np.mean(valence))
     arousal_mean  = float(np.mean(arousal))

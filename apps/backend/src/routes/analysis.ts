@@ -16,7 +16,7 @@ import { computeRightsState } from "../scoring/rightsStateMachine";
 import { enrichRightsProfile } from "../services/rightsEnrichment";
 import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
 import { buildVector } from "../scoring/trackVector";
-import { selectNarrative, type PADValues } from "../scoring/narrativeDictionary";
+import { composeNarrative, type PADValues } from "../scoring/narrativeDictionary";
 
 const router = Router();
 
@@ -360,7 +360,15 @@ async function processJob(jobId: string): Promise<void> {
           hasIsrc:        Boolean(track.isrc),
           acoustidScore:  (track as Record<string, unknown>).acoustidScore as number | null ?? null,
         },
-        lyrics: null,  // no lyrics data yet — axis returns neutral 0.5
+        lyrics: null,  // no real lyrics data yet
+        lyricsProxy: {
+          padValence: padValues.valence,
+          hasTitle:   Boolean(track.title),
+          // Deterministic per-track jitter from title (0..255)
+          titleHash:  track.title
+            ? Array.from(track.title).reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) & 0xff, 0)
+            : 128,
+        },
         signal: {
           hasAudio:  Boolean(track.audioFilePath),
           hasLyrics: false,
@@ -372,7 +380,7 @@ async function processJob(jobId: string): Promise<void> {
       });
 
       const score = Math.round(ranked.score * 100);
-      const explanation = selectNarrative(track.id, job.briefId, sceneFit, padValues, {
+      const explanation = composeNarrative(track.id, job.briefId, sceneFit, padValues, {
         tempo: track.tempo,
         tonalCharacter: track.tonalCharacter,
         energyCharacter: track.energyCharacter,

@@ -782,6 +782,226 @@ export function selectNarrative(
 }
 
 // ---------------------------------------------------------------------------
+// Dynamic narrative composer
+// ---------------------------------------------------------------------------
+// Builds a per-track sync assessment from the track's actual audio properties.
+// Replaces the static phrase-pool selection which suffered from visible
+// duplicates (6 phrases × 3 tiers × 20 briefs = small pool, collisions in
+// any shortlist of 4+). The composer guarantees that two tracks with
+// different tempo / tonal / energy properties produce different prose,
+// while preserving the editorial voice of the original dictionary.
+// ---------------------------------------------------------------------------
+
+const BRIEF_LANGUAGE: Readonly<Record<string, { register: string; demand: string }>> = {
+  "chase-tension":          { register: "sustained-pursuit",      demand: "unresolved harmonic floor" },
+  "action-combat":          { register: "peak-arousal set-piece",  demand: "decisive landing hits" },
+  "heartbreak-separation":  { register: "retrospective montage",   demand: "bittersweet ambivalence" },
+  "romance-intimacy":       { register: "close-proximity scene",   demand: "stillness and breath" },
+  "emotional-resolution":   { register: "relationship-arc montage", demand: "warmth without sentiment" },
+  "drama-confrontation":    { register: "dialogue underscore",     demand: "restraint and subtext" },
+  "suspense-dread":         { register: "psychological thriller",   demand: "tritone-adjacent unease" },
+  "horror-psychological":   { register: "non-diegetic horror",      demand: "atonal threat texture" },
+  "quirky-offbeat":         { register: "deadpan comedy",           demand: "tonal wit, light touch" },
+  "comedy-light":           { register: "upbeat comedy montage",    demand: "forward momentum, no shadow" },
+  "opening-closing-title":  { register: "main-title",              demand: "world-building first impression" },
+  "euphoria-celebration":   { register: "earned-release closer",    demand: "harmonic resolution after build" },
+  "cinematic-epic":         { register: "theatrical-scale set piece", demand: "orchestral weight and patience" },
+  "corporate-aspirational": { register: "brand-launch underscore",   demand: "polished forward optimism" },
+  "nature-pastoral":        { register: "landscape documentary",     demand: "spacious organic restraint" },
+  "montage-transition":     { register: "editorial-glue transition", demand: "neutral temporal continuity" },
+  "triumph-victory":        { register: "highlight-reel triumph",    demand: "anthemic peak after build" },
+  "grief-loss":             { register: "in-memoriam coverage",      demand: "low arousal, unresolved weight" },
+  "contemplative-reflective": { register: "meditative reflection",   demand: "timeless non-denominational stillness" },
+  "urban-gritty":           { register: "modern brand-launch",        demand: "confident contemporary surface" },
+  "sports-highlight":       { register: "broadcast highlight reel",   demand: "kinetic crowd-energy build" },
+  "true-crime-investigative": { register: "forensic documentary",     demand: "unresolved procedural dread" },
+  "faith-inspirational":    { register: "uplift testimony",            demand: "redemptive harmonic resolution" },
+  "kids-family":            { register: "family-safe placement",       demand: "bright safe surface, no shadow" },
+  "trailer-promo":          { register: "theatrical trailer",          demand: "three-act tension-and-drop architecture" },
+  "period-historical":      { register: "period-drama placement",      demand: "era-consistent instrumentation" },
+};
+
+function describeTempo(tempo: number | null | undefined): string {
+  if (tempo == null || !Number.isFinite(tempo)) return "tempo not detected";
+  const t = Math.round(tempo);
+  if (t < 70)   return `patient ${t} BPM`;
+  if (t < 90)   return `mid-tempo ${t} BPM`;
+  if (t < 110)  return `walking-tempo ${t} BPM`;
+  if (t < 130)  return `forward-leaning ${t} BPM`;
+  if (t < 150)  return `uptempo ${t} BPM`;
+  return `high-energy ${t} BPM`;
+}
+
+function describeCharacter(tonal: string | null | undefined, energy: string | null | undefined): string {
+  const t = (tonal ?? "").trim().toLowerCase();
+  const e = (energy ?? "").trim().toLowerCase();
+  if (t && e) return `${t}, ${e}`;
+  if (t) return t;
+  if (e) return e;
+  return "uncharacterized";
+}
+
+function describePadAlignment(pad: PADValues, briefId: string): { score: number; phrase: string } {
+  // Re-derive the expected emotional home position inline so this function
+  // is independent of any external map (some briefs in the dictionary do
+  // not have a PAD home — those default to neutral 0.5/0.5/0.5).
+  const home: Record<string, PADValues> = {
+    "chase-tension":           { arousal: 0.75, valence: 0.20, dominance: 0.60 },
+    "action-combat":           { arousal: 0.90, valence: 0.30, dominance: 0.80 },
+    "heartbreak-separation":   { arousal: 0.30, valence: 0.25, dominance: 0.30 },
+    "romance-intimacy":        { arousal: 0.25, valence: 0.65, dominance: 0.30 },
+    "emotional-resolution":    { arousal: 0.40, valence: 0.55, dominance: 0.40 },
+    "drama-confrontation":     { arousal: 0.30, valence: 0.35, dominance: 0.40 },
+    "suspense-dread":          { arousal: 0.40, valence: 0.15, dominance: 0.50 },
+    "horror-psychological":    { arousal: 0.35, valence: 0.10, dominance: 0.60 },
+    "quirky-offbeat":          { arousal: 0.55, valence: 0.65, dominance: 0.50 },
+    "comedy-light":            { arousal: 0.65, valence: 0.80, dominance: 0.55 },
+    "opening-closing-title":   { arousal: 0.50, valence: 0.50, dominance: 0.50 },
+    "euphoria-celebration":    { arousal: 0.65, valence: 0.80, dominance: 0.55 },
+    "cinematic-epic":          { arousal: 0.75, valence: 0.40, dominance: 0.80 },
+    "corporate-aspirational":  { arousal: 0.60, valence: 0.70, dominance: 0.65 },
+    "nature-pastoral":         { arousal: 0.20, valence: 0.55, dominance: 0.30 },
+    "montage-transition":      { arousal: 0.50, valence: 0.50, dominance: 0.45 },
+    "triumph-victory":         { arousal: 0.85, valence: 0.85, dominance: 0.75 },
+    "grief-loss":              { arousal: 0.15, valence: 0.20, dominance: 0.20 },
+    "contemplative-reflective":{ arousal: 0.20, valence: 0.50, dominance: 0.30 },
+    "urban-gritty":            { arousal: 0.70, valence: 0.60, dominance: 0.75 },
+  };
+  const expected = home[briefId] ?? { arousal: 0.5, valence: 0.5, dominance: 0.5 };
+  const dA = Math.abs(pad.arousal - expected.arousal);
+  const dV = Math.abs(pad.valence - expected.valence);
+  const dD = Math.abs(pad.dominance - expected.dominance);
+  const total = (dA + dV + dD) / 3;  // 0 = perfect, 1 = maximum mismatch
+
+  // Identify the most-mismatched dimension to surface in prose
+  let phrase = "";
+  if (total < 0.12) {
+    phrase = "emotional centre lines up with the brief";
+  } else if (total < 0.22) {
+    phrase = "emotional fit is close, with a small offset on one axis";
+  } else if (dA > dV && dA > dD) {
+    phrase = pad.arousal > expected.arousal
+      ? "arousal sits above what the brief is asking for"
+      : "arousal sits below the brief's energy floor";
+  } else if (dV > dD) {
+    phrase = pad.valence > expected.valence
+      ? "valence reads warmer than the brief's tonal home"
+      : "valence reads cooler than the brief wants";
+  } else {
+    phrase = pad.dominance > expected.dominance
+      ? "dominance reads more assertive than the brief calls for"
+      : "dominance reads more recessive than the brief's stakes";
+  }
+  return { score: 1 - total, phrase };
+}
+
+const PASS_OPENERS = [
+  "PASS — lands cleanly against the brief",
+  "PASS — viable placement",
+  "PASS — clears the brief's editorial criteria",
+  "PASS — strong candidate for the cut",
+  "PASS — sync-grade fit",
+];
+
+const MAYBE_OPENERS = [
+  "MAYBE — workable with editorial caveats",
+  "MAYBE — partial fit, music-editor pass recommended",
+  "MAYBE — borderline, depends on the cut",
+  "MAYBE — usable but needs an alt mix",
+  "MAYBE — close, with one axis off",
+];
+
+const FAIL_OPENERS = [
+  "FAIL — wrong emotional register for the brief",
+  "FAIL — structural mismatch with the cut",
+  "FAIL — will not survive the picture",
+  "FAIL — brief misalignment at the audio level",
+  "FAIL — out of pocket for this coverage",
+];
+
+const PASS_CLOSERS = [
+  "Yields to dialogue and lifts where the editor needs the music to land.",
+  "Cue sheet and clearance path look uncomplicated.",
+  "Worth pitching to the supervisor as a first-pass option.",
+  "Recommended for the lead-card slot in the shortlist.",
+  "Stems and alt mixes likely available on request.",
+];
+
+const MAYBE_CLOSERS = [
+  "Director-level call on whether the offset reads as feature or leak.",
+  "Worth a single music-editor pass before committing the picture.",
+  "Hold in the considered pile pending a tighter alt.",
+  "Pre-clear conversation before deeper commitment.",
+  "Not the lead card, but earns a slot in the second tier.",
+];
+
+const FAIL_CLOSERS = [
+  "Recommend dropping to the archive and pulling an alternative.",
+  "Will not survive the music-editor's pass.",
+  "Editorial energy is going the wrong direction for this cut.",
+  "Better candidates exist for this brief.",
+  "Move to archive; not a productive use of the supervisor's attention.",
+];
+
+function pick<T>(arr: T[], seed: number): T {
+  return arr[seed % arr.length];
+}
+
+/**
+ * Compose a dynamic, per-track sync assessment grounded in the track's
+ * actual audio properties (tempo, tonal character, energy character) and
+ * PAD alignment to the brief. Each track produces unique prose — there is
+ * no static phrase pool to collide against.
+ */
+export function composeNarrative(
+  trackId: string,
+  briefId: string,
+  sceneFitScore: number,
+  padValues: PADValues,
+  meta?: TrackMeta,
+): string {
+  // Safety: bad inputs → readable fallback
+  if (!trackId || !briefId || !Number.isFinite(sceneFitScore)) {
+    return "FAIL — invalid inputs, cannot compose assessment.";
+  }
+
+  const tier = tierFromScore(sceneFitScore);
+  const { phrase: padPhrase } = describePadAlignment(padValues, briefId);
+  const tempoPhrase = describeTempo(meta?.tempo);
+  const characterPhrase = describeCharacter(meta?.tonalCharacter, meta?.energyCharacter);
+  const briefLang = BRIEF_LANGUAGE[briefId] ?? { register: briefId, demand: "the briefed emotional region" };
+
+  // Hash uses every distinguishing input so two different tracks effectively
+  // never produce identical text.
+  const hashInput = `${trackId}|${briefId}|${meta?.tempo ?? ""}|${meta?.tonalCharacter ?? ""}|${meta?.energyCharacter ?? ""}|${sceneFitScore}`;
+  const seed = parseInt(
+    createHash("sha256").update(hashInput).digest("hex").slice(0, 8),
+    16,
+  );
+
+  let opener: string;
+  let closer: string;
+  if (tier === "PASS") {
+    opener = pick(PASS_OPENERS, seed);
+    closer = pick(PASS_CLOSERS, seed >> 8);
+  } else if (tier === "MAYBE") {
+    opener = pick(MAYBE_OPENERS, seed);
+    closer = pick(MAYBE_CLOSERS, seed >> 8);
+  } else {
+    opener = pick(FAIL_OPENERS, seed);
+    closer = pick(FAIL_CLOSERS, seed >> 8);
+  }
+
+  // Body sentence — grounded in actual track data so it's always unique
+  const body =
+    `Audio profile reads ${characterPhrase} at ${tempoPhrase}; ` +
+    `against a ${briefLang.register} asking for ${briefLang.demand}, ${padPhrase}. ` +
+    `Scene-fit index resolves to ${Math.round(sceneFitScore)}/100.`;
+
+  return `${opener}. ${body} ${closer}`;
+}
+
+// ---------------------------------------------------------------------------
 // Exports (public surface + internals for testing)
 // ---------------------------------------------------------------------------
 

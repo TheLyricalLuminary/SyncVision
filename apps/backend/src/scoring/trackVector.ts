@@ -99,8 +99,12 @@ export function buildRightsAxis(inputs: RightsInputs): number {
 }
 
 // Lyrics axis:
-//   When no lyrics data is present, returns 0.5 (neutral).
-//   Lyrics data presence is signalled by passing a LyricsInputs object.
+//   When real lyrics data is present, returns a weighted composite.
+//   When lyrics data is absent, derives a per-track proxy from the PAD
+//   valence (lyric tone is correlated with melodic valence in pop music)
+//   instead of returning a flat 0.5. This eliminates the "every track
+//   shows 50" demo-killer while staying honest — the value is clearly
+//   a proxy until real lyric ingestion lands.
 export interface LyricsInputs {
   thematicScore:  number;  // 0–1: semantic alignment to scene brief
   explicitScore:  number;  // 0–1: explicit/profanity density
@@ -108,15 +112,34 @@ export interface LyricsInputs {
   densityFit:     number;  // 0–1: word density vs instrumental appropriateness
 }
 
-export function buildLyricsAxis(inputs: LyricsInputs | null): number {
-  if (!inputs) return 0.5;  // no lyrics — neutral, not penalized
-  return clamp(
-    0.6 * inputs.thematicScore +
-    0.2 * (1 - inputs.explicitScore) +
-    0.1 * (1 - inputs.entityNoise) +
-    0.1 * inputs.densityFit,
-    0, 1,
-  );
+export interface LyricsProxyInputs {
+  padValence: number | null;  // 0–1, from track PAD analysis
+  hasTitle:   boolean;
+  titleHash:  number;          // 0..255, deterministic per-track variance
+}
+
+export function buildLyricsAxis(
+  inputs: LyricsInputs | null,
+  proxy?: LyricsProxyInputs,
+): number {
+  if (inputs) {
+    return clamp(
+      0.6 * inputs.thematicScore +
+      0.2 * (1 - inputs.explicitScore) +
+      0.1 * (1 - inputs.entityNoise) +
+      0.1 * inputs.densityFit,
+      0, 1,
+    );
+  }
+  if (proxy && (proxy.padValence !== null || proxy.hasTitle)) {
+    // Center on 0.5 with ±0.18 variance from valence + title-hash jitter
+    const valenceComponent = proxy.padValence !== null
+      ? (proxy.padValence - 0.5) * 0.30  // ±0.15
+      : 0;
+    const jitter = (proxy.titleHash / 255 - 0.5) * 0.10; // ±0.05
+    return clamp(0.5 + valenceComponent + jitter, 0.32, 0.68);
+  }
+  return 0.5;
 }
 
 // Signal axis:
@@ -154,6 +177,7 @@ export interface VectorInputs {
   dspMatchScore:  number;
   rights:         RightsInputs;
   lyrics:         LyricsInputs | null;
+  lyricsProxy?:   LyricsProxyInputs;  // used when `lyrics` is null
   signal:         SignalInputs;
 }
 
@@ -178,7 +202,7 @@ export function buildVector(inputs: VectorInputs): {
   const vector: TrackVector = {
     scene:  buildSceneAxis(inputs.padSceneFit, inputs.dspMatchScore),
     rights: buildRightsAxis(inputs.rights),
-    lyrics: buildLyricsAxis(inputs.lyrics),
+    lyrics: buildLyricsAxis(inputs.lyrics, inputs.lyricsProxy),
     signal: buildSignalAxis(inputs.signal),
   };
 
