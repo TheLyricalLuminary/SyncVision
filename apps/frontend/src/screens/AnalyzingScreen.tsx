@@ -38,117 +38,176 @@ export function AnalyzingScreen({ phase, warning, error, elapsedMs, onRetry, onB
   const elapsedSec = Math.floor(elapsedMs / 1000);
 
   return (
-    <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: BG, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: BG }}>
       <style>{`
         @keyframes sv-spin { to { transform: rotate(360deg); } }
-        @keyframes sv-pulse { 0% { transform: scale(0.5); opacity: 0; } 20% { opacity: 0.7; } 100% { transform: scale(1.3); opacity: 0; } }
+        @keyframes sv-pulse { 0% { transform: scale(0.5); opacity: 0; } 20% { opacity: 0.7; } 100% { transform: scale(1.4); opacity: 0; } }
         @keyframes sv-eq { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
-        @keyframes sv-dotwave { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+        @keyframes sv-dotwave { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+        @keyframes sv-analyzing { 0% { transform: translateX(-100%); } 100% { transform: translateX(180%); } }
+        @keyframes sv-pulse-dot { 0%,100%{opacity:.7;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)} }
         .sv-pulse-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(167,139,250,0.3); animation: sv-pulse 2.6s ease-out infinite; }
         .sv-spin-core { animation: sv-spin 6s linear infinite; }
-        .sv-eq-bar { display: block; width: 3px; border-radius: 2px; background: linear-gradient(180deg, ${C.magenta}, ${C.purple}); animation: sv-eq 1.1s ease-in-out infinite; }
+        .sv-eq-bar { display: block; width: 4px; border-radius: 2px; background: linear-gradient(180deg, ${C.magenta}, ${C.purple}); animation: sv-eq 1.1s ease-in-out infinite; }
         .sv-dot { display: inline-block; animation: sv-dotwave 1.4s ease-in-out infinite; color: ${C.magenta}; }
+        .sv-an-topbar { position: sticky; top: 0; z-index: 10; background: linear-gradient(180deg,rgba(6,3,15,0.94),rgba(6,3,15,0.6) 70%,transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid ${C.hairline}; }
+        .sv-an-topbar-inner { max-width: 1280px; margin: 0 auto; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .sv-an-stepper { display: none; align-items: center; gap: 10px; }
+        .sv-an-step { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: rgba(167,139,250,0.6); }
+        .sv-an-step .n { width: 22px; height: 22px; border-radius: 50%; border: 1px solid ${C.hairlineStrong}; display: grid; place-items: center; font-family: "JetBrains Mono",monospace; font-size: 10px; font-weight: 600; color: rgba(167,139,250,0.7); }
+        .sv-an-step.active { color: ${C.silver}; }
+        .sv-an-step.active .n { background: linear-gradient(135deg,${C.purple},${C.magenta}); border-color: transparent; color: white; }
+        .sv-an-step.done .n { background: rgba(124,58,237,0.18); border-color: rgba(167,139,250,0.35); color: ${C.silver}; }
+        .sv-an-tick { width: 18px; height: 1px; background: ${C.hairlineStrong}; display: inline-block; }
+        .sv-an-badge { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: ${C.lavender}; padding: 4px 10px; border-radius: 999px; background: rgba(167,139,250,0.08); border: 1px solid ${C.hairline}; white-space: nowrap; }
+        .sv-an-badge b { color: ${C.silver}; font-weight: 700; }
+        .sv-an-shell { max-width: 1280px; margin: 0 auto; padding: 28px 28px 80px; }
+        .sv-an-stage { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: stretch; }
+        .sv-an-hero { position: relative; padding: 32px 24px; border-radius: 22px; background: radial-gradient(80% 80% at 50% 50%,rgba(124,58,237,0.22),transparent 70%),linear-gradient(180deg,rgba(23,11,51,0.55),rgba(15,8,35,0.72)); border: 1px solid ${C.hairline}; display: flex; flex-direction: column; align-items: center; gap: 18px; overflow: hidden; }
+        @media (min-width: 880px) {
+          .sv-an-stepper { display: inline-flex; }
+          .sv-an-badge { display: none; }
+          .sv-an-shell { padding: 36px 36px 96px; }
+          .sv-an-stage { grid-template-columns: minmax(0,1fr) minmax(0,1.2fr); gap: 32px; align-items: center; }
+          .sv-an-hero { padding: 56px 32px; aspect-ratio: 4/5; max-height: 600px; }
+        }
+        @media (max-width: 480px) {
+          .sv-an-shell { padding: 16px 16px 60px; }
+          .sv-an-topbar-inner { padding: 12px 16px; }
+        }
       `}</style>
 
-      <div style={{ maxWidth: 520, width: '100%', margin: '0 auto', padding: '8px 20px 28px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+      {/* ── sticky topbar ── */}
+      <header className="sv-an-topbar">
+        <div className="sv-an-topbar-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.magenta, boxShadow: `0 0 10px ${C.magenta}`, animation: 'sv-pulse-dot 2.4s ease-in-out infinite', display: 'inline-block' }} />
+            <span style={{ fontFamily: SERIF, fontSize: 20, letterSpacing: '-0.01em', color: C.silver }}>
+              Sync<em style={{ fontStyle: 'italic', color: C.lavender }}>Vision</em>
+            </span>
+            <span style={{ width: 1, height: 16, background: C.hairlineStrong, display: 'inline-block' }} />
+            <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, color: C.lavender }}>analyzing</span>
+          </div>
+          <nav className="sv-an-stepper" aria-label="Progress">
+            <span className="sv-an-step done"><span className="n"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg></span> Brief</span>
+            <span className="sv-an-tick" />
+            <span className="sv-an-step done"><span className="n"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg></span> Ingest</span>
+            <span className="sv-an-tick" />
+            <span className="sv-an-step active"><span className="n">3</span> Match</span>
+          </nav>
+          <span className="sv-an-badge">Step <b>3</b> of 3</span>
+        </div>
+      </header>
 
-        {/* ── header ── */}
-        <div style={{ padding: '16px 4px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.hairline}`, flexShrink: 0 }}>
-          <SvLogo />
-          <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.lavender, padding: '4px 10px', borderRadius: 999, background: 'rgba(167,139,250,0.08)', border: `1px solid ${C.hairline}` }}>
-            Step <b style={{ color: C.silver, fontWeight: 700 }}>3</b> of 3
-          </span>
+      <main className="sv-an-shell">
+
+        {/* ── hero row ── */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 20, marginBottom: 24, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: C.lavender, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 24, height: 1, background: `linear-gradient(90deg,${C.magenta},transparent)`, display: 'inline-block' }} />
+              Matching
+            </span>
+            <h1 style={{ margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: 'clamp(24px,3.8vw,48px)', lineHeight: 1.02, letterSpacing: '-0.02em', color: C.silver }}>
+              Listening for the <em style={{ fontStyle: 'italic', color: C.lavender }}>scene.</em>
+            </h1>
+          </div>
+          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(13px,1.3vw,16px)', color: 'rgba(167,139,250,0.7)', marginLeft: 'auto' }}>
+            Hold tight — about 30 seconds.
+          </div>
         </div>
 
         {isError ? (
-          /* ── error state ── */
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '32px 0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '48px 0' }}>
             <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.amber }}>
               {phase === 'timed-out' ? 'Taking longer than expected' : 'Something went wrong'}
             </div>
-            <p style={{ fontSize: 14, color: C.silver, textAlign: 'center', maxWidth: 340, lineHeight: 1.6, fontFamily: SERIF, fontStyle: 'italic' }}>
+            <p style={{ fontSize: 14, color: C.silver, textAlign: 'center', maxWidth: 360, lineHeight: 1.6, fontFamily: SERIF, fontStyle: 'italic' }}>
               {error ?? 'Something went wrong while analyzing your tracks.'}
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={onRetry} style={{ padding: '10px 18px', borderRadius: 11, background: `linear-gradient(135deg, ${C.purple}, ${C.magenta})`, color: 'white', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', fontFamily: SANS }}>Try again</button>
-              <button type="button" onClick={onBackToIngest} style={{ padding: '10px 18px', borderRadius: 11, background: 'transparent', color: C.silver, fontWeight: 700, fontSize: 13, border: `1px solid ${C.hairlineStrong}`, cursor: 'pointer', fontFamily: SANS }}>Back to tracks</button>
+              <button type="button" onClick={onRetry} style={{ padding: '12px 22px', minHeight: 44, borderRadius: 12, background: `linear-gradient(135deg, ${C.purple}, ${C.magenta})`, color: 'white', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', fontFamily: SANS }}>Try again</button>
+              <button type="button" onClick={onBackToIngest} style={{ padding: '12px 22px', minHeight: 44, borderRadius: 12, background: 'transparent', color: C.silver, fontWeight: 700, fontSize: 13, border: `1px solid ${C.hairlineStrong}`, cursor: 'pointer', fontFamily: SANS }}>Back to tracks</button>
             </div>
           </div>
         ) : (
-          <>
-            {/* ── hero animation ── */}
-            <div style={{ padding: '22px 4px 18px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderBottom: `1px solid ${C.hairline}`, position: 'relative' }}>
-              {/* spinning visual */}
-              <div style={{ width: 130, height: 130, position: 'relative', marginBottom: 18 }}>
+          <section className="sv-an-stage">
+
+            {/* ── hero visual ── */}
+            <div className="sv-an-hero">
+              <div style={{ width: 'clamp(160px,22vw,240px)', aspectRatio: '1', position: 'relative' }}>
                 <div className="sv-pulse-ring" style={{ animationDelay: '0s' }} />
                 <div className="sv-pulse-ring" style={{ animationDelay: '0.65s' }} />
                 <div className="sv-pulse-ring" style={{ animationDelay: '1.3s' }} />
                 <div
                   className="sv-spin-core"
-                  style={{ position: 'absolute', inset: 28, borderRadius: '50%', background: `radial-gradient(circle at 35% 35%, rgba(255,255,255,0.18), transparent 60%), conic-gradient(from 0deg, ${C.purple}, ${C.magenta}, ${C.purple})`, boxShadow: '0 0 40px rgba(124,58,237,0.45), inset 0 0 0 1px rgba(255,255,255,0.1)' }}
+                  style={{ position: 'absolute', inset: '22%', borderRadius: '50%', background: `radial-gradient(circle at 35% 35%, rgba(255,255,255,0.18), transparent 60%), conic-gradient(from 0deg, ${C.purple}, ${C.magenta}, ${C.purple})`, boxShadow: '0 0 80px rgba(124,58,237,0.5), inset 0 0 0 1px rgba(255,255,255,0.1)' }}
                 >
-                  <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', background: '#0F0823', boxShadow: 'inset 0 0 0 1px rgba(167,139,250,0.2)' }} />
+                  <div style={{ position: 'absolute', inset: '12%', borderRadius: '50%', background: '#07041a', boxShadow: 'inset 0 0 0 1px rgba(167,139,250,0.2)' }} />
                 </div>
-                {/* equalizer bars */}
-                <div style={{ position: 'absolute', inset: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, zIndex: 2 }}>
-                  {[14, 22, 30, 24, 16].map((h, i) => (
-                    <i key={i} className="sv-eq-bar" style={{ height: h, animationDelay: `${[0, 0.15, 0.05, 0.25, 0.1][i]}s` }} />
+                <div style={{ position: 'absolute', inset: '34%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, zIndex: 2 }}>
+                  {[30, 60, 90, 70, 40].map((h, i) => (
+                    <i key={i} className="sv-eq-bar" style={{ height: `${h}%`, animationDelay: `${[0, 0.15, 0.05, 0.25, 0.1][i]}s` }} />
                   ))}
                 </div>
               </div>
 
-              <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 36, lineHeight: 1, letterSpacing: '-0.015em', color: C.silver, fontWeight: 400 }}>
+              <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(36px,5vw,64px)', lineHeight: 1, letterSpacing: '-0.02em', color: C.silver, fontWeight: 400, textAlign: 'center' }}>
                 Listening<span className="sv-dot" style={{ animationDelay: '0s' }}>.</span><span className="sv-dot" style={{ animationDelay: '0.2s' }}>.</span><span className="sv-dot" style={{ animationDelay: '0.4s' }}>.</span>
               </div>
-              <div style={{ marginTop: 8, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.lavender }}>
-                Matching tracks to your scene
+              <div style={{ fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, textAlign: 'center' }}>
+                matching your scene
               </div>
             </div>
 
-            {/* ── progress row: single active row ── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, background: 'linear-gradient(180deg, rgba(124,58,237,0.14), rgba(124,58,237,0.04))', border: '1px solid rgba(167,139,250,0.3)', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(124,58,237,0.24)', border: '1px solid rgba(167,139,250,0.5)', display: 'grid', placeItems: 'center', color: C.silver, flexShrink: 0 }}>
-                  <div style={{ width: 12, height: 12, borderRadius: '50%', border: `1.5px solid rgba(255,255,255,0.15)`, borderTopColor: C.magenta, animation: 'sv-spin 0.9s linear infinite' }} />
+            {/* ── progress panel ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
+                <span style={{ fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: C.lavender }}>Status</span>
+                {elapsedSec > 0 && (
+                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: 'rgba(167,139,250,0.7)', letterSpacing: '0.04em' }}>
+                    {elapsedSec}s elapsed
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 14, background: 'linear-gradient(180deg,rgba(124,58,237,0.14),rgba(124,58,237,0.04))', border: `1px solid rgba(167,139,250,0.3)`, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(124,58,237,0.24)', border: '1px solid rgba(167,139,250,0.5)', display: 'grid', placeItems: 'center', color: C.silver, flexShrink: 0 }}>
+                  <div style={{ width: 13, height: 13, borderRadius: '50%', border: `1.5px solid rgba(255,255,255,0.15)`, borderTopColor: C.magenta, animation: 'sv-spin 0.9s linear infinite' }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: C.silver, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontSize: 14, color: C.silver, fontWeight: 600, letterSpacing: '-0.005em', display: 'flex', alignItems: 'center', gap: 6 }}>
                     {PHASE_STAGE[phase] ?? 'Analyzing…'}
                     <span aria-hidden style={{ display: 'inline-flex', gap: 3 }}>
                       {[0, 0.2, 0.4].map(delay => (
-                        <span key={delay} className="sv-dot" style={{ animationDelay: `${delay}s`, fontSize: 14, lineHeight: 1, color: C.magenta }} />
+                        <span key={delay} className="sv-dot" style={{ animationDelay: `${delay}s`, fontSize: 14, lineHeight: 1 }} />
                       ))}
                     </span>
                   </div>
-                  {elapsedSec > 0 && (
-                    <div style={{ fontSize: 11, color: 'rgba(167,139,250,0.55)', marginTop: 2, letterSpacing: '0.04em' }}>
-                      {elapsedSec}s
-                    </div>
-                  )}
+                  <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.lavender, marginTop: 3 }}>
+                    Scene fit lands first. Rights take longest.
+                  </div>
                 </div>
-                {/* animated bottom bar */}
                 <div style={{ position: 'absolute', left: 0, bottom: 0, height: 2, background: `linear-gradient(90deg, ${C.purple}, ${C.magenta})`, boxShadow: '0 0 8px rgba(219,39,119,0.5)', width: '60%', animation: 'sv-analyzing 1.4s ease-in-out infinite' }} />
-                <style>{`@keyframes sv-analyzing { 0% { transform: translateX(-100%); } 100% { transform: translateX(180%); } }`}</style>
+              </div>
+
+              {warning && (
+                <div style={{ fontSize: 11, color: C.amber, padding: '8px 12px', borderRadius: 10, background: 'rgba(245,181,68,0.08)', border: '1px solid rgba(245,181,68,0.2)' }}>{warning}</div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 8, paddingTop: 14, borderTop: `1px solid ${C.hairline}` }}>
+                <span style={{ fontFamily: SERIF, fontStyle: 'italic', color: 'rgba(167,139,250,0.65)', fontSize: 14 }}>
+                  Usually under 30s
+                </span>
+                <button type="button" onClick={onBackToIngest} style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.lavender, padding: '9px 16px', minHeight: 44, borderRadius: 999, background: 'transparent', border: `1px solid ${C.hairlineStrong}`, cursor: 'pointer', fontFamily: SANS }}>
+                  Cancel
+                </button>
               </div>
             </div>
 
-            {warning && (
-              <div style={{ fontSize: 11, color: C.amber, marginTop: 8, textAlign: 'center' }}>{warning}</div>
-            )}
-
-            {/* ── footer ── */}
-            <div style={{ marginTop: 'auto', paddingTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${C.hairline}` }}>
-              <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(167,139,250,0.55)' }}>
-                Usually under 30s
-              </span>
-              <button type="button" onClick={onBackToIngest} style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.lavender, padding: '8px 14px', borderRadius: 999, background: 'transparent', border: `1px solid ${C.hairlineStrong}`, cursor: 'pointer', fontFamily: SANS }}>
-                Cancel
-              </button>
-            </div>
-          </>
+          </section>
         )}
-
-      </div>
+      </main>
     </div>
   );
 }

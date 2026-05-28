@@ -199,30 +199,95 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
   const synthesis = buildSynthesis(pacing, selectedMoods);
 
   return (
-    <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: BG_GRADIENT, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: BG_GRADIENT }}>
       <style>{`
         @keyframes sv-caret { 50% { opacity: 0; } }
         .sv-caret::after { content: ''; display: inline-block; width: 1.5px; height: 13px; background: ${C.magenta}; margin-left: 2px; vertical-align: -2px; animation: sv-caret 1s steps(2) infinite; }
+        @keyframes sv-pulse-dot { 0%,100%{opacity:.7;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)} }
+        .sv-topbar { position: sticky; top: 0; z-index: 10; background: linear-gradient(180deg, rgba(6,3,15,0.94), rgba(6,3,15,0.6) 70%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid ${C.hairline}; }
+        .sv-topbar-inner { max-width: 1280px; margin: 0 auto; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .sv-stepper { display: none; align-items: center; gap: 10px; }
+        .sv-step { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: rgba(167,139,250,0.6); }
+        .sv-step .sv-step-num { width: 22px; height: 22px; border-radius: 50%; border: 1px solid ${C.hairlineStrong}; display: grid; place-items: center; font-family: "JetBrains Mono",monospace; font-size: 10px; font-weight: 600; color: rgba(167,139,250,0.7); }
+        .sv-step.active { color: ${C.silver}; }
+        .sv-step.active .sv-step-num { background: linear-gradient(135deg,${C.purple},${C.magenta}); border-color: transparent; color: white; box-shadow: 0 4px 14px -4px rgba(124,58,237,0.6); }
+        .sv-step.done .sv-step-num { background: rgba(124,58,237,0.18); border-color: rgba(167,139,250,0.35); color: ${C.silver}; }
+        .sv-tick { width: 18px; height: 1px; background: ${C.hairlineStrong}; }
+        .sv-step-badge { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: ${C.lavender}; padding: 4px 10px; border-radius: 999px; background: rgba(167,139,250,0.08); border: 1px solid ${C.hairline}; white-space: nowrap; }
+        .sv-step-badge b { color: ${C.silver}; font-weight: 700; }
+        .sv-shell { max-width: 1280px; margin: 0 auto; padding: 28px 28px 80px; }
+        .sv-hero-row { display: flex; align-items: baseline; gap: 20px; margin-bottom: 22px; flex-wrap: wrap; }
+        .sv-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+        .sv-card { border-radius: 18px; background: linear-gradient(180deg,rgba(23,11,51,0.55),rgba(15,8,35,0.72)); border: 1px solid ${C.hairline}; padding: 18px 20px; }
+        .sv-scene { /* mobile: normal flow */ }
+        .sv-synthesis { margin-top: 0; }
+        .sv-cta-row { margin-top: 4px; }
+        .sv-pill { min-height: 36px; padding: 7px 12px; }
+        .sv-pacing-btn { min-height: 52px; }
+        @media (min-width: 880px) {
+          .sv-stepper { display: inline-flex; }
+          .sv-step-badge { display: none; }
+          .sv-shell { padding: 36px 36px 96px; }
+          .sv-grid { grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); gap: 24px; }
+          .sv-scene { grid-column: 1 / -1; }
+          .sv-synthesis { grid-column: 1 / -1; }
+          .sv-cta-row { grid-column: 1 / -1; }
+          .sv-card { border-radius: 22px; padding: 24px 26px; }
+        }
+        @media (max-width: 480px) {
+          .sv-shell { padding: 16px 16px 60px; }
+          .sv-topbar-inner { padding: 12px 16px; }
+        }
       `}</style>
 
-      <div style={{ maxWidth: 520, width: '100%', margin: '0 auto', padding: '8px 20px 28px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+      {/* ── sticky topbar ── */}
+      <header className="sv-topbar">
+        <div className="sv-topbar-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.magenta, boxShadow: `0 0 10px ${C.magenta}`, animation: 'sv-pulse-dot 2.4s ease-in-out infinite', display: 'inline-block', flexShrink: 0 }} />
+            <span style={{ fontFamily: SERIF, fontSize: 20, letterSpacing: '-0.01em', color: C.silver }}>
+              Sync<em style={{ fontStyle: 'italic', color: C.lavender }}>Vision</em>
+            </span>
+            <span style={{ width: 1, height: 16, background: C.hairlineStrong, display: 'inline-block' }} />
+            <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, color: C.lavender }}>brief</span>
+          </div>
+          <nav className="sv-stepper" aria-label="Progress">
+            <span className="sv-step active"><span className="sv-step-num">1</span> Brief</span>
+            <span className="sv-tick" />
+            <span className="sv-step"><span className="sv-step-num">2</span> Ingest</span>
+            <span className="sv-tick" />
+            <span className="sv-step"><span className="sv-step-num">3</span> Match</span>
+          </nav>
+          <span className="sv-step-badge">Step <b>1</b> of 3</span>
+        </div>
+      </header>
 
-        {/* ── header ── */}
-        <div style={{ padding: '16px 4px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.hairline}`, flexShrink: 0 }}>
-          <SvLogo />
-          <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.lavender, padding: '4px 10px', borderRadius: 999, background: 'rgba(167,139,250,0.08)', border: `1px solid ${C.hairline}`, whiteSpace: 'nowrap' }}>
-            Step <b style={{ color: C.silver, fontWeight: 700 }}>1</b> of 3
-          </span>
+      <main className="sv-shell">
+
+        {/* ── hero row ── */}
+        <div className="sv-hero-row">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: C.lavender, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 24, height: 1, background: `linear-gradient(90deg,${C.magenta},transparent)`, display: 'inline-block' }} />
+              The Brief
+            </span>
+            <h1 style={{ margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: 'clamp(26px,4vw,52px)', lineHeight: 1.02, letterSpacing: '-0.02em', color: C.silver }}>
+              Set the <em style={{ fontStyle: 'italic', color: C.lavender }}>scene.</em>
+            </h1>
+          </div>
+          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(13px,1.3vw,17px)', color: 'rgba(167,139,250,0.7)', maxWidth: 300, marginLeft: 'auto' }}>
+            Describe the moment — we'll find tracks that fit.
+          </div>
         </div>
 
-        {/* ── body ── */}
-        <div style={{ paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+        {/* ── main grid ── */}
+        <div className="sv-grid">
 
-          {/* The Scene */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* Scene — spans both cols on desktop */}
+          <section className="sv-card sv-scene">
             <SectionLabel label="The Scene" hint="tell the story in a line" />
             <div
-              style={{ padding: '11px 14px 10px', borderRadius: 14, background: 'linear-gradient(180deg, rgba(124,58,237,0.10), rgba(124,58,237,0.02))', border: `1px solid ${C.hairline}`, position: 'relative', minHeight: 64 }}
+              style={{ padding: '14px 16px', borderRadius: 14, background: 'radial-gradient(120% 80% at 50% -10%,rgba(124,58,237,0.16),transparent 60%),linear-gradient(180deg,rgba(124,58,237,0.10),rgba(124,58,237,0.02))', border: `1px solid ${C.hairline}`, position: 'relative', minHeight: 80 }}
               onClick={() => textareaRef.current?.focus()}
             >
               <textarea
@@ -233,14 +298,14 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                 placeholder="Describe the emotional turn, what changes, and where the scene lands."
                 style={{
                   width: '100%', background: 'transparent', border: 'none', outline: 'none',
-                  resize: 'none', fontFamily: SANS, fontStyle: 'normal', fontSize: 16,
-                  lineHeight: 1.6, color: C.silver, letterSpacing: '0em', minHeight: 60,
-                  padding: 0, display: 'block',
-                  caretColor: C.magenta,
+                  resize: 'none', fontFamily: SERIF, fontStyle: 'italic',
+                  fontSize: 'clamp(15px,1.6vw,20px)',
+                  lineHeight: 1.5, color: C.silver, letterSpacing: '-0.005em', minHeight: 72,
+                  padding: 0, display: 'block', caretColor: C.magenta,
                 }}
               />
               {wordCount > 0 && (
-                <div style={{ marginTop: 6, fontSize: 10, letterSpacing: '0.06em', color: C.lavender, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ marginTop: 8, fontSize: 10, letterSpacing: '0.06em', color: C.lavender, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {wordCount} word{wordCount === 1 ? '' : 's'}
@@ -282,12 +347,11 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                 </div>
               )}
             </div>
-
-            {/* rotating examples */}
-            <div style={{ marginTop: 2, paddingLeft: 2, display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: C.lavender, overflow: 'hidden' }}>
-              <span style={{ fontSize: 9, letterSpacing: '0.20em', textTransform: 'uppercase', color: 'rgba(167,139,250,0.6)', flexShrink: 0 }}>Try</span>
+            {/* example chips */}
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(167,139,250,0.6)', flexShrink: 0 }}>Try</span>
               <span
-                style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.silver, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0, cursor: 'pointer' }}
+                style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.silver, padding: '5px 12px', borderRadius: 999, background: 'rgba(167,139,250,0.06)', border: `1px solid ${C.hairline}`, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
                 onClick={() => { setBriefText(EXAMPLES[exampleIdx]); cycleExample(); }}
                 title="Click to use this example"
               >
@@ -297,19 +361,19 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                 type="button"
                 onClick={cycleExample}
                 aria-label="Next example"
-                style={{ width: 18, height: 18, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, background: 'rgba(167,139,250,0.10)', border: `1px solid ${C.hairline}`, color: C.lavender, cursor: 'pointer', padding: 0 }}
+                style={{ width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, background: 'rgba(167,139,250,0.10)', border: `1px solid ${C.hairline}`, color: C.lavender, cursor: 'pointer', padding: 0 }}
               >
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden>
                   <path d="M4 12 H20 M14 6 L20 12 L14 18" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
             </div>
-          </div>
+          </section>
 
           {/* Pacing */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <section className="sv-card">
             <SectionLabel label="Pacing" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {PACING_OPTIONS.map(opt => {
                 const on = pacing === opt.value;
                 return (
@@ -317,36 +381,37 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                     key={opt.value}
                     type="button"
                     onClick={() => setPacing(on ? null : opt.value)}
+                    className="sv-pacing-btn"
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '8px 12px 8px 10px', borderRadius: 11,
-                      background: on ? 'linear-gradient(135deg, rgba(124,58,237,0.22), rgba(219,39,119,0.10))' : 'transparent',
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 14px', borderRadius: 14,
+                      background: on ? 'linear-gradient(135deg, rgba(124,58,237,0.22), rgba(219,39,119,0.10))' : 'rgba(15,8,35,0.5)',
                       border: `1px solid ${on ? 'rgba(167,139,250,0.5)' : C.hairline}`,
                       boxShadow: on ? '0 0 0 1px rgba(124,58,237,0.16) inset, 0 6px 14px -6px rgba(124,58,237,0.4)' : 'none',
-                      cursor: 'pointer', textAlign: 'left', fontFamily: SANS,
+                      cursor: 'pointer', textAlign: 'left', fontFamily: SANS, width: '100%',
                     }}
                   >
-                    <span style={{ width: 14, height: 14, borderRadius: '50%', border: `1.5px solid ${on ? C.magenta : C.hairlineStrong}`, flexShrink: 0, position: 'relative', display: 'inline-block' }}>
-                      {on && <span style={{ position: 'absolute', inset: 2, borderRadius: '50%', background: C.magenta }} />}
+                    <span style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px solid ${on ? C.magenta : C.hairlineStrong}`, flexShrink: 0, position: 'relative', display: 'inline-block' }}>
+                      {on && <span style={{ position: 'absolute', inset: 2.5, borderRadius: '50%', background: C.magenta }} />}
                     </span>
-                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 13, color: C.amber, fontWeight: 700, letterSpacing: '-0.005em', flexShrink: 0 }}>{opt.label}</span>
-                      <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: on ? 'rgba(226,232,240,0.78)' : C.lavender, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.desc}</span>
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, color: C.amber, fontWeight: 700, letterSpacing: '-0.005em' }}>{opt.label}</span>
+                      <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: on ? 'rgba(226,232,240,0.82)' : C.lavender, lineHeight: 1.2 }}>{opt.desc}</span>
                     </span>
                   </button>
                 );
               })}
             </div>
-          </div>
+          </section>
 
           {/* Mood families */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <section className="sv-card">
             <SectionLabel label="Mood" hint="pick by feeling" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {MOOD_FAMILIES.map(family => (
-                <div key={family.name} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <div key={family.name} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(167,139,250,0.7)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: family.isStyle ? C.magenta : C.lavender, opacity: family.isStyle ? 0.7 : 0.5, display: 'inline-block', flexShrink: 0 }} />
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: family.isStyle ? C.magenta : C.lavender, opacity: family.isStyle ? 0.7 : 0.5, display: 'inline-block', flexShrink: 0 }} />
                     {family.name}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
@@ -357,9 +422,10 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                           key={mood}
                           type="button"
                           onClick={() => toggleMood(mood)}
+                          className="sv-pill"
                           style={{
-                            fontSize: 11.5, fontWeight: 600, letterSpacing: '0.01em',
-                            padding: '5px 10px', borderRadius: 999,
+                            fontSize: 12, fontWeight: 600, letterSpacing: '0.01em',
+                            borderRadius: 999,
                             background: on ? 'linear-gradient(135deg, rgba(124,58,237,0.32), rgba(219,39,119,0.22))' : 'transparent',
                             color: C.silver,
                             border: `1px solid ${on ? 'rgba(167,139,250,0.55)' : C.hairlineStrong}`,
@@ -377,50 +443,50 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                 </div>
               ))}
             </div>
-          </div>
+          </section>
 
-          {/* Synthesis preview */}
+          {/* Synthesis preview — spans both cols on desktop */}
           {synthesis && (
-            <div style={{ padding: '11px 12px', borderRadius: 12, background: 'linear-gradient(180deg, rgba(219,39,119,0.16), rgba(124,58,237,0.10) 50%, rgba(124,58,237,0.04))', border: '1px solid rgba(219,39,119,0.32)', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2, background: `linear-gradient(180deg, ${C.magenta}, ${C.purple})` }} />
-              <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.magenta, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+            <div className="sv-synthesis" style={{ padding: '16px 20px', borderRadius: 18, background: 'linear-gradient(180deg,rgba(219,39,119,0.16),rgba(124,58,237,0.08) 60%,rgba(124,58,237,0.03))', border: '1px solid rgba(219,39,119,0.32)', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: `linear-gradient(180deg, ${C.magenta}, ${C.purple})` }} />
+              <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.magenta, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" fill="currentColor" /></svg>
                 Creative direction
               </div>
-              <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 15, lineHeight: 1.3, color: C.silver, letterSpacing: '-0.005em' }}>
+              <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(15px,1.5vw,20px)', lineHeight: 1.4, color: C.silver, letterSpacing: '-0.005em', maxWidth: '70ch' }}>
                 {synthesis}
               </div>
             </div>
           )}
 
+          {/* CTA — spans both cols on desktop */}
+          <div className="sv-cta-row">
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!canContinue}
+              style={{
+                width: '100%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                padding: '15px 20px', borderRadius: 14, minHeight: 52,
+                background: canContinue ? `linear-gradient(135deg, ${C.purple}, ${C.magenta})` : 'rgba(167,139,250,0.10)',
+                color: canContinue ? 'white' : C.lavender,
+                fontWeight: 700, fontSize: 15, letterSpacing: '0.01em',
+                border: canContinue ? 'none' : `1px solid ${C.hairlineStrong}`,
+                boxShadow: canContinue ? '0 16px 30px -12px rgba(124,58,237,0.55), 0 0 0 1px rgba(255,255,255,0.06) inset' : 'none',
+                cursor: canContinue ? 'pointer' : 'not-allowed',
+                fontFamily: SANS,
+              }}
+            >
+              Continue to upload
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M5 12 H19 M13 6 L19 12 L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
+
         </div>
-
-        {/* ── CTA ── */}
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={!canContinue}
-          style={{
-            marginTop: 10,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            padding: 13, borderRadius: 13,
-            background: canContinue ? `linear-gradient(135deg, ${C.purple}, ${C.magenta})` : 'rgba(167,139,250,0.10)',
-            color: canContinue ? 'white' : C.lavender,
-            fontWeight: 700, fontSize: 14, letterSpacing: '0.01em',
-            border: canContinue ? 'none' : `1px solid ${C.hairlineStrong}`,
-            boxShadow: canContinue ? '0 16px 30px -12px rgba(124,58,237,0.55), 0 0 0 1px rgba(255,255,255,0.06) inset' : 'none',
-            cursor: canContinue ? 'pointer' : 'not-allowed',
-            fontFamily: SANS,
-            position: 'relative', overflow: 'hidden',
-          }}
-        >
-          Continue to upload
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path d="M5 12 H19 M13 6 L19 12 L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-
-      </div>
+      </main>
     </div>
   );
 }

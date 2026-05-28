@@ -868,20 +868,8 @@ type ResultsScreenProps = {
   onBack?: () => void;
 };
 
-function useWindowWidth() {
-  const [w, setW] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1024);
-  useEffect(() => {
-    const handler = () => setW(window.innerWidth);
-    window.addEventListener('resize', handler);
-    return () => window.removeEventListener('resize', handler);
-  }, []);
-  return w;
-}
-
 export function ResultsScreen({ briefText, briefId, sceneParams, results, readOnly, onBack }: ResultsScreenProps) {
   const [toast, setToast] = useState<string | null>(null);
-  const windowWidth = useWindowWidth();
-  const isDesktop = windowWidth >= 768;
 
   const onExportPdf = () => {
     try { window.print(); } catch (e) { setToast(e instanceof Error ? e.message : 'Print failed.'); }
@@ -903,11 +891,36 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
 
   return (
     <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: BG }}>
-      <div style={{ maxWidth: isDesktop ? 720 : 520, margin: '0 auto', padding: isDesktop ? '0 40px 48px' : '0 20px 48px' }}>
+      <style>{`
+        @keyframes sv-pulse-dot { 0%,100%{opacity:.7;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)} }
+        .sv-rs-topbar { position: sticky; top: 0; z-index: 20; background: linear-gradient(180deg,rgba(6,3,15,0.94),rgba(6,3,15,0.6) 70%,transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid ${C.hairline}; }
+        .sv-rs-topbar-inner { max-width: 1280px; margin: 0 auto; padding: 12px 28px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .sv-rs-shell { max-width: 1280px; margin: 0 auto; padding: 24px 28px 80px; }
+        .sv-rs-layout { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .sv-rs-sidebar { display: none; }
+        @media (min-width: 1000px) {
+          .sv-rs-layout { grid-template-columns: minmax(0,1.6fr) minmax(0,1fr); gap: 28px; align-items: start; }
+          .sv-rs-sidebar { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 72px; }
+          .sv-rs-main-cards { display: flex; flex-direction: column; gap: 0; }
+        }
+        @media (max-width: 480px) {
+          .sv-rs-shell { padding: 16px 16px 60px; }
+          .sv-rs-topbar-inner { padding: 10px 16px; }
+        }
+        @media print {
+          .sv-rs-topbar { display: none; }
+          .sv-rs-shell { padding: 0; max-width: 100%; }
+          .sv-rs-layout { grid-template-columns: 1fr; }
+          .sv-rs-sidebar { display: none !important; }
+          .no-print { display: none !important; }
+          .print-wordmark { display: flex !important; }
+        }
+      `}</style>
 
-        {/* ── sticky header ── */}
-        <div style={{ position: 'sticky', top: 0, zIndex: 20, padding: '12px 0 10px', background: 'rgba(15,8,35,0.85)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${C.hairline}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* ── sticky topbar ── */}
+      <header className="sv-rs-topbar">
+        <div className="sv-rs-topbar-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <SvLogo onClick={!readOnly && onBack ? onBack : undefined} />
             {!readOnly && onBack && (
               <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.lavender }}>· Shortlist</span>
@@ -917,37 +930,45 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
             )}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button type="button" onClick={onExportPdf} style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.lavender, padding: '5px 10px', borderRadius: 999, background: C.chipBg, border: `1px solid ${C.hairline}`, cursor: 'pointer', fontFamily: SANS }}>
+            <button type="button" onClick={onExportPdf} className="no-print" style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.lavender, padding: '6px 12px', minHeight: 32, borderRadius: 999, background: C.chipBg, border: `1px solid ${C.hairline}`, cursor: 'pointer', fontFamily: SANS }}>
               Export PDF
             </button>
-            <button type="button" onClick={onCopyShareLink} style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.lavender, padding: '5px 10px', borderRadius: 999, background: C.chipBg, border: `1px solid ${C.hairline}`, cursor: 'pointer', fontFamily: SANS }}>
+            <button type="button" onClick={onCopyShareLink} className="no-print" style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.lavender, padding: '6px 12px', minHeight: 32, borderRadius: 999, background: C.chipBg, border: `1px solid ${C.hairline}`, cursor: 'pointer', fontFamily: SANS }}>
               Copy share link
             </button>
           </div>
         </div>
+      </header>
+
+      <main className="sv-rs-shell">
 
         {/* ── scene header ── */}
-        <div style={{ paddingTop: 18, paddingBottom: 18, borderBottom: `1px solid ${C.hairline}` }}>
-          <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.lavender, marginBottom: 4 }}>
-            Shortlist · Scene
-          </div>
-          <div style={{ fontFamily: SERIF, fontSize: 26, lineHeight: 1.05, letterSpacing: '-0.01em', color: C.silver, fontWeight: 400 }}>
-            {BRIEF_LABELS[briefId]}
-          </div>
-          <div style={{ marginTop: 8, fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: 'rgba(226,232,240,0.65)', lineHeight: 1.4 }}>
-            {briefText}
-          </div>
-          <div style={{ marginTop: 8, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-            {sceneParams.pacing && (
-              <Chip>{sceneParams.pacing.charAt(0).toUpperCase() + sceneParams.pacing.slice(1)}</Chip>
-            )}
-            {sceneParams.sceneLengthSec != null && <Chip>{sceneParams.sceneLengthSec}s</Chip>}
-            {sceneParams.emotionalRegister && <Chip>{sceneParams.emotionalRegister}</Chip>}
+        <div style={{ paddingBottom: 18, marginBottom: 18, borderBottom: `1px solid ${C.hairline}` }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 5, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 22, height: 1, background: `linear-gradient(90deg,${C.magenta},transparent)`, display: 'inline-block' }} />
+                Shortlist
+              </div>
+              <h1 style={{ margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: 'clamp(22px,3.2vw,38px)', lineHeight: 1.05, letterSpacing: '-0.01em', color: C.silver }}>
+                {BRIEF_LABELS[briefId]}
+              </h1>
+              <div style={{ marginTop: 6, fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(13px,1.2vw,15px)', color: 'rgba(226,232,240,0.65)', lineHeight: 1.4, maxWidth: '60ch' }}>
+                {briefText}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginLeft: 'auto', alignSelf: 'flex-end' }}>
+              {sceneParams.pacing && (
+                <Chip>{sceneParams.pacing.charAt(0).toUpperCase() + sceneParams.pacing.slice(1)}</Chip>
+              )}
+              {sceneParams.sceneLengthSec != null && <Chip>{sceneParams.sceneLengthSec}s</Chip>}
+              {sceneParams.emotionalRegister && <Chip>{sceneParams.emotionalRegister}</Chip>}
+            </div>
           </div>
         </div>
 
-        {/* ── tab bar (shortlist count) ── */}
-        <div style={{ display: 'flex', gap: 4, padding: 4, margin: '8px 0 16px', background: 'rgba(167,139,250,0.06)', borderRadius: 12, border: `1px solid ${C.hairline}`, fontSize: 12, fontWeight: 600 }}>
+        {/* ── tab bar ── */}
+        <div className="no-print" style={{ display: 'flex', gap: 4, padding: 4, marginBottom: 18, background: 'rgba(167,139,250,0.06)', borderRadius: 12, border: `1px solid ${C.hairline}`, fontSize: 12, fontWeight: 600 }}>
           <div style={{ flex: 1, padding: '8px 0', textAlign: 'center', borderRadius: 8, background: 'rgba(124,58,237,0.22)', color: C.silver, boxShadow: 'inset 0 0 0 1px rgba(124,58,237,0.4)', letterSpacing: '0.02em' }}>
             Shortlist · {results.length}
           </div>
@@ -955,19 +976,48 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
           <div style={{ flex: 1, padding: '8px 0', textAlign: 'center', color: C.lavender, letterSpacing: '0.02em' }}>Archive</div>
         </div>
 
-        {/* ── track cards ── */}
+        {/* ── 2-col layout on desktop ── */}
         {results.length === 0 ? (
           <div style={{ padding: '48px 0', textAlign: 'center' }}>
             <p style={{ color: C.silver, fontSize: 14, marginBottom: 8, fontFamily: SERIF, fontStyle: 'italic' }}>No matches found for this scene.</p>
             <p style={{ color: C.lavender, fontSize: 12, opacity: 0.7 }}>Try rewriting your scene description, or upload different tracks.</p>
           </div>
         ) : (
-          results.map((r, i) => (
-            <TrackCard key={r.track.id} result={r} briefId={briefId} topScore={topScore} isFirst={i === 0} />
-          ))
+          <div className="sv-rs-layout">
+            {/* Main column — full list on mobile, just lead card on desktop */}
+            <div className="sv-rs-main-cards">
+              {results.map((r, i) => (
+                <TrackCard key={r.track.id} result={r} briefId={briefId} topScore={topScore} isFirst={i === 0} />
+              ))}
+            </div>
+            {/* Sidebar — mini-cards on desktop only (first 4, skipping lead) */}
+            <aside className="sv-rs-sidebar">
+              <div style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 4 }}>Also in shortlist</div>
+              {results.slice(1, 5).map((r, i) => {
+                const score = r.confidenceScore.score;
+                const title = cleanTrackTitle(r.track.filename);
+                return (
+                  <div key={r.track.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 14, background: 'rgba(167,139,250,0.04)', border: `1px solid ${C.hairline}` }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(124,58,237,0.18)', display: 'grid', placeItems: 'center', flexShrink: 0, fontFamily: '"JetBrains Mono",monospace', fontSize: 10, fontWeight: 700, color: C.lavender }}>
+                      {i + 2}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: C.silver, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.005em' }}>{title}</div>
+                      <div style={{ fontSize: 10, color: C.lavender, letterSpacing: '0.04em', marginTop: 2 }}>Fit Index {score}</div>
+                    </div>
+                  </div>
+                );
+              })}
+              {results.length > 5 && (
+                <div style={{ fontSize: 11, color: 'rgba(167,139,250,0.55)', textAlign: 'center', paddingTop: 4, fontStyle: 'italic', fontFamily: SERIF }}>
+                  +{results.length - 5} more below
+                </div>
+              )}
+            </aside>
+          </div>
         )}
 
-        {/* ── print header (logo + scene label) ── */}
+        {/* ── print header ── */}
         <div className="print-wordmark hidden">
           <img src="/logo.png" alt="SyncVision" className="print-wordmark-logo" />
           <span className="print-wordmark-text" style={{ marginLeft: 10, opacity: 0.5, fontSize: '0.75rem', letterSpacing: '0.14em' }}>
@@ -975,7 +1025,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
           </span>
         </div>
 
-      </div>
+      </main>
 
       {toast && (
         <div role="status" style={{ position: 'fixed', bottom: 24, right: 24, background: '#170B33', border: `1px solid ${C.hairline}`, borderRadius: 10, padding: '8px 16px', color: C.silver, fontSize: 12 }}>
