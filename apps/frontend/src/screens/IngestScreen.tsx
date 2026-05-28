@@ -194,10 +194,7 @@ const handleAddIsrc = () => {
       <header className="sv-ing-topbar">
         <div className="sv-ing-topbar-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.magenta, boxShadow: `0 0 10px ${C.magenta}`, animation: 'sv-pulse-dot 2.4s ease-in-out infinite', display: 'inline-block' }} />
-            <span style={{ fontFamily: SERIF, fontSize: 20, letterSpacing: '-0.01em', color: C.silver }}>
-              Sync<em style={{ fontStyle: 'italic', color: C.lavender }}>Vision</em>
-            </span>
+            <img src="/logo.png" alt="SyncVision" style={{ height: 28, width: 'auto', display: 'block' }} />
             <span style={{ width: 1, height: 16, background: C.hairlineStrong, display: 'inline-block' }} />
             <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, color: C.lavender }}>add tracks</span>
           </div>
