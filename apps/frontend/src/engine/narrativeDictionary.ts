@@ -874,116 +874,6 @@ async function deterministicIndex(
 }
 
 // ---------------------------------------------------------------------------
-// PAD alignment — expected emotional home position per brief type
-// ---------------------------------------------------------------------------
-// Values on a 0–1 scale: 0 = low, 0.5 = neutral, 1 = high.
-// Represents the PAD region where a track is most likely to serve the brief.
-// ---------------------------------------------------------------------------
-
-const BRIEF_PAD_ALIGNMENT: Readonly<Record<string, PADValues>> = {
-  "chase-tension":           { arousal: 0.75, valence: 0.20, dominance: 0.60 },
-  "action-combat":           { arousal: 0.90, valence: 0.30, dominance: 0.80 },
-  "heartbreak-separation":   { arousal: 0.30, valence: 0.25, dominance: 0.30 },
-  "romance-intimacy":        { arousal: 0.25, valence: 0.65, dominance: 0.30 },
-  "emotional-resolution":    { arousal: 0.40, valence: 0.55, dominance: 0.40 },
-  "drama-confrontation":     { arousal: 0.30, valence: 0.35, dominance: 0.40 },
-  "suspense-dread":          { arousal: 0.40, valence: 0.15, dominance: 0.50 },
-  "horror-psychological":    { arousal: 0.35, valence: 0.10, dominance: 0.60 },
-  "quirky-offbeat":          { arousal: 0.55, valence: 0.65, dominance: 0.50 },
-  "comedy-light":            { arousal: 0.65, valence: 0.80, dominance: 0.55 },
-  "opening-closing-title":   { arousal: 0.50, valence: 0.50, dominance: 0.50 },
-  "euphoria-celebration":    { arousal: 0.65, valence: 0.80, dominance: 0.55 },
-  "cinematic-epic":          { arousal: 0.75, valence: 0.40, dominance: 0.80 },
-  "corporate-aspirational":  { arousal: 0.60, valence: 0.70, dominance: 0.65 },
-  "nature-pastoral":         { arousal: 0.20, valence: 0.55, dominance: 0.30 },
-  "montage-transition":      { arousal: 0.50, valence: 0.50, dominance: 0.45 },
-  "triumph-victory":         { arousal: 0.85, valence: 0.85, dominance: 0.75 },
-  "grief-loss":              { arousal: 0.15, valence: 0.20, dominance: 0.20 },
-  "contemplative-reflective":{ arousal: 0.20, valence: 0.50, dominance: 0.30 },
-  "urban-gritty":            { arousal: 0.70, valence: 0.60, dominance: 0.75 },
-};
-
-/**
- * Returns a PAD alignment score in [-1, 1].
- *  +1 = track PAD perfectly matches brief's expected emotional home.
- *  -1 = track PAD is the opposite of what the brief needs.
- *   0 = neutral or unknown brief.
- *
- * Assumes PAD values are on a 0–1 scale. Clamps inputs to [0, 1] for safety.
- * Exported for testing and for callers that want to surface alignment to the UI.
- */
-export function padAlignmentScore(pad: PADValues, briefId: string): number {
-  const expected = BRIEF_PAD_ALIGNMENT[briefId];
-  if (!expected) return 0;
-
-  const dims: Array<keyof PADValues> = ['arousal', 'valence', 'dominance'];
-  let sum = 0;
-  for (const dim of dims) {
-    const e = expected[dim];
-    const v = Math.max(0, Math.min(1, pad[dim])); // clamp to [0, 1]
-    // distance=0 → +1, distance=0.5 → 0, distance=1 → -1
-    sum += 1 - Math.abs(v - e) * 2;
-  }
-  return sum / dims.length;
-}
-
-/**
- * Derive a tier using the base score, then nudge borderline results using
- * PAD alignment. Only acts inside a narrow ±5-point window around each
- * boundary (70 and 50) so mid-range results are never affected.
- *
- * Thresholds are intentionally conservative:
- *   alignment > +0.35 upgrades a borderline result (more emotionally aligned)
- *   alignment < -0.15 downgrades a borderline result (clear mismatch)
- */
-function tierWithPadAdjustment(
-  sceneFitScore: number,
-  briefId: string,
-  pad: PADValues,
-): Tier {
-  const base = tierFromScore(sceneFitScore);
-  const alignment = padAlignmentScore(pad, briefId);
-
-  // Near the PASS/MAYBE boundary (score 65–74)
-  if (sceneFitScore >= 65 && sceneFitScore < 70 && alignment >  0.35) return 'PASS';
-  if (sceneFitScore >= 70 && sceneFitScore < 75 && alignment < -0.15) return 'MAYBE';
-
-  // Near the MAYBE/FAIL boundary (score 45–54)
-  if (sceneFitScore >= 45 && sceneFitScore < 50 && alignment >  0.35) return 'MAYBE';
-  if (sceneFitScore >= 50 && sceneFitScore < 55 && alignment < -0.15) return 'FAIL';
-
-  return base;
-}
-
-// ---------------------------------------------------------------------------
-// Short-form extraction
-// ---------------------------------------------------------------------------
-
-/**
- * Pull the key observation out of a long-form phrase for use in the 'short'
- * output format. Prefers the clause before the first em-dash (which tends to
- * hold the structural or emotional judgement), falls back to the first sentence.
- */
-function extractShortReason(phrase: string): string {
-  // Em-dash pattern ' — ' separates the observation from editorial context
-  const dashIdx = phrase.indexOf(' — ');
-  if (dashIdx > 20 && dashIdx < 200) {
-    const before = phrase.slice(0, dashIdx);
-    return before.endsWith('.') ? before : before + '.';
-  }
-  // First sentence fallback
-  const dotIdx = phrase.indexOf('. ');
-  if (dotIdx > 20 && dotIdx < 230) {
-    return phrase.slice(0, dotIdx + 1);
-  }
-  // Hard trim at word boundary
-  if (phrase.length <= 200) return phrase;
-  const trimmed = phrase.slice(0, 180);
-  const lastSpace = trimmed.lastIndexOf(' ');
-  return (lastSpace > 80 ? trimmed.slice(0, lastSpace) : trimmed) + '…';
-}
-
-// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -993,18 +883,13 @@ function extractShortReason(phrase: string): string {
  * @param trackId       Unique track identifier (used for deterministic hashing).
  * @param briefId       Scene brief type key (must exist in NARRATIVE_DICTIONARY).
  * @param sceneFitScore Numeric fit score, typically 0–100.
- * @param padValues     Arousal / valence / dominance on a 0–1 scale.
- *                      Used to nudge borderline tier decisions (±5 pts around
- *                      the 70 and 50 thresholds) and lightly bias phrase
- *                      selection within the same tier.
+ * @param padValues     Accepted for API compatibility; not used in tier selection.
  * @param meta          Optional track metadata for inline substitution.
  * @param format        'full' (default) returns the complete editorial phrase
  *                      with any metadata suffix appended.
- *                      'short' returns a 1–2 sentence lead with the tier
- *                      decision and main reason, suitable for list views.
+ *                      'short' returns "TIER — <first clause>" for list views.
  *
- * Returns a safe fallback string instead of throwing on invalid inputs so
- * the UI never shows an unhandled exception.
+ * Returns a safe fallback string instead of throwing on invalid inputs.
  */
 export async function selectNarrative(
   trackId: string,
@@ -1028,6 +913,8 @@ export async function selectNarrative(
     return format === 'short' ? `FAIL — ${msg}` : msg;
   }
 
+  void padValues;
+
   // ── Dictionary lookup — safe fallback on unknown briefId ─────────────────
   const pool = NARRATIVE_DICTIONARY[briefId];
   if (!pool) {
@@ -1037,8 +924,8 @@ export async function selectNarrative(
     return msg;
   }
 
-  // ── Tier: base score + PAD nudge at borderline scores ────────────────────
-  const tier = tierWithPadAdjustment(sceneFitScore, briefId, padValues);
+  // ── Tier ─────────────────────────────────────────────────────────────────
+  const tier = tierFromScore(sceneFitScore);
   const phrases = pool[tier];
 
   if (!phrases || phrases.length === 0) {
@@ -1046,15 +933,8 @@ export async function selectNarrative(
     return format === 'short' ? `${tier} — ${msg}` : msg;
   }
 
-  // ── Phrase index: hash-based + small alignment bias ───────────────────────
-  // The alignment offset is still deterministic because it derives from the
-  // same padValues inputs. The offset is ±1 at most, so it can't jump across
-  // different narrative "zones" inside the pool.
-  const baseIdx = await deterministicIndex(trackId, briefId, phrases.length);
-  const alignment = padAlignmentScore(padValues, briefId);
-  const offset = alignment > 0.40 ? -1 : alignment < -0.20 ? 1 : 0;
-  const idx = ((baseIdx + offset) + phrases.length) % phrases.length;
-
+  // ── Phrase selection ──────────────────────────────────────────────────────
+  const idx = await deterministicIndex(trackId, briefId, phrases.length);
   let phrase = phrases[idx];
 
   // ── Inline substitution ───────────────────────────────────────────────────
@@ -1063,7 +943,11 @@ export async function selectNarrative(
 
   // ── Format ────────────────────────────────────────────────────────────────
   if (format === 'short') {
-    return `${tier} — ${extractShortReason(phrase)}`;
+    const dashIdx = phrase.indexOf(' — ');
+    const shortReason = dashIdx > 20
+      ? phrase.slice(0, dashIdx) + '.'
+      : (phrase.indexOf('. ') > 20 ? phrase.slice(0, phrase.indexOf('. ') + 1) : phrase);
+    return `${tier} — ${shortReason}`;
   }
 
   // Full format: append tonal / energy / tempo metadata suffix
@@ -1083,8 +967,6 @@ export async function selectNarrative(
 
 export {
   NARRATIVE_DICTIONARY,
-  BRIEF_PAD_ALIGNMENT,
   tierFromScore,
   deterministicIndex,
-  tierWithPadAdjustment,
 };
