@@ -155,12 +155,12 @@ async function fetchItunes(title: string, artist: string): Promise<ItunesResult>
   if (!results || results.length === 0) return {};
 
   const first = results[0];
-  const publisherName = (first["collectionName"] as string | undefined) ?? null;
+  // collectionName is the album title, NOT the label — do not use for publisherName
   const explicitness = first["trackExplicitness"] as string | undefined;
   const explicitFlag = explicitness === "explicit" ? true : explicitness === "notExplicit" ? false : null;
   const territory = (first["country"] as string | undefined) ?? null;
 
-  return { publisherName, territory, explicitFlag };
+  return { territory, explicitFlag };
 }
 
 // ─── Source: Last.fm ─────────────────────────────────────────────────────────
@@ -405,7 +405,7 @@ export async function enrichRightsProfile(
   const sources: string[] = [];
   if (mb && (mb.isrc || mb.writerName))                                                      sources.push("MusicBrainz");
   if (discogs && (discogs.publisherName || discogs.territory))                               sources.push("Discogs");
-  if (itunes && (itunes.publisherName || itunes.territory || itunes.explicitFlag != null))   sources.push("iTunes");
+  if (itunes && (itunes.territory || itunes.explicitFlag != null))                           sources.push("iTunes");
   if (lastfm && lastfm.tags.length > 0)                                                      sources.push("Last.fm");
   if (theaudiodb && (theaudiodb.label || theaudiodb.genre))                                  sources.push("TheAudioDB");
   if (deezer && (deezer.label || deezer.explicitFlag != null))                               sources.push("Deezer");
@@ -449,7 +449,6 @@ export async function enrichRightsProfile(
       discogs?.publisherName ??
       theaudiodb?.label ??
       deezer?.label ??
-      itunes?.publisherName ??
       existing?.publisherName ?? null,
     territory:
       itunes?.territory ?? discogs?.territory ??
