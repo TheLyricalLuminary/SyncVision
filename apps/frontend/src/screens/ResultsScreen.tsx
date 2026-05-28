@@ -908,6 +908,16 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
           .sv-rs-topbar-inner { padding: 10px 16px; }
         }
         @media print {
+          /* Force all backgrounds and colors to render exactly as on screen */
+          *, *::before, *::after {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          html, body {
+            background: #06030F !important;
+            color: #E2E8F0 !important;
+          }
           .sv-rs-topbar { display: none; }
           .sv-rs-shell { padding: 0; max-width: 100%; }
           .sv-rs-layout { grid-template-columns: 1fr; }
