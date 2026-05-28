@@ -629,6 +629,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
 
   return (
     <article
+      className="sv-track-card"
       style={{
         position: 'relative',
         background: isFirst
@@ -636,7 +637,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
           : 'linear-gradient(180deg, rgba(124,58,237,0.07), rgba(124,58,237,0.02))',
         border: `1px solid ${isFirst ? 'rgba(167,139,250,0.34)' : C.hairline}`,
         boxShadow: isFirst ? '0 20px 40px -20px rgba(124,58,237,0.35)' : 'none',
-        borderRadius: 16, padding: '12px 14px 11px', marginBottom: 10, overflow: 'hidden',
+        borderRadius: 16, marginBottom: 10, overflow: 'hidden',
       }}
     >
       {/* ghosted rank */}
@@ -888,6 +889,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
   };
 
   const topScore = results[0]?.confidenceScore.score ?? 100;
+  const hasSidebar = results.length > 1;
 
   return (
     <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: BG }}>
@@ -898,8 +900,12 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
         .sv-rs-shell { max-width: 1280px; margin: 0 auto; padding: 24px 28px 80px; }
         .sv-rs-layout { display: grid; grid-template-columns: 1fr; gap: 20px; }
         .sv-rs-sidebar { display: none; }
+        .sv-track-card { padding: 12px 14px 11px; }
+        @media (min-width: 880px) {
+          .sv-track-card { padding: 22px 26px 20px; }
+        }
         @media (min-width: 1000px) {
-          .sv-rs-layout { grid-template-columns: minmax(0,1.6fr) minmax(0,1fr); gap: 28px; align-items: start; }
+          .sv-rs-layout--sidebar { grid-template-columns: minmax(0,1.6fr) minmax(0,1fr); gap: 28px; align-items: start; }
           .sv-rs-sidebar { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 72px; }
           .sv-rs-main-cards { display: flex; flex-direction: column; gap: 0; }
         }
@@ -993,15 +999,15 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
             <p style={{ color: C.lavender, fontSize: 12, opacity: 0.7 }}>Try rewriting your scene description, or upload different tracks.</p>
           </div>
         ) : (
-          <div className="sv-rs-layout">
-            {/* Main column — full list on mobile, just lead card on desktop */}
+          <div className={`sv-rs-layout${hasSidebar ? ' sv-rs-layout--sidebar' : ''}`}>
+            {/* Main column */}
             <div className="sv-rs-main-cards">
               {results.map((r, i) => (
                 <TrackCard key={r.track.id} result={r} briefId={briefId} topScore={topScore} isFirst={i === 0} />
               ))}
             </div>
-            {/* Sidebar — mini-cards on desktop only (first 4, skipping lead) */}
-            <aside className="sv-rs-sidebar">
+            {/* Sidebar — only rendered when there are 2+ results */}
+            {hasSidebar && <aside className="sv-rs-sidebar">
               <div style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 4 }}>Also in shortlist</div>
               {results.slice(1, 5).map((r, i) => {
                 const score = r.confidenceScore.score;
@@ -1023,7 +1029,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
                   +{results.length - 5} more below
                 </div>
               )}
-            </aside>
+            </aside>}
           </div>
         )}
 
