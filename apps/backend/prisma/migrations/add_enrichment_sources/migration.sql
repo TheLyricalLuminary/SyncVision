@@ -1,0 +1,5 @@
+ALTER TABLE scoring."RightsProfile"
+  ADD COLUMN IF NOT EXISTS "enrichmentSources" TEXT[],
+  ADD COLUMN IF NOT EXISTS "enrichedAt" TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS "territory" TEXT,
+  ADD COLUMN IF NOT EXISTS "explicitFlag" BOOLEAN;

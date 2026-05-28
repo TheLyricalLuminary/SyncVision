@@ -106,6 +106,8 @@ interface AutoFill {
   writerIpi: string | null;
   publisherName: string | null;
   proAffiliation: string | null;
+  enrichmentSources?: string[];
+  territory?: string | null;
   sources: {
     isrc: string | null;
     writer: string | null;
@@ -249,21 +251,46 @@ function RightsPipelineView({
       {/* autoFill resolved fields summary */}
       {fpResult?.autoFill && (fpResult.autoFill.writerName || fpResult.autoFill.publisherName || fpResult.autoFill.isrc) && (
         <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)' }}>
+          {/* Source attribution header */}
           <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#34D399', fontWeight: 700, marginBottom: 6 }}>
-            Fields resolved — opening intake form
+            {fpResult.autoFill.enrichmentSources && fpResult.autoFill.enrichmentSources.length > 0
+              ? `✓ auto-filled from ${fpResult.autoFill.enrichmentSources.join(' + ')}`
+              : 'Fields resolved — opening intake form'}
           </div>
+
+          {/* Field status list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+            <div style={{ fontSize: 11, color: fpResult.autoFill.isrc ? '#34D399' : C.amber }}>
+              {fpResult.autoFill.isrc ? `✅ ISRC` : '⚠️ ISRC — enter manually'}
+            </div>
+            <div style={{ fontSize: 11, color: fpResult.autoFill.publisherName ? '#34D399' : C.amber }}>
+              {fpResult.autoFill.publisherName ? `✅ Publisher` : '⚠️ Publisher — enter manually'}
+            </div>
+            <div style={{ fontSize: 11, color: fpResult.autoFill.territory ? '#34D399' : C.amber }}>
+              {fpResult.autoFill.territory ? `✅ Territory` : '⚠️ Territory — unknown'}
+            </div>
+            <div style={{ fontSize: 11, color: C.amber }}>⚠️ PRO Affiliation — enter manually</div>
+            <div style={{ fontSize: 11, color: C.amber }}>⚠️ One-stop license — self-reported</div>
+            <div style={{ fontSize: 11, color: C.amber }}>⚠️ Work ID — requires PRO login</div>
+          </div>
+
+          {/* Resolved field values */}
           {fpResult.autoFill.writerName && (
-            <div style={{ fontSize: 11, color: C.silver, marginBottom: 2 }}>
+            <div style={{ fontSize: 11, color: C.silver, marginBottom: 2, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 4 }}>
               <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Writer: </span>
               {fpResult.autoFill.writerName}
-              <span style={{ color: 'rgba(167,139,250,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.writer}</span>
+              {fpResult.autoFill.sources.writer && (
+                <span style={{ color: 'rgba(167,139,250,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.writer}</span>
+              )}
             </div>
           )}
           {fpResult.autoFill.publisherName && (
             <div style={{ fontSize: 11, color: C.silver, marginBottom: 2 }}>
               <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Publisher: </span>
               {fpResult.autoFill.publisherName}
-              <span style={{ color: 'rgba(167,139,250,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.publisher}</span>
+              {fpResult.autoFill.sources.publisher && (
+                <span style={{ color: 'rgba(167,139,250,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.publisher}</span>
+              )}
             </div>
           )}
           {fpResult.autoFill.isrc && (

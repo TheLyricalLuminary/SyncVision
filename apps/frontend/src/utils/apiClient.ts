@@ -37,6 +37,10 @@ export type AnalysisResult = {
     syncLicensedBy?: string | null;
     lyricLicenseStatus?: string | null;
     lyricLicensedBy?: string | null;
+    enrichmentSources?: string[];
+    enrichedAt?: string | null;
+    territory?: string | null;
+    explicitFlag?: boolean | null;
   } | null;
   rank: number;
 };

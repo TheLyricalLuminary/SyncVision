@@ -17,6 +17,7 @@ import { requirePlan } from "../middleware/auth";
 import { computeRightsState } from "../scoring/rightsStateMachine";
 import { requirePaidEntitlement } from "../middleware/entitlement";
 import { validateTrackIngestion } from "../lib/validateTrackIngestion";
+import { enrichRightsProfile } from "../services/rightsEnrichment";
 
 const router = Router();
 
@@ -238,6 +239,9 @@ router.post("/tracks/upload", (req: Request, res: Response) => {
           enqueueErr instanceof Error ? enqueueErr.message : enqueueErr,
         );
       }
+
+      // Fire enrichment async — do not block the upload response
+      void enrichRightsProfile(track.id, track.title, track.artistName ?? '', track.isrc).catch(err => console.error('[enrichment] Enrichment failed:', err));
 
       res.json({
         filename: savedFilename,

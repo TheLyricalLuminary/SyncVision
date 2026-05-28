@@ -13,6 +13,7 @@ import fs from "fs";
 import { randomUUID } from "crypto";
 import prisma from "../lib/prisma";
 import { computeRightsState } from "../scoring/rightsStateMachine";
+import { enrichRightsProfile } from "../services/rightsEnrichment";
 import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
 import { buildVector } from "../scoring/trackVector";
 import { selectNarrative, type PADValues } from "../scoring/narrativeDictionary";
@@ -321,6 +322,22 @@ async function processJob(jobId: string): Promise<void> {
           },
           include: { rightsProfile: true },
         });
+      }
+
+      // If enrichment hasn't run yet for this track, await it now before scoring
+      if (!track.rightsProfile || !(track.rightsProfile as Record<string, unknown>)["enrichedAt"]) {
+        await enrichRightsProfile(
+          track.id,
+          track.title,
+          track.artistName ?? '',
+          track.isrc
+        ).catch(err => console.warn('[enrichment] Pre-analysis enrichment failed:', err));
+        // Re-fetch track with updated rights profile
+        const refreshed = await prisma.track.findUnique({
+          where: { id: track.id },
+          include: { rightsProfile: true },
+        });
+        if (refreshed) track = refreshed;
       }
 
       const padValues: PADValues = {
