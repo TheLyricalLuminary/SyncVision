@@ -121,10 +121,6 @@ function buildSynthesis(pacing: SceneParams['pacing'], moods: string[]): string 
   return `Conversational ${noun(moods[1])} building toward ${adj(moods[0])} resolution.`;
 }
 
-function SvLogo() {
-  return <img src="/logo.png" alt="SyncVision" style={{ height: 28, width: 'auto', display: 'block' }} />;
-}
-
 function SectionLabel({ label, hint }: { label: string; hint?: string }) {
   return (
     <div style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>

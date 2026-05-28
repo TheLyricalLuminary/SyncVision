@@ -23,10 +23,6 @@ const SERIF = '"Instrument Serif", Georgia, serif';
 const SANS  = '"Manrope", system-ui, sans-serif';
 const BG    = `radial-gradient(1200px 700px at 18% 0%, rgba(124,58,237,0.18), transparent 60%), radial-gradient(900px 600px at 82% 100%, rgba(219,39,119,0.10), transparent 60%), #06030F`;
 
-function SvLogo() {
-  return <img src="/logo.png" alt="SyncVision" style={{ height: 28, width: 'auto', display: 'block' }} />;
-}
-
 const PHASE_STAGE: Partial<Record<JobPhase, string>> = {
   submitting:  'Sending your tracks…',
   pending:     'In queue…',

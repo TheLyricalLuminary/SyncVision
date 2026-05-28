@@ -995,7 +995,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
               <div style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 4 }}>Also in shortlist</div>
               {results.slice(1, 5).map((r, i) => {
                 const score = r.confidenceScore.score;
-                const title = cleanTrackTitle(r.track.filename);
+                const title = cleanTrackTitle(r.track.title);
                 return (
                   <div key={r.track.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 14, background: 'rgba(167,139,250,0.04)', border: `1px solid ${C.hairline}` }}>
                     <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(124,58,237,0.18)', display: 'grid', placeItems: 'center', flexShrink: 0, fontFamily: '"JetBrains Mono",monospace', fontSize: 10, fontWeight: 700, color: C.lavender }}>

@@ -45,10 +45,6 @@ const SERIF = '"Instrument Serif", Georgia, serif';
 const SANS  = '"Manrope", system-ui, sans-serif';
 const BG    = `radial-gradient(1200px 700px at 18% 0%, rgba(124,58,237,0.18), transparent 60%), radial-gradient(900px 600px at 82% 100%, rgba(219,39,119,0.10), transparent 60%), #06030F`;
 
-function SvLogo() {
-  return <img src="/logo.png" alt="SyncVision" style={{ height: 28, width: 'auto', display: 'block' }} />;
-}
-
 export function IngestScreen({ creditBalance, onBack, onAnalyze }: IngestScreenProps) {
   const [tracks, setTracks]         = useState<IngestedTrack[]>([]);
   const [isrcValue, setIsrcValue]   = useState('');
@@ -149,12 +145,6 @@ const handleAddIsrc = () => {
   const canAnalyze = readyCount > 0 && creditBalance >= readyCount;
   const insufficientCredits = readyCount > 0 && creditBalance < readyCount;
 
-  const fieldStyle: React.CSSProperties = {
-    flex: 1, padding: '11px 14px',
-    background: 'rgba(0,0,0,0.28)', border: `1px solid ${C.hairline}`,
-    borderRadius: 11, color: C.silver, fontSize: 13, fontFamily: SANS,
-    outline: 'none', minWidth: 0,
-  };
   const addBtnStyle: React.CSSProperties = {
     padding: '0 14px', borderRadius: 11,
     background: `rgba(167,139,250,0.10)`, border: `1px solid ${C.hairlineStrong}`,
