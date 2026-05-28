@@ -239,10 +239,8 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
       {/* ── sticky topbar ── */}
       <header className="sv-topbar">
         <div className="sv-topbar-inner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
             <img src="/logo.png" alt="SyncVision" style={{ height: 28, width: 'auto', display: 'block' }} />
-            <span style={{ width: 1, height: 16, background: C.hairlineStrong, display: 'inline-block' }} />
-            <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, color: C.lavender }}>brief</span>
           </div>
           <nav className="sv-stepper" aria-label="Progress">
             <span className="sv-step active"><span className="sv-step-num">1</span> Brief</span>

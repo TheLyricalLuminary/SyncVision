@@ -193,10 +193,8 @@ const handleAddIsrc = () => {
       {/* ── sticky topbar ── */}
       <header className="sv-ing-topbar">
         <div className="sv-ing-topbar-inner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
             <img src="/logo.png" alt="SyncVision" style={{ height: 28, width: 'auto', display: 'block' }} />
-            <span style={{ width: 1, height: 16, background: C.hairlineStrong, display: 'inline-block' }} />
-            <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, color: C.lavender }}>add tracks</span>
           </div>
           <nav className="sv-ing-stepper" aria-label="Progress">
             <span className="sv-ing-step done"><span className="n"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg></span> Brief</span>
