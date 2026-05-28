@@ -930,8 +930,14 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
       {/* ── sticky topbar ── */}
       <header className="sv-rs-topbar">
         <div className="sv-rs-topbar-inner">
-          <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <SvLogo onClick={!readOnly && onBack ? onBack : undefined} />
+            {!readOnly && onBack && (
+              <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.lavender }}>· Shortlist</span>
+            )}
+            {readOnly && (
+              <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.lavender, opacity: 0.6 }}>read-only</span>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button type="button" onClick={onExportPdf} className="no-print" style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.lavender, padding: '6px 12px', minHeight: 32, borderRadius: 999, background: C.chipBg, border: `1px solid ${C.hairline}`, cursor: 'pointer', fontFamily: SANS }}>
