@@ -26,14 +26,6 @@ const BG    = `radial-gradient(1200px 700px at 18% 0%, rgba(124,58,237,0.18), tr
 // ── share payload ─────────────────────────────────────────────
 type SharePayload = { briefText: string; briefId: BriefId; sceneParams: SceneParams; results: AnalysisResult[] };
 
-function encodeSharePayload(p: SharePayload): string {
-  const json = JSON.stringify(p);
-  const utf8 = new TextEncoder().encode(json);
-  let bin = '';
-  utf8.forEach(b => (bin += String.fromCharCode(b)));
-  return btoa(bin);
-}
-
 export function decodeSharePayload(encoded: string): SharePayload | null {
   try {
     const bin = atob(encoded);

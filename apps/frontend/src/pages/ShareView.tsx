@@ -404,7 +404,7 @@ function AggregateReadout({ confirmed, conflicts, missing, total }: {
 }
 
 // ─── Audio player ──────────────────────────────────────────────────────────────
-function AudioPlayer({ token, trackId, isRank1 }: { token: string; trackId: string; isRank1: boolean }) {
+function AudioPlayer({ token, isRank1 }: { token: string; trackId: string; isRank1: boolean }) {
   const audioRef   = useRef<HTMLAudioElement | null>(null);
   const [playing,  setPlaying]  = useState(false);
   const [time,     setTime]     = useState(0);
@@ -512,7 +512,7 @@ function AudioPlayer({ token, trackId, isRank1 }: { token: string; trackId: stri
 }
 
 // ─── Track card ───────────────────────────────────────────────────────────────
-function TrackCard({ slot, packetId }: { slot: TrackSlot; packetId: string }) {
+function TrackCard({ slot }: { slot: TrackSlot; packetId: string }) {
   const [showLedger,   setShowLedger]   = useState(false);
   const [showPipeline, setShowPipeline] = useState(false);
   const isRank1 = slot.rank === 1;
@@ -527,8 +527,6 @@ function TrackCard({ slot, packetId }: { slot: TrackSlot; packetId: string }) {
     rights === 'BLOCKED'         ? 'BLOCKED'  :
     rights === 'PARTIALLY_CLEAR' ? 'PARTIAL'  :
     rights === 'UNVERIFIED'      ? 'UNVERIFIED' : 'INGESTED';
-
-  const shareUrl = `${window.location.origin}${window.location.pathname}#share=${packetId}`;
 
   return (
     <div
