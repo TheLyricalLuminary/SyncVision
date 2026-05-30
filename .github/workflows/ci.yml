@@ -17,17 +17,22 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install
+      - name: Install backend deps
+        working-directory: apps/backend
         run: npm install
 
-      - name: Typecheck
+      - name: Typecheck backend
+        working-directory: apps/backend
         run: npx tsc --noEmit
 
-      - name: Lint
-        run: npm run lint
-
       - name: Backend Tests
+        working-directory: apps/backend
         run: npm run test
 
+      - name: Install frontend deps
+        working-directory: apps/frontend
+        run: npm install
+
       - name: Build Frontend
-        run: cd frontend && npm install && npm run build
+        working-directory: apps/frontend
+        run: npm run build

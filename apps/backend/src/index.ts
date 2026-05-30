@@ -15,6 +15,7 @@ import catalogsRouter from "./routes/catalogs";
 import demoRouter from "./routes/demo";
 import analysisRouter from "./routes/analysis";
 import composerReportRouter from "./routes/composerReport";
+import shareRouter from "./routes/share";
 import { startConsumer } from "./queue/consumer";
 import { startWebhookWorker } from "./queue/webhookWorker";
 import { startReconciliationWorker } from "./queue/reconciliationWorker";
@@ -28,6 +29,7 @@ const REQUIRED_ENV = [
   "JWT_SECRET",
   "FRONTEND_URL",
   "AUDIO_STORAGE_PATH",
+  "AUDIO_TOKEN_SECRET",
 ];
 
 const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
@@ -89,6 +91,7 @@ app.use("/api", stripeRouter);
 app.use("/api", billingRouter);
 app.use("/api", trialsRouter);
 app.use("/api", composerReportRouter);
+app.use("/api", shareRouter);
 app.use("/api", demoRouter);
 app.use("/api", analysisRouter);
 

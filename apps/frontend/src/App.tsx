@@ -11,22 +11,23 @@ import { useAnalysisJob } from './hooks/useAnalysisJob';
 import { useCredits } from './hooks/useCredits';
 import type { BriefId } from './engine/classifyBrief';
 import type { AnalysisResult, SceneParams } from './utils/apiClient';
+import { API_BASE } from './utils/apiClient';
+import type { DecisionPacket } from './pages/ShareView';
 
 type View = 'brief' | 'ingest' | 'analyzing' | 'results';
 
-type SharedSession = {
-  briefText: string;
-  briefId: BriefId;
-  sceneParams: SceneParams;
-  results: AnalysisResult[];
-};
-
-function readSharedSession(): SharedSession | null {
-  const match = window.location.hash.match(/^#share=(.+)$/);
-  if (!match) return null;
-  const payload = decodeSharePayload(match[1]);
-  return payload;
+// A cuid2/cuid looks like: starts with a letter, 24–26 alphanum chars, no '=' padding.
+// Legacy base64 payloads are always 100+ chars and contain '+', '/', '='.
+function isPacketId(s: string): boolean {
+  return s.length < 60 && /^[a-z][a-z0-9]+$/.test(s);
 }
+
+type ShareRoute =
+  | { type: 'none' }
+  | { type: 'loading' }
+  | { type: 'packet';  packet: DecisionPacket }
+  | { type: 'legacy';  briefText: string; briefId: BriefId; sceneParams: SceneParams; results: AnalysisResult[] }
+  | { type: 'error';   message: string };
 
 const DEFAULT_SCENE_PARAMS: SceneParams = {
   pacing: null,
@@ -35,7 +36,7 @@ const DEFAULT_SCENE_PARAMS: SceneParams = {
 };
 
 function App() {
-  const [shared] = useState<SharedSession | null>(() => readSharedSession());
+  const [shareRoute, setShareRoute] = useState<ShareRoute>({ type: 'none' });
 
   const [view, setView] = useState<View>('brief');
   const [briefText, setBriefText] = useState('');
@@ -43,22 +44,68 @@ function App() {
   const [sceneParams, setSceneParams] = useState<SceneParams>(DEFAULT_SCENE_PARAMS);
   const [trackFilenames, setTrackFilenames] = useState<string[]>([]);
 
-  const job = useAnalysisJob();
+  const job     = useAnalysisJob();
   const credits = useCredits();
 
   useEffect(() => {
-    if (job.phase === 'complete') {
-      setView('results');
+    const match = window.location.hash.match(/^#share=(.+)$/);
+    if (!match) return;
+    const value = match[1];
+
+    if (isPacketId(value)) {
+      setShareRoute({ type: 'loading' });
+      fetch(`${API_BASE}/api/share/${value}`)
+        .then(r => {
+          if (r.status === 410) throw new Error('This share link has expired.');
+          if (!r.ok)            throw new Error(`Server ${r.status}`);
+          return r.json() as Promise<DecisionPacket>;
+        })
+        .then(packet => setShareRoute({ type: 'packet', packet }))
+        .catch(e => setShareRoute({ type: 'error', message: e instanceof Error ? e.message : 'Failed to load.' }));
+    } else {
+      // Legacy base64 payload — read-only fallback
+      const payload = decodeSharePayload(value);
+      if (payload) {
+        setShareRoute({ type: 'legacy', ...payload });
+      } else {
+        setShareRoute({ type: 'error', message: 'Unrecognised share link.' });
+      }
     }
+  }, []);
+
+  useEffect(() => {
+    if (job.phase === 'complete') setView('results');
   }, [job.phase]);
 
-  if (shared) {
+  if (shareRoute.type === 'loading') {
     return (
-      <ShareView
-        briefText={shared.briefText}
-        briefId={shared.briefId}
-        sceneParams={shared.sceneParams}
-        results={shared.results}
+      <div style={{ minHeight: '100vh', background: '#0F0823', display: 'grid', placeItems: 'center', color: '#A78BFA', fontFamily: 'Manrope, system-ui, sans-serif', fontSize: 14, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+        Loading decision packet…
+      </div>
+    );
+  }
+
+  if (shareRoute.type === 'error') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0F0823', display: 'grid', placeItems: 'center', color: '#F87171', fontFamily: 'Manrope, system-ui, sans-serif', fontSize: 14 }}>
+        {shareRoute.message}
+      </div>
+    );
+  }
+
+  if (shareRoute.type === 'packet') {
+    return <ShareView packet={shareRoute.packet} />;
+  }
+
+  if (shareRoute.type === 'legacy') {
+    // Render the old ShareView via ResultsScreen read-only prop
+    return (
+      <ResultsScreen
+        briefText={shareRoute.briefText}
+        briefId={shareRoute.briefId}
+        sceneParams={shareRoute.sceneParams}
+        results={shareRoute.results}
+        readOnly
       />
     );
   }
@@ -85,12 +132,7 @@ function App() {
           onAnalyze={(filenames) => {
             setTrackFilenames(filenames);
             setView('analyzing');
-            void job.start({
-              briefText,
-              briefId,
-              sceneParams,
-              trackFilenames: filenames,
-            });
+            void job.start({ briefText, briefId, sceneParams, trackFilenames: filenames });
           }}
         />
       )}
@@ -101,18 +143,8 @@ function App() {
           warning={job.warning}
           error={job.error}
           elapsedMs={job.elapsedMs}
-          onRetry={() =>
-            void job.start({
-              briefText,
-              briefId,
-              sceneParams,
-              trackFilenames,
-            })
-          }
-          onBackToIngest={() => {
-            job.reset();
-            setView('ingest');
-          }}
+          onRetry={() => void job.start({ briefText, briefId, sceneParams, trackFilenames })}
+          onBackToIngest={() => { job.reset(); setView('ingest'); }}
         />
       )}
 
@@ -122,10 +154,7 @@ function App() {
           briefId={briefId}
           sceneParams={sceneParams}
           results={job.results}
-          onBack={() => {
-            job.reset();
-            setView('brief');
-          }}
+          onBack={() => { job.reset(); setView('brief'); }}
         />
       )}
     </>

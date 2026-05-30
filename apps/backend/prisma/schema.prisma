@@ -180,6 +180,22 @@ model StripeAuditLog {
   @@schema("scoring")
 }
 
+model DecisionPacket {
+  id             String   @id @default(cuid())
+  packetVersion  String   @default("1")
+  scoringVersion String
+  briefId        String
+  briefText      String
+  sceneParams    Json
+  tracks         Json
+  packetHash     String
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  @@map("decision_packets")
+  @@schema("scoring")
+}
+
 model CreditTransaction {
   id            String   @id @default(cuid())
   userId        String

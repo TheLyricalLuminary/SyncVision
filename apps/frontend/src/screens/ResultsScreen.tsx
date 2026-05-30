@@ -896,8 +896,48 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
 
   const onCopyShareLink = async () => {
     try {
-      const encoded = encodeSharePayload({ briefText, briefId, sceneParams, results });
-      const url = `${window.location.origin}${window.location.pathname}#share=${encoded}`;
+      setToast('Creating share link…');
+      const body = {
+        briefText,
+        briefId,
+        sceneParams,
+        results: results.map(r => ({
+          trackId:         r.track.id,
+          title:           r.track.title,
+          artistName:      r.track.artistName,
+          isrc:            r.track.isrc,
+          rank:            r.rank,
+          tempo:           r.track.tempo,
+          tonalCharacter:  r.track.tonalCharacter,
+          energyCharacter: r.track.energyCharacter,
+          hasAudio:        r.track.audioFilePath !== null,
+          confidenceScore: {
+            score:       r.confidenceScore.score,
+            vector:      r.confidenceScore.vector,
+            inputHash:   r.confidenceScore.inputHash,
+            explanation: r.confidenceScore.explanation,
+          },
+          rightsProfile: r.rightsProfile ? {
+            isOneStop:         r.rightsProfile.isOneStop ?? null,
+            proAffiliation:    r.rightsProfile.proAffiliation ?? null,
+            masterOwnedBy:     r.rightsProfile.masterOwnedBy ?? null,
+            publisherName:     r.rightsProfile.publisherName ?? null,
+            writerName:        r.rightsProfile.writerName ?? null,
+            rightsState:       r.rightsProfile.rightsState ?? null,
+            enrichmentSources: r.rightsProfile.enrichmentSources ?? [],
+          } : null,
+        })),
+      };
+
+      const resp = await fetch(`${API_BASE}/api/share`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      });
+
+      if (!resp.ok) throw new Error(`Server ${resp.status}`);
+      const { packetId } = await resp.json() as { packetId: string };
+      const url = `${window.location.origin}${window.location.pathname}#share=${packetId}`;
       await navigator.clipboard.writeText(url);
       setToast('Share link copied.');
       window.setTimeout(() => setToast(null), 2400);
