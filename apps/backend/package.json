@@ -7,7 +7,7 @@
     "build": "prisma generate && tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "test": "tsx src/scoring/confidenceScore.test.ts && tsx src/scoring/narrativeDictionary.test.ts && tsx src/scoring/narratives.test.ts",
+    "test": "tsx src/scoring/confidenceScore.test.ts && tsx src/scoring/narrativeDictionary.test.ts && tsx src/scoring/narratives.test.ts && tsx src/scoring/rightsStateMachine.test.ts",
     "demo": "tsx src/scripts/demo.ts",
     "process-audio": "tsx src/scripts/processAudio.ts",
     "seed-catalog": "tsx src/scripts/seedDefaultCatalog.ts"

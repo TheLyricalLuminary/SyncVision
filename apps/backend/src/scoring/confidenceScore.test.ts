@@ -50,47 +50,48 @@ function runDeterminismTest(): void {
 
   console.log("\n=== Scoring logic spot-checks ===\n");
 
-  // Full score: all fields present and valid
-  console.log(`  score=${run1.score}  (expected 100)`);
-  if (run1.score !== 100) throw new Error(`FAIL: expected score 100, got ${run1.score}`);
-  console.log("  PASS [full score = 100]");
+  // Full rights + metadata, but no audio analysis yet → 85
+  // (audioQuality=0, sceneFit=0 — points require actual audio feature data)
+  console.log(`  score=${run1.score}  (expected 85)`);
+  if (run1.score !== 85) throw new Error(`FAIL: expected score 85, got ${run1.score}`);
+  console.log("  PASS [full rights + metadata, no audio → score 85]");
 
   if (run1.breakdown.confidenceLabel !== "HIGH") throw new Error(`FAIL: expected HIGH, got ${run1.breakdown.confidenceLabel}`);
   console.log("  PASS [label = HIGH]");
 
-  // No ISRC → loses 20 pts
+  // No ISRC → loses 20 pts → 65
   const noIsrc = calculateConfidenceScore({ ...TRACK, isrc: null }, RIGHTS);
-  if (noIsrc.score !== 80) throw new Error(`FAIL: expected 80, got ${noIsrc.score}`);
-  console.log("  PASS [missing ISRC → score 80]");
+  if (noIsrc.score !== 65) throw new Error(`FAIL: expected 65, got ${noIsrc.score}`);
+  console.log("  PASS [missing ISRC → score 65]");
 
-  // Bad ISRC format → loses 20 pts
+  // Bad ISRC format → loses 20 pts → 65
   const badIsrc = calculateConfidenceScore({ ...TRACK, isrc: "bad-isrc" }, RIGHTS);
-  if (badIsrc.score !== 80) throw new Error(`FAIL: expected 80, got ${badIsrc.score}`);
-  console.log("  PASS [invalid ISRC → score 80]");
+  if (badIsrc.score !== 65) throw new Error(`FAIL: expected 65, got ${badIsrc.score}`);
+  console.log("  PASS [invalid ISRC → score 65]");
 
-  // masterOwnershipPct = 99.99 → loses 15 pts
+  // masterOwnershipPct = 99.99 → loses 15 pts → 70
   const partial = calculateConfidenceScore(TRACK, { ...RIGHTS, masterOwnershipPct: 99.99 });
-  if (partial.score !== 85) throw new Error(`FAIL: expected 85, got ${partial.score}`);
-  console.log("  PASS [ownership 99.99 → score 85]");
+  if (partial.score !== 70) throw new Error(`FAIL: expected 70, got ${partial.score}`);
+  console.log("  PASS [ownership 99.99 → score 70]");
 
-  // isOneStop = false → loses 15 pts
+  // isOneStop = false → loses 15 pts → 70
   const noOneStop = calculateConfidenceScore(TRACK, { ...RIGHTS, isOneStop: false });
-  if (noOneStop.score !== 85) throw new Error(`FAIL: expected 85, got ${noOneStop.score}`);
-  console.log("  PASS [isOneStop false → score 85]");
+  if (noOneStop.score !== 70) throw new Error(`FAIL: expected 70, got ${noOneStop.score}`);
+  console.log("  PASS [isOneStop false → score 70]");
 
-  // Empty rights profile → score = audioQuality + sceneFit = 15
+  // Empty rights profile, no audio → score = 0 (no rights, no metadata, no audio features)
   const empty = calculateConfidenceScore(
     { id: "t2", title: "Ghost", isrc: null },
     { id: "r2", trackId: "t2" }
   );
-  if (empty.score !== 15) throw new Error(`FAIL: expected 15, got ${empty.score}`);
+  if (empty.score !== 0) throw new Error(`FAIL: expected 0, got ${empty.score}`);
   if (empty.breakdown.confidenceLabel !== "LOW") throw new Error(`FAIL: expected LOW`);
-  console.log("  PASS [empty profile → score 15, label LOW]");
+  console.log("  PASS [empty profile, no audio → score 0, label LOW]");
 
-  // String masterOwnershipPct = "100" (Prisma Decimal over JSON)
+  // String masterOwnershipPct = "100" (Prisma Decimal over JSON) → 85
   const stringPct = calculateConfidenceScore(TRACK, { ...RIGHTS, masterOwnershipPct: "100" });
-  if (stringPct.score !== 100) throw new Error(`FAIL: expected 100, got ${stringPct.score}`);
-  console.log('  PASS [masterOwnershipPct "100" (string) → score 100]');
+  if (stringPct.score !== 85) throw new Error(`FAIL: expected 85, got ${stringPct.score}`);
+  console.log('  PASS [masterOwnershipPct "100" (string) → score 85]');
 
   console.log("\nAll tests passed.\n");
 }
