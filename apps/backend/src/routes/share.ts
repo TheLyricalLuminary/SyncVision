@@ -328,13 +328,31 @@ router.post('/share', async (req: Request, res: Response) => {
     const conflicts       = ledger.filter(f => f.agreementState === 'CONFLICT').length;
     const missing         = ledger.filter(f => f.agreementState === 'MISSING').length;
 
-    // Pipeline — pass track scalars + rights fields for stage evaluation
+    // Pipeline — merge DB state with current ledger truth.
+    // Staleness guard: when rightsFieldSources exists (enrichment has run), any
+    // field with zero entries in rightsFieldSources was not found by the latest
+    // enrichment run. Mask the stale DB value so the pipeline stage doesn't
+    // falsely complete on data from a prior run.
     const pipelineInput: Record<string, unknown> = {
       ...(rp ?? {}),
       isrc,
       tempo:         r.tempo,
       tonalCharacter: r.tonalCharacter,
     };
+    if (rfs) {
+      // rfs present → at least one enrichment run has populated rightsFieldSources.
+      // For each rights field, if rfs has no entries the latest run found nothing —
+      // override the DB value to null so the downstream pipeline stage can't pass.
+      if (!rfs['publisherName']?.length) {
+        pipelineInput['publisherName'] = null;
+        pipelineInput['ascapWorkId']   = null;
+        pipelineInput['bmiWorkId']     = null;
+      }
+      if (!rfs['writerName']?.length && !rfs['writerIpi']?.length) {
+        pipelineInput['writerName'] = null;
+        pipelineInput['writerIpi'] = null;
+      }
+    }
     const pipeline = buildPipeline(pipelineInput);
 
     // Audio token — only if the track has a real audio file on disk

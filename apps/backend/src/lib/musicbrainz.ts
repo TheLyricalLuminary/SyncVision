@@ -81,7 +81,7 @@ export async function enrichFromMusicBrainz(
   // ── Step 2: work lookup for composer + publisher ─────────────
   await delay(1100); // MB rate limit
   const workRes = await mbFetch(
-    `/work/${workStub.id}?inc=aliases+iswcs+artist-rels+label-rels&fmt=json`,
+    `/work/${workStub.id}?inc=aliases+artist-rels+label-rels&fmt=json`,
   );
   if (!workRes.ok) return base;
   const work = (await workRes.json()) as MBWork;

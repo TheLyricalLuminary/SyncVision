@@ -52,6 +52,9 @@ services:
         value: "production"
       - key: ACOUSTID_APP_ID
         sync: false
+      # CREDITS_FM_API_KEY — must be set manually in the Render dashboard.
+      # Not committed to repo. Without it, Credits.fm silently returns null
+      # (see lib/creditsfm.ts:19). IPI and ISWC enrichment will be absent.
       - key: ENABLE_STRIPE_RECONCILIATION
         value: "true"
     disk:

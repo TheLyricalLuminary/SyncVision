@@ -129,7 +129,8 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
       try {
         auddResult = await queryAudD(audioPath, AUDD_API_TOKEN);
       } catch (e) {
-        console.warn("[fingerprint] AudD failed:", e instanceof Error ? e.message : e);
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`[enrichment:audd] trackId=${id as string} error="${msg}"`);
       }
     }
 
@@ -152,7 +153,9 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
         acoustidTitle   = rec?.title ?? null;
         acoustidArtist  = rec?.artists?.[0]?.name ?? null;
       } catch (e) {
-        console.warn("[fingerprint] AcoustID fallback failed:", e instanceof Error ? e.message : e);
+        const msg = e instanceof Error ? e.message : String(e);
+        const isTimeout = msg.includes("Timeout") || msg.includes("timeout");
+        console.error(`[enrichment:acoustid] trackId=${id as string} timeout=${isTimeout} error="${msg}"`);
       }
     }
 
@@ -181,7 +184,12 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     if (mbRecordingId && matched) {
       try {
         mbEnrichment = await enrichFromMusicBrainz(mbRecordingId);
-      } catch { /* non-fatal */ }
+        console.log(`[enrichment:musicbrainz] trackId=${id as string} mbid=${mbRecordingId} isrc=${mbEnrichment.isrc} iswc=${mbEnrichment.iswc} writer=${mbEnrichment.writerName} workMbid=${mbEnrichment.workMbid}`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const isTimeout = msg.includes("Timeout") || msg.includes("timeout");
+        console.error(`[enrichment:musicbrainz] trackId=${id as string} mbid=${mbRecordingId} timeout=${isTimeout} error="${msg}"`);
+      }
     }
 
     // ── Credits.fm enrichment ─────────────────────────────────────
@@ -190,7 +198,18 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     if (resolvedIsrc) {
       try {
         creditsEnrichment = await enrichFromCreditsFm(resolvedIsrc);
-      } catch { /* non-fatal */ }
+        if (creditsEnrichment) {
+          console.log(`[enrichment:credits.fm] trackId=${id as string} isrc=${resolvedIsrc} writer=${creditsEnrichment.writerName} ipi=${creditsEnrichment.writerIpi} publisher=${creditsEnrichment.publisherName} iswc=${creditsEnrichment.iswc}`);
+        } else {
+          console.log(`[enrichment:credits.fm] trackId=${id as string} isrc=${resolvedIsrc} skipped=true reason="no API key or no match"`);
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const isTimeout = msg.includes("Timeout") || msg.includes("timeout");
+        console.error(`[enrichment:credits.fm] trackId=${id as string} isrc=${resolvedIsrc} timeout=${isTimeout} error="${msg}"`);
+      }
+    } else {
+      console.log(`[enrichment:credits.fm] trackId=${id as string} skipped=true reason="no ISRC resolved"`);
     }
 
     // ── MLC enrichment (Layer 6) ──────────────────────────────────
@@ -198,7 +217,16 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     let mlcEnrichment = null;
     try {
       mlcEnrichment = await enrichFromMlc(resolvedIsrc, resolvedIswc);
-    } catch { /* non-fatal */ }
+      if (mlcEnrichment) {
+        console.log(`[enrichment:mlc] trackId=${id as string} publisher=${mlcEnrichment.publisherName} mechanicalStatus=${mlcEnrichment.mechanicalStatus} claimStatus=${mlcEnrichment.claimStatus}`);
+      } else {
+        console.log(`[enrichment:mlc] trackId=${id as string} skipped=true reason="no match or API unavailable"`);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const isTimeout = msg.includes("Timeout") || msg.includes("timeout");
+      console.error(`[enrichment:mlc] trackId=${id as string} timeout=${isTimeout} error="${msg}"`);
+    }
 
     // ── Musixmatch lyrics linkage ─────────────────────────────────
     let lyricsData = null;
@@ -208,7 +236,11 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
         artist: resolvedArtist,
         title:  resolvedTitle,
       });
-    } catch { /* non-fatal */ }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const isTimeout = msg.includes("Timeout") || msg.includes("timeout");
+      console.error(`[enrichment:musixmatch] trackId=${id as string} timeout=${isTimeout} error="${msg}"`);
+    }
 
     // ── Persist identity + rights sourced data ────────────────────
     try {
