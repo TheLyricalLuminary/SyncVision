@@ -16,7 +16,7 @@ import { computeRightsState } from "../scoring/rightsStateMachine";
 import { enrichRightsProfile } from "../services/rightsEnrichment";
 import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
 import { buildVector } from "../scoring/trackVector";
-import { composeNarrative, type PADValues } from "../scoring/narrativeDictionary";
+import { selectNarrativeWithLane, type PADValues } from "../scoring/narrativeDictionary";
 
 const router = Router();
 
@@ -380,7 +380,7 @@ async function processJob(jobId: string): Promise<void> {
       });
 
       const score = Math.round(ranked.score * 100);
-      const explanation = composeNarrative(track.id, job.briefId, sceneFit, padValues, {
+      const explanation = selectNarrativeWithLane(track.id, job.briefId, vector, {
         tempo: track.tempo,
         tonalCharacter: track.tonalCharacter,
         energyCharacter: track.energyCharacter,

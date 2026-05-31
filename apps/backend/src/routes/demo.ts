@@ -4,7 +4,8 @@ import prisma from "../lib/prisma";
 import { computeRightsState } from "../scoring/rightsStateMachine";
 import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
 import { computeSyncVisionScoreV2 } from "../scoring/scoringV2";
-import { composeNarrative } from "../scoring/narrativeDictionary";
+import { buildVector } from "../scoring/trackVector";
+import { selectNarrativeWithLane } from "../scoring/narrativeDictionary";
 
 // ─── In-memory rate limiter: 10 req / IP / hour ───────────────────────────────
 
@@ -249,7 +250,32 @@ router.post("/demo/check", async (req: Request, res: Response) => {
         (track as any).modelVersion ?? null,
       );
 
-      const narrative = composeNarrative(track!.id, briefId, sceneFit, padValues, {
+      const { vector } = buildVector({
+        padSceneFit:   sceneFit,
+        dspMatchScore: sceneFit,
+        rights: {
+          clearanceScore: clearance.score,
+          hasIsrc:        Boolean(track!.isrc),
+          acoustidScore:  (track as any).acoustidScore as number | null ?? null,
+        },
+        lyrics: null,
+        lyricsProxy: {
+          padValence: padValues.valence,
+          hasTitle:   Boolean(track!.title),
+          titleHash:  track!.title
+            ? Array.from(track!.title).reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) & 0xff, 0)
+            : 128,
+        },
+        signal: {
+          hasAudio:  Boolean((track as any).audioFilePath),
+          hasLyrics: false,
+          hasTitle:  Boolean(track!.title),
+          hasTempo:  track!.tempo !== null,
+          hasTonal:  Boolean((track as any).tonalCharacter),
+          hasArtist: Boolean(track!.artistName),
+        },
+      });
+      const narrative = selectNarrativeWithLane(track!.id, briefId, vector, {
         tempo: track?.tempo ?? null,
         tonalCharacter: (track as any).tonalCharacter ?? null,
         energyCharacter: (track as any).energyCharacter ?? null,
