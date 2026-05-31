@@ -25,7 +25,12 @@ import type { BriefPool, FailPhrase, LaneTag } from './narrativeDictionary';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-/** Expected number of phrases in every brief × tier cell. */
+/**
+ * Minimum number of phrases in every brief × tier cell.
+ * FAIL pools may grow beyond this floor when distinct scene arguments are restored
+ * (pool-grow approach); selectNarrativeWithLane handles variable pool sizes via
+ * sha256 % laneSize, so uniformity is not required.
+ */
 const PHRASES_PER_POOL = 6;
 
 /**
@@ -217,9 +222,9 @@ function checkCompleteness(): void {
         hardFail(`MISSING CELL: ${brief} / ${tier} — pool undefined`);
         continue;
       }
-      if (phrases.length !== PHRASES_PER_POOL) {
+      if (phrases.length < PHRASES_PER_POOL) {
         hardFail(
-          `WRONG COUNT: ${brief} / ${tier} — expected ${PHRASES_PER_POOL} phrases, found ${phrases.length}`,
+          `WRONG COUNT: ${brief} / ${tier} — expected at least ${PHRASES_PER_POOL} phrases, found ${phrases.length}`,
         );
       } else {
         pass(`${brief} / ${tier}: ${phrases.length} phrases`);
@@ -239,11 +244,11 @@ function checkCompleteness(): void {
     const p = NARRATIVE_DICTIONARY[b];
     return sum + (p.PASS?.length ?? 0) + (p.MAYBE?.length ?? 0) + (p.FAIL?.length ?? 0);
   }, 0);
-  const expectedTotal = expected * EXPECTED_TIERS.length * PHRASES_PER_POOL;
-  if (totalPhrases !== expectedTotal) {
-    hardFail(`TOTAL PHRASE COUNT: expected ${expectedTotal}, found ${totalPhrases}`);
+  const minTotal = expected * EXPECTED_TIERS.length * PHRASES_PER_POOL;
+  if (totalPhrases < minTotal) {
+    hardFail(`TOTAL PHRASE COUNT: expected at least ${minTotal}, found ${totalPhrases}`);
   } else {
-    pass(`Total phrases: ${totalPhrases}`);
+    pass(`Total phrases: ${totalPhrases} (minimum ${minTotal})`);
   }
 }
 
