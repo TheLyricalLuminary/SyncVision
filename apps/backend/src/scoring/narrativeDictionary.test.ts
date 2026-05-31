@@ -72,9 +72,20 @@ const OVERCLAIM_PATTERNS: Array<{
   },
   {
     name:    'KEY_SIGNATURE',
-    // Matches specific key names: "A minor", "C# major", "Bb maj" etc.
-    // Case-sensitive on [A-G] to avoid matching "a major label" or "c minor chord".
-    pattern: /\b[A-G][#b♯♭]?\s*(major|minor|maj|min)\b/,
+    // Matches musical key names: "C# minor", "Bb major", "F maj".
+    // Case-sensitive on [A-G] — lowercase 'a'/'c' etc. are common articles/words.
+    //
+    // Negative lookahead excludes English adjective uses such as "A minor lift" or
+    // "A minor arousal drift" where the letter is the article "A" and minor/major
+    // describes degree, not a tonal centre.  The following noun list covers PAD-
+    // dimension words and degree descriptors that never follow a key name in prose.
+    // Extend PAD_DEGREE_NOUNS if new false-positive patterns surface.
+    //
+    // BEFORE: /\b[A-G][#b♯♭]?\s*(major|minor|maj|min)\b/
+    //   → false-positives: "A minor lift", "A minor valence drift", "A minor dip"
+    // AFTER: negative lookahead on PAD/degree nouns eliminates all known false positives
+    //   → still catches: "in A minor", "C# major", "resolves to F# minor"
+    pattern: /\b[A-G][#b♯♭]?\s*(major|minor|maj|min)\b(?!\s+(?:lift|dip|drift|tilt|fluctuation|shift|variation|adjustment|arousal|valence|dominance|softening|brightening|darkening|plateau|register|character|quality|concern|deviation|note\b))/,
     reason:  'Key/mode name references a specific tonal centre the engine cannot verify',
   },
   {
