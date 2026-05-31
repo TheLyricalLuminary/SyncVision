@@ -9,9 +9,9 @@
  *                            cross-pool exact matches are warned (not hard-failed).
  * CHECK 3 — Overclaim lint: no timestamps, hardcoded BPM, key signatures, bar counts, or unverifiable
  *                            scene-specific claims. Hard-fails on any match.
- * CHECK 4 — FAIL lane balance: verifies the 2/2/2 (emotional / structural / rights) positional
- *                            convention holds for every FAIL pool. Reports fragility of positional-only
- *                            tagging.
+ * CHECK 4 — FAIL lane balance: reads explicit lane tag from each FailPhrase; asserts ≥ MIN_LANE_SIZE
+ *                            phrases per LaneTag value; cross-validates with keyword heuristics (warn
+ *                            only — heuristic disagreements do not hard-fail).
  *
  * DO NOT modify NARRATIVE_DICTIONARY content in this file. This suite only reads and validates.
  */
@@ -21,7 +21,7 @@ import {
   tierFromScore,
   deterministicIndex,
 } from './narrativeDictionary';
-import type { BriefPool } from './narrativeDictionary';
+import type { BriefPool, FailPhrase, LaneTag } from './narrativeDictionary';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -31,20 +31,17 @@ const PHRASES_PER_POOL = 6;
 /**
  * Jaccard token-overlap threshold for near-duplicate detection.
  * Two phrases with similarity >= this value are flagged.
- * Tune this constant if the threshold produces false positives.
  */
 const NEAR_DUP_THRESHOLD = 0.80;
 
 /**
- * FAIL pool positions map to lanes by convention (positional-only, no explicit tag).
- * Indices [0,1] = emotional-mismatch, [2,3] = structural-conflict, [4,5] = rights-friction.
- * This is a FRAGILITY — see CHECK 4 report.
+ * Minimum number of FailPhrase objects per LaneTag value in each FAIL pool.
+ * With the current 2/2/2 positional convention (scene/lyrics/rights) this is 2.
  */
-const FAIL_LANE_POSITIONS: Record<'emotional' | 'structural' | 'rights', [number, number]> = {
-  emotional:  [0, 1],
-  structural: [2, 3],
-  rights:     [4, 5],
-};
+const MIN_LANE_SIZE = 2;
+
+/** All valid LaneTag values — used for runtime validation. */
+const VALID_LANE_TAGS: LaneTag[] = ['scene', 'lyrics', 'rights'];
 
 // ─── OVERCLAIM_PATTERNS ───────────────────────────────────────────────────────
 // Each entry names a forbidden pattern with a reason string.
@@ -58,15 +55,13 @@ const OVERCLAIM_PATTERNS: Array<{
   {
     name:    'TIMESTAMP_MMSS',
     // Matches time references like 0:08, 1:42, 2:47.
-    // Phrases must not reference specific moments the engine cannot verify.
     pattern: /\b\d{1,2}:\d{2}\b/,
     reason:  'MM:SS timestamp references a structural moment the engine cannot verify for an arbitrary track',
   },
   {
     name:    'TEMPO_BPM_HARDCODED',
     // Matches hardcoded numeric BPM values like "92 BPM" or "118BPM".
-    // Note: {tempo} substitution placeholders do NOT match this pattern (no leading digits).
-    // The {tempo} pattern is engine-provided (verified value) and is authorized.
+    // {tempo} substitution placeholders do NOT match (no leading digits).
     pattern: /\b\d{2,3}\s?bpm\b/i,
     reason:  'Hardcoded BPM value is an invented tempo claim; use {tempo} substitution for engine-verified values',
   },
@@ -78,7 +73,6 @@ const OVERCLAIM_PATTERNS: Array<{
   {
     name:    'KEY_SIGNATURE',
     // Matches specific key names: "A minor", "C# major", "Bb maj" etc.
-    // Does NOT match generic "major-key" or "minor-seventh" (no [A-G] letter precedes them).
     // Case-sensitive on [A-G] to avoid matching "a major label" or "c minor chord".
     pattern: /\b[A-G][#b♯♭]?\s*(major|minor|maj|min)\b/,
     reason:  'Key/mode name references a specific tonal centre the engine cannot verify',
@@ -90,8 +84,7 @@ const OVERCLAIM_PATTERNS: Array<{
   },
   {
     name:    'BAR_COUNT_NUMERIC',
-    // Matches "8 bars", "16-bar", "32 measures" etc.
-    // Spelled-out counts ("sixteen bars") are not caught — this targets numeric claims only.
+    // Matches "8 bars", "16-bar", "32 measures" etc. Spelled-out counts not caught.
     pattern: /\b\d+\s*-?\s*(bar|measure)s?\b/i,
     reason:  'Numeric bar/measure count is a structural specificity the engine cannot verify',
   },
@@ -99,22 +92,18 @@ const OVERCLAIM_PATTERNS: Array<{
 
 /**
  * SCENE_SPECIFIC_KEYWORDS — phrases containing these are hard-failed.
- * These are unverifiable scene-specific claims that assume knowledge the engine does not have.
- * Expand this list as new overclaim patterns surface in phrase authoring.
  */
 const SCENE_SPECIFIC_KEYWORDS: string[] = [
-  'the actor',         // assumes knowledge of on-screen performance
-  'the dialogue says', // assumes verbatim dialogue content
-  'when the camera',   // assumes cinematography decisions
-  'the explosion',     // assumes specific scene events
-  // Add new patterns here with a comment explaining the class of overclaim
+  'the actor',
+  'the dialogue says',
+  'when the camera',
+  'the explosion',
 ];
 
-// ─── Keyword heuristics for FAIL lane identification (CHECK 4) ────────────────
-// These patterns are HEURISTIC — they inform the lane-balance analysis but
-// the ground truth is positional ordering (see FAIL_LANE_POSITIONS above).
-const LANE_HEURISTICS: Record<'emotional' | 'structural' | 'rights', RegExp[]> = {
-  emotional: [
+// ─── Keyword heuristics for FAIL lane cross-validation (CHECK 4) ──────────────
+// Used as cross-validation ONLY — disagreements are warnings, not hard failures.
+const LANE_HEURISTICS: Record<LaneTag, RegExp[]> = {
+  scene: [
     /\bvalence\b/i,
     /\barousal\b/i,
     /\bdominance\b/i,
@@ -122,8 +111,11 @@ const LANE_HEURISTICS: Record<'emotional' | 'structural' | 'rights', RegExp[]> =
     /dimensional misread/i,
     /emotional dimension/i,
     /emotional axis/i,
+    /emotional shape/i,
+    /emotional direction/i,
+    /PAD register/i,
   ],
-  structural: [
+  lyrics: [
     /button ending/i,
     /no extended mix/i,
     /structural conflict/i,
@@ -133,7 +125,12 @@ const LANE_HEURISTICS: Record<'emotional' | 'structural' | 'rights', RegExp[]> =
     /tempo change/i,
     /hard stop/i,
     /does not loop/i,
+    /lyric/i,
+    /vocal.*arrangement/i,
     /cue runs \d/i,
+    /brick.wall/i,
+    /dynamic range/i,
+    /mix hierarchy/i,
   ],
   rights: [
     /\bmaster\b.*(?:control|own|label|estate|library)/i,
@@ -151,6 +148,9 @@ const LANE_HEURISTICS: Record<'emotional' | 'structural' | 'rights', RegExp[]> =
     /interpolation/i,
     /administrator/i,
     /\bPRS\b/,
+    /pre.clear/i,
+    /rate card/i,
+    /approval.*require/i,
   ],
 };
 
@@ -175,6 +175,11 @@ function jaccard(a: Set<string>, b: Set<string>): number {
 
 function fmt(brief: string, tier: string, idx: number): string {
   return `${brief} / ${tier}[${idx}]`;
+}
+
+/** Extract the text string from a phrase entry (string for PASS/MAYBE, FailPhrase for FAIL). */
+function phraseText(p: string | FailPhrase): string {
+  return typeof p === 'string' ? p : p.text;
 }
 
 // ─── Accumulate failures then throw once at the end ───────────────────────────
@@ -236,20 +241,20 @@ function checkCompleteness(): void {
 function checkUniqueness(): void {
   console.log('\n═══ CHECK 2 — Uniqueness ═══\n');
 
-  // Collect all phrases globally for cross-pool exact duplicate detection
-  const allPhrases = new Map<string, string>(); // phrase → first location
-  let nearDupCount = 0;
+  const allPhrases = new Map<string, string>(); // phrase text → first location
+  let nearDupCount   = 0;
   let crossExactCount = 0;
 
   for (const [brief, pool] of Object.entries(NARRATIVE_DICTIONARY)) {
     for (const tier of ['PASS', 'MAYBE', 'FAIL'] as const) {
-      const phrases = pool[tier] ?? [];
-      const tokens  = phrases.map(tokenize);
+      const raw     = pool[tier] ?? [];
+      const texts   = raw.map(phraseText);
+      const tokens  = texts.map(tokenize);
 
       // Within-pool exact duplicates
       const seen = new Set<string>();
-      for (let i = 0; i < phrases.length; i++) {
-        const p = phrases[i];
+      for (let i = 0; i < texts.length; i++) {
+        const p = texts[i];
         if (seen.has(p)) {
           hardFail(`EXACT DUPLICATE within pool: ${fmt(brief, tier, i)} — "${p.slice(0, 80)}…"`);
         }
@@ -257,25 +262,25 @@ function checkUniqueness(): void {
       }
 
       // Within-pool near-duplicates (all pairs)
-      for (let i = 0; i < phrases.length; i++) {
-        for (let j = i + 1; j < phrases.length; j++) {
+      for (let i = 0; i < texts.length; i++) {
+        for (let j = i + 1; j < texts.length; j++) {
           const sim = jaccard(tokens[i], tokens[j]);
           if (sim >= NEAR_DUP_THRESHOLD) {
             nearDupCount++;
             hardFail(
               `NEAR-DUPLICATE (Jaccard ${sim.toFixed(3)} >= ${NEAR_DUP_THRESHOLD}): ` +
               `${fmt(brief, tier, i)} ↔ ${fmt(brief, tier, j)}\n` +
-              `    [i] "${phrases[i].slice(0, 80)}…"\n` +
-              `    [j] "${phrases[j].slice(0, 80)}…"`,
+              `    [i] "${texts[i].slice(0, 80)}…"\n` +
+              `    [j] "${texts[j].slice(0, 80)}…"`,
             );
           }
         }
       }
 
       // Cross-pool exact duplicate tracking
-      for (let i = 0; i < phrases.length; i++) {
-        const key  = phrases[i].trim();
-        const here = `${fmt(brief, tier, i)}`;
+      for (let i = 0; i < texts.length; i++) {
+        const key  = texts[i].trim();
+        const here = fmt(brief, tier, i);
         if (allPhrases.has(key)) {
           crossExactCount++;
           warn(`CROSS-POOL EXACT DUPLICATE: "${key.slice(0, 80)}…"\n    first seen at: ${allPhrases.get(key)}\n    also at: ${here}`);
@@ -299,15 +304,14 @@ function checkUniqueness(): void {
 function checkOverclaims(): void {
   console.log('\n═══ CHECK 3 — Overclaim lint ═══\n');
 
-  // Report authorized {tempo} placeholders as INFO, not failures
   const tempoPlaceholders: string[] = [];
   let overclamCount = 0;
 
   for (const [brief, pool] of Object.entries(NARRATIVE_DICTIONARY)) {
     for (const tier of ['PASS', 'MAYBE', 'FAIL'] as const) {
-      const phrases = pool[tier] ?? [];
-      for (let i = 0; i < phrases.length; i++) {
-        const phrase = phrases[i];
+      const raw = pool[tier] ?? [];
+      for (let i = 0; i < raw.length; i++) {
+        const phrase = phraseText(raw[i]);
         const loc    = fmt(brief, tier, i);
 
         // Authorized {tempo} substitution — INFO only
@@ -351,83 +355,104 @@ function checkOverclaims(): void {
   if (overclamCount === 0) pass('No overclaim violations found');
 }
 
-// ─── CHECK 4 — FAIL lane balance ─────────────────────────────────────────────
+// ─── CHECK 4 — FAIL lane balance (explicit lane tags) ────────────────────────
 
 function checkFailLaneBalance(): void {
   console.log('\n═══ CHECK 4 — FAIL lane balance ═══\n');
 
-  // ── FRAGILITY FINDING ─────────────────────────────────────────────────────
   console.log([
-    '  ⚠ FRAGILITY FINDING: FAIL pool lanes are identified by POSITION ONLY.',
-    '    Indices [0,1] = emotional-mismatch, [2,3] = structural-conflict, [4,5] = rights-friction.',
-    '    There is no explicit lane field or tag in BriefPool.',
-    '    Recommendation: add an explicit lane tag to prevent positional drift:',
-    '      type LaneTag = "emotional" | "structural" | "rights";',
-    '      interface FailPhrase { text: string; lane: LaneTag; }',
-    '      Replace FAIL: string[] with FAIL: FailPhrase[]',
-    '    Until then, the validator enforces EXACTLY ' + PHRASES_PER_POOL + ' phrases per FAIL pool',
-    '    and uses keyword heuristics to cross-check the ordering.',
+    '  Lane taxonomy (Option A — axis-mirroring):',
+    '    scene   → PAD / tonal / emotional mismatch  (positions [0,1])',
+    '    lyrics  → arrangement / content mismatch    (positions [2,3])',
+    '    rights  → clearance friction                (positions [4,5])',
+    `  MIN_LANE_SIZE per pool: ${MIN_LANE_SIZE}`,
     '',
   ].join('\n'));
 
-  let laneDiscrepancies = 0;
+  let laneHardFails    = 0;
+  let heuristicWarnings = 0;
 
   for (const [brief, pool] of Object.entries(NARRATIVE_DICTIONARY)) {
-    const phrases = pool.FAIL ?? [];
+    const phrases = pool.FAIL;
+    if (!phrases || phrases.length !== PHRASES_PER_POOL) continue; // CHECK 1 covers this
 
-    // Count enforcement: CHECK 1 already catches wrong counts; repeat here for lane math
-    if (phrases.length !== PHRASES_PER_POOL) continue;
+    // Count phrases per lane and validate each tag
+    const laneCounts: Record<LaneTag, number> = { scene: 0, lyrics: 0, rights: 0 };
 
-    // Heuristic: attempt to classify each phrase by dominant lane signal
-    for (const [laneName, [start, end]] of Object.entries(FAIL_LANE_POSITIONS) as Array<[string, [number, number]]>) {
-      for (let i = start; i <= end; i++) {
-        const phrase    = phrases[i];
-        const heurLane  = classifyFailLane(phrase);
-        if (heurLane && heurLane !== laneName) {
-          laneDiscrepancies++;
-          warn(
-            `LANE HEURISTIC MISMATCH at ${fmt(brief, 'FAIL', i)}: ` +
-            `positional slot suggests "${laneName}", keyword heuristic suggests "${heurLane}"\n` +
-            `    "${phrase.slice(0, 100)}…"`,
-          );
-        }
+    for (let i = 0; i < phrases.length; i++) {
+      const fp = phrases[i];
+
+      // Runtime check: lane must be a valid LaneTag
+      if (!VALID_LANE_TAGS.includes(fp.lane)) {
+        laneHardFails++;
+        hardFail(`INVALID LANE TAG at ${fmt(brief, 'FAIL', i)}: "${fp.lane}" is not a valid LaneTag`);
+        continue;
+      }
+
+      laneCounts[fp.lane]++;
+
+      // Keyword heuristic cross-validation — warn only, do not hard-fail
+      const heurLane = classifyFailLane(fp.text);
+      if (heurLane && heurLane !== fp.lane) {
+        heuristicWarnings++;
+        warn(
+          `LANE HEURISTIC MISMATCH at ${fmt(brief, 'FAIL', i)}: ` +
+          `annotated "${fp.lane}", keyword heuristic suggests "${heurLane}"\n` +
+          `    "${fp.text.slice(0, 100)}${fp.text.length > 100 ? '…' : ''}"`,
+        );
       }
     }
 
-    pass(`${brief} / FAIL: 6 phrases — lane distribution assumed correct per position convention`);
+    // Assert ≥ MIN_LANE_SIZE per lane
+    let poolOk = true;
+    for (const lane of VALID_LANE_TAGS) {
+      if (laneCounts[lane] < MIN_LANE_SIZE) {
+        laneHardFails++;
+        poolOk = false;
+        hardFail(
+          `LANE BALANCE at ${brief} / FAIL: lane "${lane}" has ${laneCounts[lane]} phrase(s), ` +
+          `need at least ${MIN_LANE_SIZE}`,
+        );
+      }
+    }
+
+    if (poolOk) {
+      pass(
+        `${brief} / FAIL: scene:${laneCounts.scene} lyrics:${laneCounts.lyrics} rights:${laneCounts.rights}`,
+      );
+    }
   }
 
-  if (laneDiscrepancies === 0) {
-    pass('Keyword heuristics agree with positional lane assignments for all FAIL pools');
-  } else {
-    console.log(`  ${laneDiscrepancies} heuristic discrepancy(ies) flagged above — review positional ordering`);
+  if (laneHardFails === 0 && heuristicWarnings === 0) {
+    pass('All lane tags valid; keyword heuristics agree with all annotations');
+  } else if (laneHardFails === 0) {
+    pass('All lane tag values are valid and MIN_LANE_SIZE satisfied');
+    console.log(`  ${heuristicWarnings} heuristic discrepancy(ies) flagged as warnings — review AMBIGUOUS phrases`);
   }
 }
 
-/** Heuristic lane classifier — returns null if no strong signal found. */
-function classifyFailLane(phrase: string): 'emotional' | 'structural' | 'rights' | null {
-  const scores = { emotional: 0, structural: 0, rights: 0 };
-  for (const [lane, patterns] of Object.entries(LANE_HEURISTICS) as Array<['emotional' | 'structural' | 'rights', RegExp[]]>) {
+/** Heuristic lane classifier — returns null if no strong signal. */
+function classifyFailLane(text: string): LaneTag | null {
+  const scores: Record<LaneTag, number> = { scene: 0, lyrics: 0, rights: 0 };
+  for (const [lane, patterns] of Object.entries(LANE_HEURISTICS) as Array<[LaneTag, RegExp[]]>) {
     for (const pat of patterns) {
-      if (pat.test(phrase)) scores[lane]++;
+      if (pat.test(text)) scores[lane]++;
     }
   }
-  const max   = Math.max(scores.emotional, scores.structural, scores.rights);
-  if (max === 0) return null; // no signal
-  const [top] = (Object.entries(scores) as Array<[string, number]>)
+  const max = Math.max(scores.scene, scores.lyrics, scores.rights);
+  if (max === 0) return null;
+  const [top] = (Object.entries(scores) as Array<[LaneTag, number]>)
     .filter(([, v]) => v === max)
     .map(([k]) => k);
-  // Only return a classification if one lane clearly dominates
   const sorted = Object.values(scores).sort((a, b) => b - a);
   if (sorted[0] <= sorted[1]) return null; // tie — no clear winner
-  return top as 'emotional' | 'structural' | 'rights';
+  return top;
 }
 
 // ─── Determinism smoke-test ───────────────────────────────────────────────────
 
 function checkDeterminism(): void {
   console.log('\n═══ SMOKE — Determinism ═══\n');
-  // Verify tierFromScore and deterministicIndex produce stable results
   const cases: Array<[number, 'PASS' | 'MAYBE' | 'FAIL']> = [
     [100, 'PASS'], [70, 'PASS'], [69, 'MAYBE'], [50, 'MAYBE'], [49, 'FAIL'], [0, 'FAIL'],
   ];
@@ -440,13 +465,11 @@ function checkDeterminism(): void {
     }
   }
 
-  // deterministicIndex must be stable across calls
   const idx1 = deterministicIndex('track-abc', 'chase-tension', 6);
   const idx2 = deterministicIndex('track-abc', 'chase-tension', 6);
   if (idx1 !== idx2) hardFail(`deterministicIndex not stable: ${idx1} vs ${idx2}`);
   else pass(`deterministicIndex stable: ${idx1}`);
 
-  // Must be in range
   for (let poolSize = 1; poolSize <= 8; poolSize++) {
     const idx = deterministicIndex('track-xyz', 'action-combat', poolSize);
     if (idx < 0 || idx >= poolSize) {
