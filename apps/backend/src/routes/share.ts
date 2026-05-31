@@ -127,19 +127,31 @@ function makeEntry(
   return { value, source, confidence: fixedNum(1.0, 4) };
 }
 
+// Build a ledger field from the rightsFieldSources JSON (multi-source truth).
+// Falls back to the single working value from RightsProfile when no sourced
+// entries are stored (e.g. tracks enriched before rightsFieldSources was added).
 function buildLedgerField(
   field: RightsFieldName,
-  value: string | number | boolean | null,
-  source: string | null,
+  workingValue: string | number | boolean | null,
+  workingSource: string | null,
+  rfsEntries?: Array<{ value: string | number | null; source: string }>,
 ): RightsFieldLedger {
-  if (value === null || value === undefined || value === '') {
-    return { field, entries: [], agreementState: 'MISSING' };
-  }
-  return {
-    field,
-    entries:        [makeEntry(value, source ?? 'manual')],
-    agreementState: 'SINGLE_SOURCE',
-  };
+  // Prefer the full sourced ledger when available
+  const entries = rfsEntries && rfsEntries.length > 0
+    ? rfsEntries.map(e => makeEntry(e.value, e.source))
+    : workingValue !== null && workingValue !== undefined && workingValue !== ''
+      ? [makeEntry(workingValue, workingSource ?? 'manual')]
+      : [];
+
+  if (entries.length === 0) return { field, entries: [], agreementState: 'MISSING' };
+
+  const uniqueValues = new Set(entries.map(e => String(e.value)));
+  const agreementState: AgreementState =
+    entries.length === 1 ? 'SINGLE_SOURCE' :
+    uniqueValues.size === 1 ? 'AGREE' :
+    'CONFLICT';
+
+  return { field, entries, agreementState };
 }
 
 // Pipeline stages in canonical order
@@ -291,19 +303,25 @@ router.post('/share', async (req: Request, res: Response) => {
     const src1 = (Array.isArray(srcArr) ? srcArr[0] : String(srcArr)) ?? 'manual';
     const isrc  = (dbRp?.['isrc'] as string | null) ?? r.isrc;
 
-    // Rights field ledger (SINGLE_SOURCE path — honest, not fake consensus)
+    // Multi-source conflict ledger. rightsFieldSources (written by fingerprint route)
+    // stores every source's value independently. When present, we build multi-entry
+    // ledger fields so CONFLICT is surfaced honestly. Falls back to working values
+    // for tracks enriched before rightsFieldSources was introduced.
     const masterPct = dbRp?.['masterOwnershipPct'] != null
       ? parseFloat(String(dbRp['masterOwnershipPct']))
       : null;
 
+    type RfsEntry = { value: string | number | null; source: string };
+    const rfs = dbRp?.['rightsFieldSources'] as Record<string, RfsEntry[]> | null | undefined;
+
     const ledger: RightsFieldLedger[] = [
-      buildLedgerField('writer',          rp?.['writerName']    as string | null, src1),
-      buildLedgerField('split_pct',       masterPct,                              src1),
-      buildLedgerField('publisher',       rp?.['publisherName'] as string | null, src1),
-      buildLedgerField('isrc',            isrc,                                   'registry'),
-      buildLedgerField('iswc',            dbRp?.['workId']      as string | null, src1),
-      buildLedgerField('pro_affiliation', rp?.['proAffiliation'] as string | null, src1),
-      buildLedgerField('ipi',             dbRp?.['writerIpi']   as string | null, src1),
+      buildLedgerField('writer',          rp?.['writerName']     as string | null, src1, rfs?.['writerName']),
+      buildLedgerField('split_pct',       masterPct,                               src1),
+      buildLedgerField('publisher',       rp?.['publisherName']  as string | null, src1, rfs?.['publisherName']),
+      buildLedgerField('isrc',            isrc,                                    'registry'),
+      buildLedgerField('iswc',            dbRp?.['iswc']         as string | null, src1, rfs?.['iswc']),
+      buildLedgerField('pro_affiliation', rp?.['proAffiliation'] as string | null, src1, rfs?.['proAffiliation']),
+      buildLedgerField('ipi',             dbRp?.['writerIpi']    as string | null, src1, rfs?.['writerIpi']),
     ];
 
     const confirmedFields = ledger.filter(f => f.agreementState === 'AGREE' || f.agreementState === 'SINGLE_SOURCE').length;

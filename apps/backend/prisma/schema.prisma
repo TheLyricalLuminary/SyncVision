@@ -108,6 +108,9 @@ model RightsProfile {
   genreTags             String[]
   popularityScore       Int?
   enrichmentStatus      String?   @default("pending")
+  iswc                  String?
+  workMbid              String?
+  rightsFieldSources    Json?
   track                 Track     @relation(fields: [trackId], references: [id])
 
   @@schema("scoring")
