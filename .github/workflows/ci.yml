@@ -21,6 +21,10 @@ jobs:
         working-directory: apps/backend
         run: npm install
 
+      - name: Generate Prisma client
+        working-directory: apps/backend
+        run: npx prisma generate
+
       - name: Typecheck backend
         working-directory: apps/backend
         run: npx tsc --noEmit
