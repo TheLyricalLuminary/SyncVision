@@ -390,7 +390,12 @@ function testComputeRightsState(): void {
     "verifiedOwnership only → PARTIALLY_CLEAR (1/3)"
   );
 
-  assertEqual(computeRightsState({ proAffiliation: "ASCAP" }), "UNVERIFIED", "unknown field only → UNVERIFIED");
+  // masterOwnershipType "UNKNOWN" is explicitly excluded from hasVerifiedOwnership → 0/3 → UNVERIFIED
+  assertEqual(
+    computeRightsState({ masterOwnershipType: "UNKNOWN" }),
+    "UNVERIFIED",
+    "masterOwnershipType=UNKNOWN, no workId, no oneStop → 0 conditions → UNVERIFIED"
+  );
 }
 
 // ── Run all ──────────────────────────────────────────────────────────────────
