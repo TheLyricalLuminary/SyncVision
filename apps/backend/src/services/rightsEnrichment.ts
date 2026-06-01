@@ -11,6 +11,7 @@
 
 import prisma from "../lib/prisma";
 import { evaluateRightsState, type TrackEvalInput } from "../scoring/rightsStateMachine";
+import { enrichFromCreditsFm } from "../lib/creditsfm";
 import * as cheerio from "cheerio";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -18,11 +19,13 @@ import * as cheerio from "cheerio";
 interface EnrichmentResult {
   isrc?: string | null;
   writerName?: string | null;
+  writerIpi?: string | null;
   publisherName?: string | null;
   territory?: string | null;
   explicitFlag?: boolean | null;
   proAffiliation?: string | null;
   workId?: string | null;
+  iswc?: string | null;
   genreTags?: string[];
   popularityScore?: number | null;
   enrichmentSources: string[];
@@ -348,6 +351,7 @@ export async function enrichRightsProfile(
     ascapSettled,
     bmiSettled,
     sesacSettled,
+    creditsSettled,
   ] = await Promise.allSettled([
     isrc
       ? withTimeout(fetchMusicBrainz(isrc), API_TIMEOUT_MS)
@@ -361,6 +365,9 @@ export async function enrichRightsProfile(
     withTimeout(fetchAscap(title), SCRAPER_TIMEOUT_MS),
     withTimeout(fetchBmi(title, artist), SCRAPER_TIMEOUT_MS),
     withTimeout(fetchSesac(title, artist), SCRAPER_TIMEOUT_MS),
+    isrc
+      ? withTimeout(enrichFromCreditsFm(isrc), API_TIMEOUT_MS)
+      : Promise.reject(new Error("No ISRC for Credits.fm lookup")),
   ]);
 
   // Log individual failures (soft errors)
@@ -386,6 +393,7 @@ export async function enrichRightsProfile(
   logIfFailed("ASCAP", ascapSettled);
   logIfFailed("BMI", bmiSettled);
   logIfFailed("SESAC", sesacSettled);
+  logIfFailed("Credits.fm", creditsSettled);
 
   const mb           = mbSettled.status           === "fulfilled" ? mbSettled.value           : null;
   const discogs      = discogsSettled.status       === "fulfilled" ? discogsSettled.value       : null;
@@ -398,12 +406,13 @@ export async function enrichRightsProfile(
   const ascap        = ascapSettled.status         === "fulfilled" ? ascapSettled.value         : null;
   const bmi          = bmiSettled.status           === "fulfilled" ? bmiSettled.value           : null;
   const sesac        = sesacSettled.status         === "fulfilled" ? sesacSettled.value         : null;
+  const credits      = creditsSettled.status       === "fulfilled" ? creditsSettled.value       : null;
 
   // Check if all sources failed
   const allFailed = [
     mbSettled, discogsSettled, itunesSettled, lastfmSettled,
     theaudiodbSettled, deezerSettled, geniusSettled,
-    ascapSettled, bmiSettled, sesacSettled,
+    ascapSettled, bmiSettled, sesacSettled, creditsSettled,
   ].every(s => s.status === "rejected");
 
   if (allFailed) {
@@ -428,6 +437,7 @@ export async function enrichRightsProfile(
   if (ascap?.found)                                                                           sources.push("ASCAP");
   if (bmi?.found)                                                                             sources.push("BMI");
   if (sesac?.found)                                                                           sources.push("SESAC");
+  if (credits && (credits.iswc || credits.writerIpi || credits.writerName))                  sources.push("Credits.fm");
 
   // Resolve genreTags
   const genreTags: string[] =
@@ -457,10 +467,15 @@ export async function enrichRightsProfile(
     isrc: mb?.isrc ?? (existing as Record<string, unknown> | null)?.["isrc"] as string | null ?? null,
     writerName:
       ascap?.writer ?? bmi?.writer ?? sesac?.writer ??
+      credits?.writerName ??
       mb?.writerName ?? genius?.artistName ??
       existing?.writerName ?? null,
+    writerIpi:
+      credits?.writerIpi ??
+      (existing as Record<string, unknown> | null)?.["writerIpi"] as string | null ?? null,
     publisherName:
       ascap?.publisher ?? bmi?.publisher ?? sesac?.publisher ??
+      credits?.publisherName ??
       discogs?.publisherName ??
       theaudiodb?.label ??
       deezer?.label ??
@@ -473,6 +488,9 @@ export async function enrichRightsProfile(
       (existing as Record<string, unknown> | null)?.["explicitFlag"] as boolean | null ?? null,
     proAffiliation,
     workId,
+    iswc:
+      credits?.iswc ??
+      (existing as Record<string, unknown> | null)?.["iswc"] as string | null ?? null,
     genreTags,
     popularityScore: popularityScore ?? null,
     enrichmentSources: sources,
@@ -486,11 +504,13 @@ export async function enrichRightsProfile(
     genreTags: merged.genreTags,
   };
   if (merged.writerName      != null) updateData.writerName      = merged.writerName;
+  if (merged.writerIpi       != null) updateData.writerIpi       = merged.writerIpi;
   if (merged.publisherName   != null) updateData.publisherName   = merged.publisherName;
   if (merged.territory       != null) updateData.territory       = merged.territory;
   if (merged.explicitFlag    != null) updateData.explicitFlag    = merged.explicitFlag;
   if (merged.proAffiliation  != null) updateData.proAffiliation  = merged.proAffiliation;
   if (merged.workId          != null) updateData.workId          = merged.workId;
+  if (merged.iswc            != null) updateData.iswc            = merged.iswc;
   if (merged.popularityScore != null) updateData.popularityScore = merged.popularityScore;
   // Write work IDs into the PRO-specific fields that the state machine checks.
   // The generic workId field above is kept for reference, but computeRightsState

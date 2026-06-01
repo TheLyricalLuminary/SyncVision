@@ -417,7 +417,8 @@ function RightsPanel({
   const [writer, setWriter]           = useState(autoFill?.writerName ?? existing?.writerName ?? '');
   const [publisher, setPublisher]     = useState(autoFill?.publisherName ?? existing?.publisherName ?? '');
   const [pro, setPro]                 = useState(autoFill?.proAffiliation ?? existing?.proAffiliation ?? '');
-  const [workId, setWorkId]           = useState(existing?.workId ?? '');
+  const [workId, setWorkId]           = useState(autoFill?.iswc ?? existing?.workId ?? '');
+  const [ipi, setIpi]                 = useState(autoFill?.writerIpi ?? existing?.writerIpi ?? '');
   const [oneStop, setOneStop]         = useState(existing?.isOneStop ?? false);
   const [syncLicense, setSyncLicense] = useState(existing?.syncLicenseStatus ?? '');
   const [syncBy, setSyncBy]           = useState(existing?.syncLicensedBy ?? '');
@@ -447,6 +448,7 @@ function RightsPanel({
       if (publisher.trim())   body.publisherName = publisher.trim();
       if (pro.trim())         body.proAffiliation = pro.trim();
       if (workId.trim())      body.ascapWorkId = workId.trim();
+      if (ipi.trim())         body.writerIpi   = ipi.trim();
       body.isOneStop = oneStop;
       if (syncLicense.trim()) body.syncLicenseStatus = syncLicense.trim();
       if (syncBy.trim())      body.syncLicensedBy = syncBy.trim();
@@ -499,8 +501,12 @@ function RightsPanel({
           <input style={inputStyle} value={pro} onChange={e => setPro(e.target.value)} placeholder="ASCAP / BMI / SESAC" />
         </div>
         <div>
-          <label style={labelStyle}>Work ID (ASCAP/BMI)</label>
-          <input style={inputStyle} value={workId} onChange={e => setWorkId(e.target.value)} placeholder="Work ID" />
+          <label style={labelStyle}>Work ID / ISWC</label>
+          <input style={inputStyle} value={workId} onChange={e => setWorkId(e.target.value)} placeholder="T-070909483-6 or ASCAP/BMI ID" />
+        </div>
+        <div>
+          <label style={labelStyle}>Writer IPI</label>
+          <input style={inputStyle} value={ipi} onChange={e => setIpi(e.target.value)} placeholder="e.g. 00508530861" />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <label style={{ ...labelStyle, marginBottom: 10 }}>One-Stop License</label>

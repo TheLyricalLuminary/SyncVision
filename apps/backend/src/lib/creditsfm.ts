@@ -9,8 +9,9 @@ export interface CreditsFmEnrichment {
   writerName: string | null;
   writerIpi: string | null;
   publisherName: string | null;
-  proAffiliation: string | null;
+  proAffiliation: string | null; // Credits.fm doesn't supply this; always null — populated by ASCAP/BMI/SESAC
   iswc: string | null;
+  mlcSongCode: string | null;
 }
 
 export async function enrichFromCreditsFm(
@@ -21,32 +22,33 @@ export async function enrichFromCreditsFm(
   try {
     const res = await fetch(`${CREDITS_FM_BASE}/isrc/${isrc}`, {
       headers: {
-        Authorization: `Bearer ${API_KEY}`,
+        'x-api-key': API_KEY,
         Accept: 'application/json',
       },
     });
     if (!res.ok) return null;
 
-    // Credits.fm response shape (CC BY dataset model)
+    // Credits.fm v1 response shape — verified against live API 2026-06-01
     const body = await res.json() as {
-      writers?: Array<{
+      songwriters?: Array<{
         name?: string;
         ipi?: string;
-        pro?: string;
       }>;
       publishers?: Array<{ name?: string }>;
       iswc?: string;
+      mlc_song_code?: string;
     };
 
-    const writer    = body.writers?.[0] ?? null;
+    const writer    = body.songwriters?.[0] ?? null;
     const publisher = body.publishers?.[0] ?? null;
 
     return {
-      writerName:    writer?.name    ?? null,
-      writerIpi:     writer?.ipi     ?? null,
-      proAffiliation: writer?.pro    ?? null,
-      publisherName: publisher?.name ?? null,
-      iswc:          body.iswc       ?? null,
+      writerName:     writer?.name    ?? null,
+      writerIpi:      writer?.ipi     ?? null,
+      proAffiliation: null,
+      publisherName:  publisher?.name ?? null,
+      iswc:           body.iswc          ?? null,
+      mlcSongCode:    body.mlc_song_code ?? null,
     };
   } catch {
     return null;
