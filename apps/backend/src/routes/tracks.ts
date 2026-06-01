@@ -14,7 +14,7 @@ import { randomUUID } from "crypto";
 import prisma from "../lib/prisma";
 import { enqueueTrack } from "../queue/producer";
 import { requirePlan } from "../middleware/auth";
-import { computeRightsState } from "../scoring/rightsStateMachine";
+import { computeRightsState, evaluateRightsState, type TrackEvalInput } from "../scoring/rightsStateMachine";
 import { requirePaidEntitlement } from "../middleware/entitlement";
 import { validateTrackIngestion } from "../lib/validateTrackIngestion";
 import { enrichRightsProfile } from "../services/rightsEnrichment";
@@ -491,7 +491,39 @@ router.patch("/tracks/:id/rights", async (req: Request, res: Response) => {
       create: { trackId: id as string, ...rpData },
     });
 
-    const rightsState = computeRightsState(rp);
+    // Use the full state machine so all manually entered fields (writerName,
+    // publisherName, proAffiliation, etc.) are considered. computeRightsState
+    // only checks 3 fields and would return UNVERIFIED even when writer and
+    // publisher are known.
+    const rpRecord = rp as Record<string, unknown>;
+    const evalInput: TrackEvalInput = {
+      audio_id:         track.id,
+      ingestion_source: "manual",
+      metadata: {
+        isrc:       resolvedIsrc,
+        title:      track.title,
+        artistName: track.artistName ?? null,
+      },
+      ownership: {
+        masterOwnershipPct:       rp.masterOwnershipPct != null ? Number(rp.masterOwnershipPct) : null,
+        masterOwnedBy:            rpRecord.masterOwnedBy as string | null ?? null,
+        masterOwnershipType:      rpRecord.masterOwnershipType as string | null ?? null,
+        masterVerificationSource: null,
+      },
+      publishing: {
+        ascapWorkId:    rp.ascapWorkId    ?? null,
+        bmiWorkId:      rpRecord.bmiWorkId as string | null ?? null,
+        writerName:     rp.writerName     ?? null,
+        writerIpi:      rp.writerIpi      ?? null,
+        publisherName:  rp.publisherName  ?? null,
+        proAffiliation: rp.proAffiliation ?? null,
+      },
+      usage_rights: {
+        isOneStop:             rp.isOneStop ?? null,
+        masterOwnershipSplits: null,
+      },
+    };
+    const { state: rightsState } = evaluateRightsState(evalInput);
 
     // Persist the computed state
     await prisma.rightsProfile.update({
