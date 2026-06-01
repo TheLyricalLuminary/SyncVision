@@ -10,7 +10,7 @@
  */
 
 import prisma from "../lib/prisma";
-import { computeRightsState } from "../scoring/rightsStateMachine";
+import { evaluateRightsState, type TrackEvalInput } from "../scoring/rightsStateMachine";
 import * as cheerio from "cheerio";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -513,8 +513,39 @@ export async function enrichRightsProfile(
     update: updateData,
   });
 
-  // Re-run the rights state machine with updated profile
-  const rightsState = computeRightsState(updatedProfile);
+  // Re-run the full state machine so enriched fields (writerName, publisherName,
+  // proAffiliation, etc.) are visible to the evaluator.  computeRightsState only
+  // checks 3 fields and would return UNVERIFIED even after a successful enrichment
+  // that resolved writer and publisher but not a PRO work ID.
+  const up = updatedProfile as Record<string, unknown>;
+  const enrichEvalInput: TrackEvalInput = {
+    audio_id:         trackId,
+    ingestion_source: "enrichment",
+    metadata: {
+      isrc:       (up.isrc as string | null) ?? null,
+      title,
+      artistName: artist || null,
+    },
+    ownership: {
+      masterOwnershipPct:       updatedProfile.masterOwnershipPct != null ? Number(updatedProfile.masterOwnershipPct) : null,
+      masterOwnedBy:            up.masterOwnedBy as string | null ?? null,
+      masterOwnershipType:      up.masterOwnershipType as string | null ?? null,
+      masterVerificationSource: null,
+    },
+    publishing: {
+      ascapWorkId:    updatedProfile.ascapWorkId    ?? null,
+      bmiWorkId:      up.bmiWorkId as string | null ?? null,
+      writerName:     updatedProfile.writerName     ?? null,
+      writerIpi:      updatedProfile.writerIpi      ?? null,
+      publisherName:  updatedProfile.publisherName  ?? null,
+      proAffiliation: updatedProfile.proAffiliation ?? null,
+    },
+    usage_rights: {
+      isOneStop:             updatedProfile.isOneStop ?? null,
+      masterOwnershipSplits: null,
+    },
+  };
+  const { state: rightsState } = evaluateRightsState(enrichEvalInput);
   const finalProfile = await prisma.rightsProfile.update({
     where: { trackId },
     data: { rightsState },
