@@ -195,11 +195,16 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     }
 
     // ── Credits.fm enrichment ─────────────────────────────────────
-    const resolvedIsrc = auddIsrc ?? mbEnrichment?.isrc ?? track.isrc ?? null;
+    // freshIsrc: only sources we resolved in this session (AudD + MusicBrainz).
+    // track.isrc is excluded here to prevent stale DB values from a prior session
+    // (e.g. a different track's ISRC) from poisoning Credits.fm / MLC lookups.
+    // displayIsrc adds track.isrc back only for the autoFill ISRC field shown in the form.
+    const freshIsrc   = auddIsrc ?? mbEnrichment?.isrc ?? null;
+    const resolvedIsrc = freshIsrc ?? track.isrc ?? null; // kept for display + track record persist
     let creditsEnrichment = null;
-    if (resolvedIsrc) {
+    if (freshIsrc) {
       try {
-        creditsEnrichment = await enrichFromCreditsFm(resolvedIsrc);
+        creditsEnrichment = await enrichFromCreditsFm(freshIsrc);
         if (creditsEnrichment) {
           console.log(`[enrichment:credits.fm] trackId=${id as string} isrc=${resolvedIsrc} writer=${creditsEnrichment.writerName} ipi=${creditsEnrichment.writerIpi} publisher=${creditsEnrichment.publisherName} iswc=${creditsEnrichment.iswc}`);
         } else {
@@ -211,7 +216,7 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
         console.error(`[enrichment:credits.fm] trackId=${id as string} isrc=${resolvedIsrc} timeout=${isTimeout} error="${msg}"`);
       }
     } else {
-      console.log(`[enrichment:credits.fm] trackId=${id as string} skipped=true reason="no ISRC resolved"`);
+      console.log(`[enrichment:credits.fm] trackId=${id as string} skipped=true reason="no fresh ISRC from AudD or MusicBrainz"`);
     }
 
     // ── MLC enrichment (Layer 6) ──────────────────────────────────
@@ -264,7 +269,7 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     // RightsProfile stores the working value (first-priority source wins);
     // rightsFieldSources stores the full multi-source truth so share.ts can
     // surface CONFLICT entries in the decision-packet ledger.
-    type RfsEntry = { value: string | number | null; source: string };
+    type RfsEntry = { value: string | number | null; source: string; conflict?: boolean };
     type RfsMap = Record<string, RfsEntry[]>;
 
     const rfsMap: RfsMap = {};
@@ -272,6 +277,15 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
       if (value == null || value === '') return;
       if (!rfsMap[field]) rfsMap[field] = [];
       rfsMap[field].push({ value, source });
+    }
+    function markConflicts() {
+      for (const entries of Object.values(rfsMap)) {
+        if (entries.length < 2) continue;
+        const distinct = new Set(entries.map(e => String(e.value).toLowerCase().trim()));
+        if (distinct.size > 1) {
+          for (const e of entries) e.conflict = true;
+        }
+      }
     }
 
     // AudD — identification layer (label = record label / master rights holder)
@@ -299,6 +313,9 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     addRfs('mechanicalStatus', mlcEnrichment?.mechanicalStatus, 'MLC');
     addRfs('claimStatus',      mlcEnrichment?.claimStatus,      'MLC');
     addRfs('splitPct',         mlcEnrichment?.splitPct,         'MLC');
+
+    // Mark fields where sources returned different values — the frontend can surface these as CONFLICT.
+    markConflicts();
 
     // Working values: first-available priority (Credits.fm > MusicBrainz > MLC)
     const workingIswc          = creditsEnrichment?.iswc          ?? mbEnrichment?.iswc          ?? mlcEnrichment?.iswc          ?? null;
