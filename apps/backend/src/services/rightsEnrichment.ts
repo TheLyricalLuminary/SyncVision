@@ -224,8 +224,23 @@ async function fetchDeezer(title: string, artist: string): Promise<DeezerResult>
   if (!results || results.length === 0) return {};
 
   const first = results[0];
-  const album = first["album"] as Record<string, unknown> | undefined;
-  const label = (album?.["label"] as string | undefined) ?? null;
+  // Deezer search results do not include label in the album sub-object;
+  // label is only available on the full /album/{id} endpoint. Fetch it now.
+  const albumId = (first["album"] as Record<string, unknown> | undefined)?.["id"];
+  let label: string | null = null;
+  if (albumId) {
+    try {
+      const albumRes = await fetch(`https://api.deezer.com/album/${albumId}`, {
+        headers: { Accept: "application/json" },
+      });
+      if (albumRes.ok) {
+        const albumData = (await albumRes.json()) as Record<string, unknown>;
+        label = (albumData["label"] as string | undefined) ?? null;
+      }
+    } catch {
+      // soft failure — label stays null
+    }
+  }
   const explicitFlag = first["explicit_lyrics"] === true ? true : first["explicit_lyrics"] === false ? false : null;
 
   return { label, explicitFlag };
@@ -477,6 +492,11 @@ export async function enrichRightsProfile(
   if (merged.proAffiliation  != null) updateData.proAffiliation  = merged.proAffiliation;
   if (merged.workId          != null) updateData.workId          = merged.workId;
   if (merged.popularityScore != null) updateData.popularityScore = merged.popularityScore;
+  // Write work IDs into the PRO-specific fields that the state machine checks.
+  // The generic workId field above is kept for reference, but computeRightsState
+  // and evaluateRightsState both check ascapWorkId/bmiWorkId — not workId.
+  if (ascap?.workId          != null) updateData.ascapWorkId     = ascap.workId;
+  if (bmi?.workId            != null) updateData.bmiWorkId       = bmi.workId;
 
   // Also update the ISRC on the Track record if MusicBrainz resolved it
   if (mb?.isrc) {
