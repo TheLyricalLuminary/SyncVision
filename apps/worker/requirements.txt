@@ -1,3 +1,4 @@
 librosa==0.10.2
 numpy==1.26.4
 soundfile==0.12.1
+mutagen==1.47.0

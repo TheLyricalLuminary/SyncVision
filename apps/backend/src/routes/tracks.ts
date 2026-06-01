@@ -224,7 +224,7 @@ router.post("/tracks/upload", (req: Request, res: Response) => {
           title,
           artistName,
           isrc,
-          audioFilePath: savedFilename,
+          audioFilePath: savedAbsPath,
           trackStatus: "uploaded",
         },
       });
