@@ -13,9 +13,54 @@ os.environ["NUMBA_CACHE_DIR"] = "/tmp/numba_cache"
 import sys
 import json
 import hashlib
+import shutil
+import tempfile
 
 import numpy as np
 import librosa
+from mutagen.id3 import ID3, ID3NoHeaderError
+
+
+def sanitize_mp3(path):
+    """
+    Return a path safe to pass to librosa.load.  If the file has ID3 COMM
+    frames with empty text/description — which cause libmpg123 to call
+    abort() and kill the process — strip them from a temp copy and return
+    that path instead.  Caller is responsible for deleting the temp file
+    when tmp=True is returned.
+    """
+    if not path.lower().endswith(".mp3"):
+        return path, False
+    try:
+        tags = ID3(path)
+    except ID3NoHeaderError:
+        return path, False
+    except Exception:
+        return path, False
+
+    bad_keys = [
+        k for k in tags.keys()
+        if k.startswith("COMM")
+        and (
+            not tags[k].text
+            or not any(str(t).strip() for t in tags[k].text)
+        )
+    ]
+    if not bad_keys:
+        return path, False
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    tmp.close()
+    shutil.copy2(path, tmp.name)
+    try:
+        fixed = ID3(tmp.name)
+        for k in bad_keys:
+            fixed.delall(k)
+        fixed.save(tmp.name)
+    except Exception:
+        os.unlink(tmp.name)
+        return path, False
+    return tmp.name, True
 
 
 def normalize(arr):
@@ -35,9 +80,16 @@ def analyze(path):
         raw_bytes = f.read()
     input_hash = hashlib.sha256(raw_bytes).hexdigest()
 
-    # dtype=np.float32 is required for determinism — float64 accumulates more
-    # ULP variance through the spectral pipeline.
-    y, sr = librosa.load(path, sr=22050, mono=True, dtype=np.float32)
+    # Strip malformed ID3 COMM frames that cause libmpg123 to abort() before
+    # loading.  sanitize_mp3 returns a clean temp copy when needed.
+    load_path, is_tmp = sanitize_mp3(path)
+    try:
+        # dtype=np.float32 is required for determinism — float64 accumulates more
+        # ULP variance through the spectral pipeline.
+        y, sr = librosa.load(load_path, sr=22050, mono=True, dtype=np.float32)
+    finally:
+        if is_tmp:
+            os.unlink(load_path)
 
     centroid = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
     rms = librosa.feature.rms(y=y)[0]
