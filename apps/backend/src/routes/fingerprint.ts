@@ -224,6 +224,12 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
       discrepancies.push({ field: "artistName", submitted: track.artistName, external: resolvedArtist });
 
     // ── autoFill ──────────────────────────────────────────────────
+    const enrichmentSources: string[] = [];
+    if (matched) enrichmentSources.push(auddResult ? "AudD" : "AcoustID");
+    if (mbEnrichment?.writerName || mbEnrichment?.publisherName || mbEnrichment?.isrc) enrichmentSources.push("MusicBrainz");
+    if (creditsEnrichment?.writerName || creditsEnrichment?.publisherName) enrichmentSources.push("Credits.fm");
+    if (lyricsData?.hasLyrics) enrichmentSources.push("Musixmatch");
+
     const autoFill = {
       isrc:           resolvedIsrc,
       iswc:           creditsEnrichment?.iswc        ?? mbEnrichment?.iswc        ?? null,
@@ -231,6 +237,7 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
       writerIpi:      creditsEnrichment?.writerIpi   ?? mbEnrichment?.writerIpi   ?? null,
       publisherName:  creditsEnrichment?.publisherName ?? mbEnrichment?.publisherName ?? null,
       proAffiliation: creditsEnrichment?.proAffiliation ?? null,
+      enrichmentSources,
       sources: {
         isrc:      auddIsrc ? "audd" : mbEnrichment?.isrc ? "musicbrainz" : track.isrc ? "submitted" : null,
         writer:    creditsEnrichment?.writerName    ? "credits.fm" : mbEnrichment?.writerName    ? "musicbrainz" : null,

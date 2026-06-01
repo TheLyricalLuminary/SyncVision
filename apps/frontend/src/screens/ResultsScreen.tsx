@@ -179,9 +179,14 @@ function RightsPipelineView({
       const data = await res.json() as FingerprintResult & { error?: string; message?: string };
       if (!res.ok) throw new Error(data.message ?? data.error ?? `Server ${res.status}`);
       setFpResult(data);
-      // If the lookup resolved any rights fields, open the intake form pre-populated
       const af = data.autoFill;
-      if (af && (af.writerName || af.publisherName || af.isrc)) {
+      // Only open the intake form when external enrichment found something new.
+      // "submitted" means the ISRC came from the track itself — not new info.
+      const hasExternalData =
+        (af.writerName    && af.sources?.writer)    ||
+        (af.publisherName && af.sources?.publisher) ||
+        (af.isrc && af.sources?.isrc && af.sources.isrc !== "submitted");
+      if (af && hasExternalData) {
         onOpenIntake(af);
       }
     } catch (e) {
@@ -334,7 +339,11 @@ function RightsPipelineView({
         </div>
       )}
 
-      {fpError && <div style={{ marginTop: 8, fontSize: 10, color: C.magenta }}>{fpError}</div>}
+      {fpError && (
+        <div style={{ marginTop: 8, padding: '7px 10px', borderRadius: 7, background: 'rgba(219,39,119,0.10)', border: '1px solid rgba(219,39,119,0.3)', fontSize: 11, color: C.magenta, fontWeight: 600 }}>
+          {fpError}
+        </div>
+      )}
 
       {/* Open items — chips for stages not yet complete */}
       {stages.filter(s => !s.done).length > 0 && (
