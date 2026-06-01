@@ -31,6 +31,7 @@ export type AnalysisResult = {
     masterOwnedBy: string | null;
     publisherName: string | null;
     writerName: string | null;
+    writerIpi?: string | null;
     blockers?: string[];
     rightsState?: string;
     syncLicenseStatus?: string | null;
