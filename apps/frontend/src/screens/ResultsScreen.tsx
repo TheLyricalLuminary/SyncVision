@@ -190,7 +190,9 @@ function RightsPipelineView({
         onOpenIntake(af);
       }
     } catch (e) {
-      setFpError(e instanceof Error ? e.message : 'Fingerprint failed');
+      const msg = e instanceof Error ? e.message : 'Fingerprint failed';
+      console.error('[fingerprint] request failed:', e);
+      setFpError(msg);
     } finally {
       setFingerprinting(false);
     }

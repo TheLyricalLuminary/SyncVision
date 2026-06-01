@@ -73,11 +73,15 @@ export type CurrentUser = {
 const USE_SEED_ENGINE =
   (import.meta.env.VITE_USE_SEED_ENGINE ?? 'true') === 'true';
 
+const PROD_API_FALLBACK = 'https://syncvision-api.onrender.com';
+
 if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
-  throw new Error('VITE_API_URL is not defined — check Render environment variables');
+  console.warn('[SyncVision] VITE_API_URL not set — using hardcoded fallback:', PROD_API_FALLBACK);
 }
 
-export const API_BASE: string = import.meta.env.VITE_API_URL ?? '';
+export const API_BASE: string =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? PROD_API_FALLBACK : '');
 
 console.log('[SyncVision] API base URL:', API_BASE || '(relative — dev mode)');
 
