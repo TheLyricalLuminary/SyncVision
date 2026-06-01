@@ -100,8 +100,10 @@ async function queryAcoustID(fingerprint: string, duration: number, appId: strin
 
 router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
   const { id } = req.params;
+  console.log('[fingerprint] request received', id);
 
   if (!AUDD_API_TOKEN && !ACOUSTID_APP_ID) {
+    console.warn('[fingerprint] aborting — neither AUDD_API_TOKEN nor ACOUSTID_APP_ID is set');
     res.status(503).json({
       error: "fingerprint_unavailable",
       message: "Neither AUDD_API_TOKEN nor ACOUSTID_APP_ID is configured",
