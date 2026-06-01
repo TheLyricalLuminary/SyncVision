@@ -398,6 +398,7 @@ type RightsSaveResult = {
   masterOwnedBy: string | null;
   publisherName: string | null;
   writerName: string | null;
+  writerIpi?: string | null;
   workId: string | null;
   syncLicenseStatus: string | null;
   syncLicensedBy: string | null;
