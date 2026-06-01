@@ -24,12 +24,12 @@ export type Verdict =
   | "FAIL_HARD";
 
 export interface BriefNarrativePool {
-  PASS_STRONG: [string, string, string, string];
-  PASS_SOFT:   [string, string, string, string];
-  MAYBE_HIGH:  [string, string, string, string];
-  MAYBE_LOW:   [string, string, string, string];
-  FAIL_CLOSE:  [string, string, string, string];
-  FAIL_HARD:   [string, string, string, string];
+  PASS_STRONG: [string, string, string, string, ...string[]];
+  PASS_SOFT:   [string, string, string, string, ...string[]];
+  MAYBE_HIGH:  [string, string, string, string, ...string[]];
+  MAYBE_LOW:   [string, string, string, string, ...string[]];
+  FAIL_CLOSE:  [string, string, string, string]; // positional lane convention — keep at 4
+  FAIL_HARD:   [string, string, string, string]; // positional lane convention — keep at 4
 }
 
 export const NARRATIVE_DICTIONARY: Record<string, BriefNarrativePool> = {
@@ -53,6 +53,14 @@ export const NARRATIVE_DICTIONARY: Record<string, BriefNarrativePool> = {
       "Chase-adjacent: rhythm section locks in, but the tonal character softens what should feel dangerous.",
       "Forward momentum is real; dominance reads a half-step too relaxed for sustained pursuit. Usable as a build-in.",
       "The vocal entry at the first chorus will compete with radio-dispatch or protagonist dialogue — pull the instrumental before evaluating further. The underlying arrangement may solve the brief; the full mix doesn't.",
+      "Rhythmic engine is credible for pursuit but the harmonic language resolves too frequently — every eight bars the tension resets, and a chase brief needs it to accumulate. The arrangement argues with itself.",
+      "Drive is present in the verse; the energy opens up past the bridge into something that reads as release rather than escalation. The edit window is the first two sections only.",
+      "The cue's arousal arc is right but the mix sits a degree too warm at broadcast level — pull the midrange slightly and the emotional centre shifts into threat territory. Provisional placement pending that pass.",
+      "Tempo and rhythmic density hit the target but the arrangement's melodic content has a recognizable theme that the music editor will need to weigh against any dialogue the chase is carrying. May work without vocal; evaluate the stems.",
+      "Forward propulsion is convincing through the first half; the track's back third relaxes the pressure without a clear editorial reason for it. Use only the front half or ask the artist for a version that holds through.",
+      "Dominance is right; the arousal ceiling is slightly lower than a sustained-threat brief needs. Would sit better under a cat-and-mouse sequence than under an active foot chase.",
+      "The rhythmic grid is tight but the production aesthetic reads slightly dated — the sound palette has a release-era character that some supervisors will flag for contemporary action placements. Library use only.",
+      "Sits inside the chase envelope on raw numbers but the emotional delivery reads urgent rather than dangerous. Urgent scores car chases; dangerous scores pursuits. Know which one the scene is before committing.",
     ],
     MAYBE_LOW: [
       "Energy tilts toward chase but the emotional core doesn't commit. Supervisor would need to build conviction into the edit.",

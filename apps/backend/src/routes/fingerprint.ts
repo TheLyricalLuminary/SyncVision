@@ -274,6 +274,10 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
       rfsMap[field].push({ value, source });
     }
 
+    // AudD — identification layer (label = record label / master rights holder)
+    const auddLabel = auddResult?.label ?? null;
+    addRfs('publisherName', auddLabel, 'AudD');
+
     // Credits.fm — Layer 5
     addRfs('iswc',          creditsEnrichment?.iswc,           'Credits.fm');
     addRfs('writerName',    creditsEnrichment?.writerName,     'Credits.fm');
@@ -300,12 +304,13 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     const workingIswc          = creditsEnrichment?.iswc          ?? mbEnrichment?.iswc          ?? mlcEnrichment?.iswc          ?? null;
     const workingWriterName    = creditsEnrichment?.writerName    ?? mbEnrichment?.writerName    ?? mlcEnrichment?.writerName    ?? null;
     const workingWriterIpi     = creditsEnrichment?.writerIpi     ?? mbEnrichment?.writerIpi     ?? mlcEnrichment?.writerIpi     ?? null;
-    const workingPublisherName = creditsEnrichment?.publisherName ?? mbEnrichment?.publisherName ?? mlcEnrichment?.publisherName ?? null;
+    const workingPublisherName = creditsEnrichment?.publisherName ?? mbEnrichment?.publisherName ?? mlcEnrichment?.publisherName ?? auddLabel ?? null;
     const workingProAffiliation= creditsEnrichment?.proAffiliation ?? null;
     const workingWorkMbid      = mbEnrichment?.workMbid ?? null;
 
     // Determine which source names contributed anything
     const contributingSources: string[] = [];
+    if (auddLabel) contributingSources.push('AudD');
     if (creditsEnrichment && (creditsEnrichment.writerName || creditsEnrichment.iswc || creditsEnrichment.writerIpi)) contributingSources.push('Credits.fm');
     if (mbEnrichment && (mbEnrichment.writerName || mbEnrichment.iswc || mbEnrichment.workMbid)) contributingSources.push('MusicBrainz');
     if (mlcEnrichment) contributingSources.push('MLC');
@@ -383,6 +388,7 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
         creditsEnrichment?.publisherName ? { value: creditsEnrichment.publisherName, source: 'Credits.fm' } : null,
         mbEnrichment?.publisherName      ? { value: mbEnrichment.publisherName,      source: 'MusicBrainz' } : null,
         mlcEnrichment?.publisherName     ? { value: mlcEnrichment.publisherName,     source: 'MLC' } : null,
+        auddLabel                        ? { value: auddLabel,                        source: 'AudD' } : null,
       ]),
       mechanicalStatus: collectSources([
         mlcEnrichment?.mechanicalStatus ? { value: mlcEnrichment.mechanicalStatus, source: 'MLC' } : null,
@@ -397,7 +403,7 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
       iswc:           creditsEnrichment?.iswc  ?? mbEnrichment?.iswc  ?? mlcEnrichment?.iswc  ?? null,
       writerName:     creditsEnrichment?.writerName ?? mbEnrichment?.writerName ?? mlcEnrichment?.writerName ?? null,
       writerIpi:      creditsEnrichment?.writerIpi  ?? mbEnrichment?.writerIpi  ?? mlcEnrichment?.writerIpi  ?? null,
-      publisherName:  creditsEnrichment?.publisherName ?? mbEnrichment?.publisherName ?? mlcEnrichment?.publisherName ?? null,
+      publisherName:  creditsEnrichment?.publisherName ?? mbEnrichment?.publisherName ?? mlcEnrichment?.publisherName ?? auddLabel ?? null,
       proAffiliation: creditsEnrichment?.proAffiliation ?? null,
       enrichmentSources,
       mechanicalStatus: mlcEnrichment?.mechanicalStatus ?? null,
@@ -408,7 +414,7 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
         iswc:      creditsEnrichment?.iswc ? "credits.fm" : mbEnrichment?.iswc ? "musicbrainz" : mlcEnrichment?.iswc ? "mlc" : null,
         writer:    creditsEnrichment?.writerName    ? "credits.fm" : mbEnrichment?.writerName    ? "musicbrainz" : mlcEnrichment?.writerName    ? "mlc" : null,
         ipi:       creditsEnrichment?.writerIpi     ? "credits.fm" : mbEnrichment?.writerIpi     ? "musicbrainz" : mlcEnrichment?.writerIpi     ? "mlc" : null,
-        publisher: creditsEnrichment?.publisherName ? "credits.fm" : mbEnrichment?.publisherName ? "musicbrainz" : mlcEnrichment?.publisherName ? "mlc" : null,
+        publisher: creditsEnrichment?.publisherName ? "credits.fm" : mbEnrichment?.publisherName ? "musicbrainz" : mlcEnrichment?.publisherName ? "mlc" : auddLabel ? "audd" : null,
         pro:       creditsEnrichment?.proAffiliation ? "credits.fm" : null,
       },
       lyricsLinkage: lyricsData ? {

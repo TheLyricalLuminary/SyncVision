@@ -256,9 +256,9 @@ function checkCompleteness(): void {
         hardFail(`MISSING CELL: ${brief} / ${tier} — pool undefined`);
         continue;
       }
-      if (phrases.length !== PHRASES_PER_POOL) {
+      if (phrases.length < PHRASES_PER_POOL) {
         hardFail(
-          `WRONG COUNT: ${brief} / ${tier} — expected ${PHRASES_PER_POOL} phrases, found ${phrases.length}`,
+          `WRONG COUNT: ${brief} / ${tier} — expected at least ${PHRASES_PER_POOL} phrases, found ${phrases.length}`,
         );
       } else {
         pass(`${brief} / ${tier}: ${phrases.length} phrases`);
@@ -282,11 +282,11 @@ function checkCompleteness(): void {
     const p = NARRATIVE_DICTIONARY[b];
     return sum + EXPECTED_TIERS.reduce((s, t) => s + (p[t]?.length ?? 0), 0);
   }, 0);
-  const expectedTotal = briefCount * EXPECTED_TIERS.length * PHRASES_PER_POOL;
-  if (totalPhrases !== expectedTotal) {
-    hardFail(`TOTAL PHRASE COUNT: expected ${expectedTotal}, found ${totalPhrases}`);
+  const minExpectedTotal = briefCount * EXPECTED_TIERS.length * PHRASES_PER_POOL;
+  if (totalPhrases < minExpectedTotal) {
+    hardFail(`TOTAL PHRASE COUNT: expected at least ${minExpectedTotal}, found ${totalPhrases}`);
   } else {
-    pass(`Total phrases: ${totalPhrases} (${briefCount} briefs × ${EXPECTED_TIERS.length} verdicts × ${PHRASES_PER_POOL} phrases)`);
+    pass(`Total phrases: ${totalPhrases} (${briefCount} briefs × ${EXPECTED_TIERS.length} verdicts × ≥${PHRASES_PER_POOL} phrases)`);
   }
 }
 
