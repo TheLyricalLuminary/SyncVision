@@ -843,6 +843,249 @@ export const NARRATIVE_DICTIONARY: Record<string, BriefNarrativePool> = {
 
 import { createHash } from "crypto";
 
+// ─── Per-brief vocabulary for template-driven PASS / MAYBE narratives ─────────
+// FAIL_CLOSE and FAIL_HARD continue to use the authored pool above.
+
+interface BriefVocab {
+  noun: string;
+  strongOpen: string;
+  softOpen: string;
+  maybeHighOpen: string;
+  maybeHighGap: string;
+  maybeLowOpen: string;
+  maybeLowGap: string;
+}
+
+const BRIEF_VOCAB: Record<string, BriefVocab> = {
+  "chase-tension": {
+    noun: "chase cue",
+    strongOpen: "Forward propulsion locks in across all three axes — this is the chase. Kinetic arousal, restrained valence, assertive dominance: the pursuit profile solved",
+    softOpen: "Pursuit energy is convincing throughout. Strong chase profile — arousal and dominance inside the target, tonal character holds at the right edge of threat",
+    maybeHighOpen: "Chase-adjacent — arousal and rhythm section are present",
+    maybeHighGap: "the tonal character softens what should feel dangerous, pulling toward competition rather than pursuit",
+    maybeLowOpen: "Energy tilts toward chase but the emotional core doesn't commit to menace",
+    maybeLowGap: "Rhythmically viable but the mood reads action-adjacent rather than pursuit-specific",
+  },
+  "action-combat": {
+    noun: "combat cue",
+    strongOpen: "Maximum arousal, assertive dominance, valence held in the dark zone — the combat brief solved. Reads as physical stakes from bar one",
+    softOpen: "Strong action profile — arousal ceiling met, dark valence sustained. High-intensity with the right aggression throughout",
+    maybeHighOpen: "High energy but the tonal character reads kinetic rather than combative",
+    maybeHighGap: "arousal is maximal but the emotional posture sits one degree too resolved for a live contact beat",
+    maybeLowOpen: "Action-adjacent but the track doesn't commit to the aggression combat cues require",
+    maybeLowGap: "Energetic without being dangerous — supervisors will feel the gap against contact footage",
+  },
+  "triumph-victory": {
+    noun: "triumph cue",
+    strongOpen: "Peak arousal, maximum valence, assertive dominance — the victory podium. The triumph brief solved at every axis",
+    softOpen: "Strong triumph match — arousal and valence inside the target, dominance holds at the right confidence. Victory energy is earned throughout",
+    maybeHighOpen: "Bright and forward but the arousal doesn't quite crest where triumph sequences peak",
+    maybeHighGap: "valence is right but the track plateaus before the ceiling the brief asks for",
+    maybeLowOpen: "Warm and positive but the energy stays mid-range — triumph wants the ceiling",
+    maybeLowGap: "The emotional direction is correct; the magnitude isn't. Reads more as resolution than celebration",
+  },
+  "euphoria-celebration": {
+    noun: "celebration cue",
+    strongOpen: "Maximum valence, peak arousal, confident dominance — the celebration cue. Euphoric from first bar: bright, high-energy, unambiguous joy",
+    softOpen: "Strong celebration profile — peaks on valence and arousal, dominance holds one step below the ceiling. Euphoric energy holds throughout",
+    maybeHighOpen: "Celebratory in character but the arousal stays mid-range — reads more uplift than euphoria",
+    maybeHighGap: "bright and positive but the peak energy doesn't reach the brief's ceiling",
+    maybeLowOpen: "Upbeat enough to register as positive but not joyful enough to read as celebration",
+    maybeLowGap: "The emotional direction is correct; the intensity falls short",
+  },
+  "suspense-dread": {
+    noun: "suspense cue",
+    strongOpen: "Held arousal, low valence, yielding dominance — the held-breath profile solved. Reads as foreboding from the first note: cool, restrained, threatening without release",
+    softOpen: "Strong suspense match — cool valence and contained arousal both inside the brief. Dread posture is convincing throughout",
+    maybeHighOpen: "Cool and restrained but the arousal reads anxiety rather than dread — slightly too kinetic for the brief's stillness",
+    maybeHighGap: "the tonal character is right but the track reveals itself too early",
+    maybeLowOpen: "The emotional direction points toward suspense but the track doesn't hold the stillness the brief requires",
+    maybeLowGap: "Cool valence in place; arousal runs above the dread band, reading as tension rather than foreboding",
+  },
+  "horror-psychological": {
+    noun: "psychological horror cue",
+    strongOpen: "Low arousal with deeply suppressed valence and yielding dominance — the psychological horror profile solved. Reads as dread internalized, not announced",
+    softOpen: "Strong horror match — dark valence and restrained arousal both on target. Psychological texture is convincing; the track disturbs without telegraphing",
+    maybeHighOpen: "Unsettling in character but the arousal runs slightly higher than psychological horror prefers — reads as suspense rather than dread",
+    maybeHighGap: "dark valence is present but the track announces its discomfort too clearly for a psychological placement",
+    maybeLowOpen: "Cool enough to suggest unease but the emotional posture isn't specific enough for psychological horror",
+    maybeLowGap: "The darkness is there in fragments; the internalized quality the scene needs isn't fully present",
+  },
+  "drama-confrontation": {
+    noun: "confrontation cue",
+    strongOpen: "Elevated arousal with dark valence and assertive dominance — the confrontation profile solved. Reads as conflict-in-the-room: high stakes, unresolved, present",
+    softOpen: "Strong drama match — arousal and dominance inside the target. Confrontation energy holds throughout without tipping into action or dread",
+    maybeHighOpen: "Dramatic in character but the arousal sits at the lower boundary of the confrontation zone — reads as tension building rather than confrontation itself",
+    maybeHighGap: "the emotional posture is right but the track doesn't escalate enough to carry a full confrontation beat",
+    maybeLowOpen: "Emotional direction points toward conflict but the intensity isn't there",
+    maybeLowGap: "Sits below the drama band on arousal — supports a subdued dramatic moment, not a confrontation",
+  },
+  "urban-gritty": {
+    noun: "urban grit cue",
+    strongOpen: "Mid-high arousal, restrained valence, assertive dominance — the urban grit profile. Reads as concrete and consequence: kinetic without euphoria, dark without dread",
+    softOpen: "Strong gritty urban match — arousal and dominance both on target, valence holds in the subdued register. The track reads as urban consequence throughout",
+    maybeHighOpen: "Gritty in character but valence runs brighter than the brief wants — reads as street energy rather than street weight",
+    maybeHighGap: "kinetic and assertive but the emotional posture sits too clean for a gritty placement",
+    maybeLowOpen: "Urban-adjacent in energy but too composed for the gritty posture the brief requires",
+    maybeLowGap: "The texture is right in fragments; the sustained grit isn't there",
+  },
+  "romance-intimacy": {
+    noun: "romance cue",
+    strongOpen: "Warm, close, unhurried — high valence with low arousal and yielding dominance. The intimacy brief solved. Reads as proximity and tenderness from bar one",
+    softOpen: "Strong romance match — high valence and soft arousal both on target. Intimate posture is convincing; the track earns the placement",
+    maybeHighOpen: "Warm in character but the arousal runs above the intimacy zone — reads as romantic rather than intimate",
+    maybeHighGap: "tender valence is present but the track moves when the brief asks it to stay still",
+    maybeLowOpen: "Positive and warm but too composed or too cool for genuine intimacy",
+    maybeLowGap: "The emotional direction points toward connection; the track doesn't lean into it far enough",
+  },
+  "heartbreak-separation": {
+    noun: "heartbreak cue",
+    strongOpen: "Dark valence with low arousal and yielding dominance — the heartbreak profile solved. Reads as the moment after: still, fractured, and unresolved",
+    softOpen: "Strong heartbreak match — dark valence and low arousal both on target. The track earns the separation brief without overclaiming grief",
+    maybeHighOpen: "Melancholic in character but the arousal runs slightly above the heartbreak zone — reads as longing rather than loss",
+    maybeHighGap: "dark valence is present but the emotional posture is more yearning than fractured",
+    maybeLowOpen: "The emotional direction points toward sadness but doesn't commit to the devastation heartbreak cues require",
+    maybeLowGap: "Cool in register but not specifically heartbreak — reads as a minor sadness rather than separation",
+  },
+  "grief-loss": {
+    noun: "grief cue",
+    strongOpen: "Low arousal, suppressed valence, yielding dominance — the absence profile solved. Reads as emptiness rather than event: unhurried, hollow, and still",
+    softOpen: "Strong grief match — cool valence and restrained arousal both inside the brief. The track earns the loss placement without tipping into melodrama",
+    maybeHighOpen: "Melancholic in register but the emotional weight doesn't carry the specific gravity of grief",
+    maybeHighGap: "cool valence is present but the track processes sadness rather than dwelling in absence",
+    maybeLowOpen: "Sad in register but the emotional specificity falls short of grief",
+    maybeLowGap: "Touches the grief zone but retreats before fully committing to absence",
+  },
+  "contemplative-reflective": {
+    noun: "contemplative cue",
+    strongOpen: "Low arousal, restrained dominance, and a midpoint valence that thinks rather than feels — the reflective brief solved. Introspective posture is exact",
+    softOpen: "Strong contemplative match — restrained arousal and balanced valence both on target. The track thinks rather than announces; right register for interior placement",
+    maybeHighOpen: "Introspective in character but the arousal runs slightly above the reflective zone — reads as quiet action rather than still thought",
+    maybeHighGap: "the stillness is gesturally correct but the track doesn't fully surrender to the inward quality the brief requires",
+    maybeLowOpen: "Quiet but not specifically contemplative — the emotional register is general rather than introspective",
+    maybeLowGap: "Sits below the reflective band on specificity; reads as ambient rather than interior",
+  },
+  "emotional-resolution": {
+    noun: "resolution cue",
+    strongOpen: "Warm valence arriving from restrained arousal — the earned catharsis profile solved. Reads as conclusion rather than event: settled, present, and honest",
+    softOpen: "Strong resolution match — warm valence and controlled arousal both on target. The track earns the emotional conclusion without overshooting into triumph",
+    maybeHighOpen: "Warm and present but the emotional trajectory reads as contentment rather than resolution",
+    maybeHighGap: "valence is right but the sense of earned arrival isn't fully present — reads as a plateau rather than a landing",
+    maybeLowOpen: "Warm in register but too restrained for an earned resolution — reads as contemplation rather than conclusion",
+    maybeLowGap: "The emotional direction points toward resolution but the through-line doesn't fully close",
+  },
+  "comedy-light": {
+    noun: "comedy cue",
+    strongOpen: "High valence, light arousal, and an unmistakably playful dominance — the light comedy profile solved. Reads as wit rather than slapstick: bright, unserious, and clean",
+    softOpen: "Strong comedy match — bright valence and bouncing arousal both on target. Light and playful without overshooting into farce",
+    maybeHighOpen: "Comedic in character but the arousal runs slightly above where light comedy prefers — reads as upbeat rather than playful",
+    maybeHighGap: "bright valence is present but the track pushes with more energy than the brief's lightness requires",
+    maybeLowOpen: "Positive in register but not specifically comedic — too composed or too warm for a comedy placement",
+    maybeLowGap: "The playful quality is gestural rather than earned; reads as cheerful rather than comic",
+  },
+  "quirky-offbeat": {
+    noun: "quirky cue",
+    strongOpen: "Idiosyncratic tonal character, off-center emotional argument — the offbeat brief solved. Reads as unusual rather than wrong: exactly the register the brief requires",
+    softOpen: "Strong quirky match — offbeat character and idiosyncratic emotional posture both on target. Reads as genuinely odd without losing editorial utility",
+    maybeHighOpen: "Idiosyncratic in character but the emotional argument lands as eccentric rather than offbeat",
+    maybeHighGap: "the textural specificity is present but the track reads as stylized rather than genuinely idiosyncratic",
+    maybeLowOpen: "Unusual in texture but the quirky posture isn't specific enough for the brief",
+    maybeLowGap: "Sits adjacent to the offbeat zone; reads as unconventional rather than genuinely quirky",
+  },
+  "montage-transition": {
+    noun: "montage cue",
+    strongOpen: "Forward motion, tonal neutrality, and clean internal structure — the montage brief solved. Functional without being generic, driving without announcing itself",
+    softOpen: "Strong montage match — forward energy and structural flexibility both on target. Moves picture without competing with the edit's own rhythm",
+    maybeHighOpen: "Forward and functional but the emotional posture reads too specifically for a montage cue — commits to a mood the transition may not share",
+    maybeHighGap: "the track moves picture forward but the tonal character is too distinctive for neutral transition use",
+    maybeLowOpen: "Functional energy is present but the track doesn't hold the structural flexibility montage cues require",
+    maybeLowGap: "Reads as moment-specific rather than transition-neutral; needs a tight cue window to earn the placement",
+  },
+  "opening-closing-title": {
+    noun: "title cue",
+    strongOpen: "Declarative posture, forward momentum, and distinct tonal identity — the title sequence brief solved. Opens or closes a world rather than underscoring a scene",
+    softOpen: "Strong title match — declarative character and tonal identity both on target. Reads as an opening statement rather than background underscore",
+    maybeHighOpen: "Declarative in register but the emotional argument reads as scene underscore rather than title-sequence framing",
+    maybeHighGap: "the identity is present but the structural momentum doesn't carry the weight of opening or closing a world",
+    maybeLowOpen: "Settled and present in register but not declarative enough for a title sequence",
+    maybeLowGap: "The tonal identity is there in fragments; the sustained declaration the brief requires isn't",
+  },
+  "cinematic-epic": {
+    noun: "cinematic epic cue",
+    strongOpen: "Maximum arousal, assertive dominance, and expansive valence — the cinematic epic profile solved. Reads as scale: architecture that fills the frame",
+    softOpen: "Strong cinematic match — arousal and dominance inside the target, scope and scale convincing throughout. Ambitious and earned",
+    maybeHighOpen: "Cinematic in ambition but the emotional weight doesn't carry the epic scale the brief requires",
+    maybeHighGap: "scope is present but the track operates at the level of drama rather than spectacle",
+    maybeLowOpen: "Ambitious in register but the dominance or arousal falls short of the cinematic ceiling",
+    maybeLowGap: "The scope is gestural; the sustained scale the brief requires isn't fully there",
+  },
+  "corporate-aspirational": {
+    noun: "corporate cue",
+    strongOpen: "Controlled valence, confident dominance, and forward-looking arousal — the corporate aspirational profile solved. Reads as possibility rather than arrival: motivating without overclaiming",
+    softOpen: "Strong corporate match — arousal and valence inside the target, dominance holds at the right confidence register. Clean and directional",
+    maybeHighOpen: "Adjacent to the brief: the confidence is present but the register isn't controlled enough for corporate placement",
+    maybeHighGap: "valence runs slightly too expressive for a brand-transferable aspirational cue",
+    maybeLowOpen: "Positive in register but too mild or too neutral for an aspirational placement",
+    maybeLowGap: "Reads as background rather than motivation; the forward-looking quality the brief requires isn't sustained",
+  },
+  "nature-pastoral": {
+    noun: "pastoral cue",
+    strongOpen: "Low arousal, warm valence, yielding dominance — the pastoral profile solved. Reads as landscape rather than event: expansive, unhurried, and observational",
+    softOpen: "Strong pastoral match — warm valence and low arousal both inside the brief. The track breathes rather than moves; earns the placement",
+    maybeHighOpen: "Warm and unhurried but the arousal runs slightly above the pastoral zone — reads as contemplative rather than landscape",
+    maybeHighGap: "the openness is present but the stillness isn't quite there — reads as nature-in-motion rather than sustained landscape",
+    maybeLowOpen: "Gentle in register but not specifically pastoral — could underscore a variety of quiet scenes",
+    maybeLowGap: "The emotional direction points toward the brief; the expansive quality isn't distinctive enough",
+  },
+};
+
+function rightsClause(rights: number | undefined, verdict: "PASS" | "MAYBE"): string {
+  if (rights === undefined) return "";
+  if (verdict === "PASS") {
+    if (rights >= 0.80) return "Confirm one-stop before commit.";
+    if (rights >= 0.55) return "Confirm the rights chain before placing.";
+    return "Rights clarity needs resolution before this can place.";
+  }
+  return rights < 0.50 ? "Rights friction compounds the brief concern." : "";
+}
+
+function lyricsClause(lyrics: number | undefined): string {
+  if (lyrics === undefined || lyrics >= 0.60) return "";
+  return lyrics >= 0.40
+    ? "Lyric content warrants review for the placement window."
+    : "Lyric-down mix or instrumental required for the placement.";
+}
+
+function buildPassTemplate(open: string, close: string, rights?: number, lyrics?: number): string {
+  const parts = [`${open}.`];
+  const rc = rightsClause(rights, "PASS");
+  if (rc) parts.push(rc);
+  const lc = lyricsClause(lyrics);
+  if (lc) parts.push(lc);
+  parts.push(close);
+  return parts.join(" ");
+}
+
+function buildMaybeHighTemplate(open: string, gap: string, close: string, rights?: number, lyrics?: number): string {
+  const parts = [`${open} — ${gap}.`];
+  const rc = rightsClause(rights, "MAYBE");
+  if (rc) parts.push(rc);
+  const lc = lyricsClause(lyrics);
+  if (lc) parts.push(lc);
+  parts.push(close);
+  return parts.join(" ");
+}
+
+function buildMaybeLowTemplate(open: string, gap: string, close: string, rights?: number, lyrics?: number): string {
+  const parts = [`${open}. ${gap}.`];
+  const rc = rightsClause(rights, "MAYBE");
+  if (rc) parts.push(rc);
+  const lc = lyricsClause(lyrics);
+  if (lc) parts.push(lc);
+  parts.push(close);
+  return parts.join(" ");
+}
+
 export function verdictFor(sceneFit: number): Verdict {
   if (sceneFit >= 80) return "PASS_STRONG";
   if (sceneFit >= 70) return "PASS_SOFT";
@@ -853,27 +1096,57 @@ export function verdictFor(sceneFit: number): Verdict {
 }
 
 /**
- * Deterministically select a narrative phrase for (trackId, briefId, sceneFit)
- * and append a parenthetical audio-feature suffix with the track's actual
- * tonal character, energy character, and BPM.
+ * Build a narrative phrase for (trackId, briefId, sceneFit).
  *
- * Hash key: sha256(`${trackId}:${briefId}:${verdict}`) so the same
- * track+brief+tier always yields the same phrase.
+ * PASS and MAYBE verdicts use a template driven by axis values (rights, lyrics)
+ * so each track receives prose that reflects its actual clearance and lyric profile.
+ * FAIL verdicts continue to use the authored pool in NARRATIVE_DICTIONARY with
+ * sha256-derived deterministic selection.
+ *
+ * Hash key for FAIL: sha256(`${trackId}:${briefId}:${verdict}`) mod pool.length.
+ * Template output for PASS/MAYBE: deterministic by construction — same inputs
+ * always produce identical output.
  */
 export function buildBriefNarrative(
   trackId: string,
   briefId: string,
   sceneFit: number,
-  track: { tempo: number | null; tonalCharacter: string | null; energyCharacter: string | null },
+  track: {
+    tempo: number | null;
+    tonalCharacter: string | null;
+    energyCharacter: string | null;
+    scene?: number;
+    rights?: number;
+    lyrics?: number;
+    signal?: number;
+  },
 ): string {
   const brief = NARRATIVE_DICTIONARY[briefId];
   if (!brief) {
     return `sceneFit=${sceneFit} — brief narrative unavailable for "${briefId}"`;
   }
   const verdict = verdictFor(sceneFit);
-  const pool = brief[verdict];
-  const h = createHash("sha256").update(`${trackId}:${briefId}:${verdict}`).digest("hex");
-  const phrase = pool[parseInt(h.slice(0, 8), 16) % pool.length];
+  const { rights, lyrics } = track;
+
+  let phrase: string;
+  const vocab = BRIEF_VOCAB[briefId];
+
+  if (vocab && (verdict === "PASS_STRONG" || verdict === "PASS_SOFT" || verdict === "MAYBE_HIGH" || verdict === "MAYBE_LOW")) {
+    if (verdict === "PASS_STRONG") {
+      phrase = buildPassTemplate(vocab.strongOpen, "Recommend.", rights, lyrics);
+    } else if (verdict === "PASS_SOFT") {
+      phrase = buildPassTemplate(vocab.softOpen, "Place.", rights, lyrics);
+    } else if (verdict === "MAYBE_HIGH") {
+      phrase = buildMaybeHighTemplate(vocab.maybeHighOpen, vocab.maybeHighGap, "Director call.", rights, lyrics);
+    } else {
+      phrase = buildMaybeLowTemplate(vocab.maybeLowOpen, vocab.maybeLowGap, "Reserve for B-list.", rights, lyrics);
+    }
+  } else {
+    // FAIL tiers (or briefId absent from BRIEF_VOCAB) — deterministic pool selection
+    const pool = brief[verdict];
+    const h = createHash("sha256").update(`${trackId}:${briefId}:${verdict}`).digest("hex");
+    phrase = pool[parseInt(h.slice(0, 8), 16) % pool.length];
+  }
 
   const parts = [
     track.tonalCharacter ?? "",
