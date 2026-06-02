@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SyncVision — Responsive (all screens)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-0: #0D0B1E;
+    --bg-1: #120D26;
+    --hairline:        rgba(123, 112, 178, 0.16);
+    --hairline-strong: rgba(123, 112, 178, 0.30);
+    --silver:   #F4F2FA;
+    --lavender: #9B93C4;
+    --purple:   #F5A623;
+    --magenta:  #DB2777;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg-0); }
+  body {
+    font-family: "Manrope", system-ui, sans-serif;
+    color: var(--silver);
+    min-height: 100vh;
+    overflow-x: hidden;
+    background:
+      radial-gradient(900px 600px at 12% 8%,  rgba(245,166,35,0.14), transparent 60%),
+      radial-gradient(800px 500px at 95% 100%, rgba(221,122,58,0.10), transparent 60%),
+      var(--bg-0);
+  }
+  body::after {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    opacity: 0.5; mix-blend-mode: overlay;
+  }
+
+  /* ============================ HEADER ============================ */
+  .page-head {
+    position: relative; z-index: 1;
+    max-width: 1480px; margin: 0 auto;
+    padding: 40px 32px 18px;
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 28px;
+    flex-wrap: wrap;
+  }
+  .page-head .titles { display: flex; flex-direction: column; gap: 8px; max-width: 700px; }
+  .kicker {
+    font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--lavender);
+    display: inline-flex; align-items: center; gap: 12px;
+  }
+  .kicker::before {
+    content: ""; width: 32px; height: 1px;
+    background: linear-gradient(90deg, var(--magenta), transparent);
+  }
+  .page-head h1 {
+    margin: 0;
+    font-family: "Instrument Serif", serif;
+    font-weight: 400;
+    font-size: clamp(32px, 4vw, 52px);
+    line-height: 1.02; letter-spacing: -0.02em;
+    color: var(--silver);
+  }
+  .page-head h1 em { font-style: italic; color: var(--lavender); }
+  .page-head .sub {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 17px; color: rgba(226,232,240,0.65);
+    max-width: 520px;
+  }
+  .page-head .legend {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; letter-spacing: 0.06em;
+    color: var(--lavender);
+    text-align: right;
+    line-height: 1.7;
+  }
+  .page-head .legend b { color: var(--silver); font-weight: 600; }
+
+  /* ============================ STICKY TABNAV ============================ */
+  .tabnav {
+    position: sticky; top: 0; z-index: 5;
+    background: linear-gradient(180deg, rgba(7,4,26,0.96), rgba(7,4,26,0.78) 70%, rgba(7,4,26,0));
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--hairline);
+    padding: 14px 32px;
+  }
+  .tabnav-inner {
+    max-width: 1480px; margin: 0 auto;
+    display: flex; align-items: center; gap: 14px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabnav-inner::-webkit-scrollbar { display: none; }
+  .tab-link {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(167,139,250,0.06);
+    border: 1px solid var(--hairline);
+    color: rgba(226,232,240,0.7);
+    font-size: 12px; font-weight: 600; letter-spacing: -0.005em;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: border-color .15s ease, color .15s ease, background .15s ease;
+  }
+  .tab-link:hover { color: var(--silver); border-color: rgba(167,139,250,0.4); }
+  .tab-link .num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px; color: var(--lavender); letter-spacing: 0.04em;
+    font-weight: 500;
+  }
+  .tab-link.active {
+    color: var(--silver);
+    background: linear-gradient(135deg, rgba(124,58,237,0.24), rgba(219,39,119,0.14));
+    border-color: rgba(167,139,250,0.45);
+  }
+  .tab-link.active .num { color: var(--magenta); }
+
+  /* ============================ STAGE ============================ */
+  .stage {
+    position: relative; z-index: 1;
+    max-width: 1480px; margin: 0 auto;
+    padding: 24px 32px 80px;
+    display: flex; flex-direction: column; gap: 80px;
+  }
+  @media (max-width: 720px) {
+    .stage { padding: 16px 16px 60px; gap: 56px; }
+    .page-head { padding: 28px 16px 12px; }
+    .tabnav { padding: 12px 16px; }
+  }
+
+  .section {
+    scroll-margin-top: 80px;
+  }
+  .section-head {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 18px;
+    padding-bottom: 18px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--hairline);
+    flex-wrap: wrap;
+  }
+  .section-head .label {
+    font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: var(--lavender);
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .section-head .label .num {
+    color: var(--silver);
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 600; font-size: 11px;
+    padding: 3px 8px; border-radius: 4px;
+    background: rgba(167,139,250,0.10);
+    border: 1px solid var(--hairline);
+  }
+  .section-head h2 {
+    margin: 8px 0 0;
+    font-family: "Instrument Serif", serif; font-weight: 400;
+    font-size: clamp(28px, 3.4vw, 42px);
+    line-height: 1.02; letter-spacing: -0.02em;
+    color: var(--silver);
+    max-width: 22ch;
+  }
+  .section-head h2 em { font-style: italic; color: var(--lavender); }
+  .section-head .desc {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 16px; line-height: 1.4;
+    color: rgba(226,232,240,0.62);
+    max-width: 46ch;
+  }
+
+  /* ============================ PREVIEW PAIR ============================ */
+  .pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 36px;
+    align-items: start;
+  }
+  @media (max-width: 1100px) {
+    .pair { grid-template-columns: 1fr; gap: 28px; }
+  }
+
+  .panel { display: flex; flex-direction: column; gap: 14px; }
+  .panel-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  }
+  .panel-head .label {
+    font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: var(--lavender);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .panel-head .dim {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; color: rgba(167,139,250,0.65);
+    letter-spacing: 0.04em;
+  }
+
+  /* BROWSER FRAME */
+  .browser {
+    background: #0a0620;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--hairline-strong);
+    box-shadow:
+      0 40px 80px -30px rgba(0,0,0,0.65),
+      0 0 0 1px rgba(255,255,255,0.02) inset;
+  }
+  .browser-chrome {
+    height: 38px;
+    background: linear-gradient(180deg, #14092b, #0d0620);
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .traffic { display: flex; gap: 7px; }
+  .traffic .dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: #2a1d4a;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+  }
+  .traffic .dot:nth-child(1) { background: #ff5f56; }
+  .traffic .dot:nth-child(2) { background: #ffbd2e; }
+  .traffic .dot:nth-child(3) { background: #27c93f; }
+  .browser-url {
+    flex: 1;
+    height: 22px;
+    background: rgba(167,139,250,0.06);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 10px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    color: rgba(226,232,240,0.55);
+    letter-spacing: 0.02em;
+  }
+  .browser-url svg { flex-shrink: 0; opacity: 0.5; }
+  .browser-url b { color: var(--silver); font-weight: 500; }
+  /* Scaled iframe — renders at fixed 1440x900 and scales to fit */
+  .scaled-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1440 / 900;
+    background: var(--bg-0);
+    overflow: hidden;
+  }
+  .scaled-wrap.tall { aspect-ratio: 1440 / 990; }
+  .scaled-wrap iframe {
+    position: absolute;
+    top: 0; left: 0;
+    width: 1440px;
+    height: 900px;
+    border: 0;
+    transform-origin: top left;
+    background: var(--bg-0);
+  }
+  .scaled-wrap.tall iframe { height: 990px; }
+
+  /* PHONE FRAME */
+  .phone-stage {
+    display: flex; justify-content: center;
+    padding: 10px 0 0;
+  }
+  .phone {
+    width: 360px;
+    aspect-ratio: 360 / 760;
+    background: #050216;
+    border-radius: 46px;
+    padding: 12px;
+    border: 1px solid var(--hairline-strong);
+    box-shadow:
+      0 40px 80px -30px rgba(0,0,0,0.7),
+      0 0 0 1px rgba(255,255,255,0.03) inset,
+      inset 0 0 0 2px #0a0620;
+    position: relative;
+  }
+  .phone::before {
+    content: ""; position: absolute;
+    top: 22px; left: 50%; transform: translateX(-50%);
+    width: 100px; height: 26px; border-radius: 999px;
+    background: #050216;
+    z-index: 2;
+  }
+  .phone-screen {
+    width: 100%; height: 100%;
+    border-radius: 34px;
+    overflow: hidden;
+    background: var(--bg-0);
+    position: relative;
+  }
+  .phone-frame {
+    width: 100%; height: 100%;
+    border: 0; display: block;
+  }
+  @media (max-width: 540px) {
+    .phone { width: 300px; }
+  }
+
+  /* ============================ LINK ============================ */
+  .open-link {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; letter-spacing: 0.04em;
+    color: var(--lavender);
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--hairline);
+    background: rgba(167,139,250,0.04);
+    transition: border-color .15s ease, color .15s ease;
+  }
+  .open-link:hover {
+    color: var(--silver);
+    border-color: rgba(167,139,250,0.45);
+  }
+
+  /* ============================ NOTES STRIP ============================ */
+  .notes-strip {
+    margin-top: 26px;
+    padding: 22px 26px;
+    border-radius: 18px;
+    background: rgba(15,8,35,0.6);
+    border: 1px solid var(--hairline);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 28px;
+  }
+  .note h4 {
+    margin: 0 0 6px;
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 16px; font-weight: 400; color: var(--silver);
+    letter-spacing: -0.005em;
+  }
+  .note h4 .n {
+    font-family: "JetBrains Mono", monospace;
+    font-style: normal;
+    font-size: 10px;
+    color: var(--magenta);
+    margin-right: 8px;
+    letter-spacing: 0.04em;
+  }
+  .note p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: rgba(226,232,240,0.7);
+  }
+  .note code {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11.5px;
+    color: var(--lavender);
+    background: rgba(167,139,250,0.08);
+    padding: 1px 6px; border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <div class="titles">
+    <span class="kicker">SyncVision · Responsive system</span>
+    <h1>Five screens, two <em>compositions</em>.</h1>
+    <p class="sub">Each page is one HTML file that flows from a one-column phone layout under 720px into a multi-column desktop composition above 880px. No conditional renders &mdash; pure CSS grid + media queries.</p>
+  </div>
+  <div class="legend">
+    <span>Mobile <b>&le; 720px</b></span><br>
+    <span>Tablet <b>720&ndash;1000px</b></span><br>
+    <span>Desktop <b>&ge; 1000px</b></span>
+  </div>
+</header>
+
+<nav class="tabnav" aria-label="Screens">
+  <div class="tabnav-inner">
+    <a class="tab-link active" href="#brief"><span class="num">01</span>Brief</a>
+    <a class="tab-link" href="#ingest"><span class="num">02</span>Ingest</a>
+    <a class="tab-link" href="#analyzing"><span class="num">03</span>Analyzing</a>
+    <a class="tab-link" href="#results"><span class="num">04</span>Shortlist</a>
+    <a class="tab-link" href="#share"><span class="num">05</span>Director View</a>
+  </div>
+</nav>
+
+<main class="stage">
+
+  <!-- ============ 01 BRIEF ============ -->
+  <section class="section" id="brief">
+    <div class="section-head">
+      <div>
+        <span class="label"><span class="num">01</span>Brief</span>
+        <h2>Tell us about the <em>scene</em>.</h2>
+      </div>
+      <p class="desc">Hero headline + scene textarea, with pacing and mood as parallel cards on desktop. Mobile collapses them into a single column with a step badge in the header.</p>
+    </div>
+    <div class="pair">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="label">Desktop <span class="dim">&ge; 880px</span></span>
+          <a class="open-link" href="brief-responsive.html" target="_blank" rel="noopener">open &nearr;</a>
+        </div>
+        <div class="browser">
+          <div class="browser-chrome">
+            <div class="traffic"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <div class="browser-url">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M5 7V5a3 3 0 016 0v2M4 7h8v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7z" stroke="currentColor" stroke-width="1.2"/></svg>
+              syncvision.app<b>/brief</b>
+            </div>
+          </div>
+          <div class="scaled-wrap"><iframe src="brief-responsive.html" title="Brief — desktop" loading="lazy"></iframe></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="label">Mobile <span class="dim">390 &times; 844</span></span>
+        </div>
+        <div class="phone-stage">
+          <div class="phone"><div class="phone-screen">
+            <iframe class="phone-frame" src="brief-responsive.html" title="Brief — mobile" loading="lazy"></iframe>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 02 INGEST ============ -->
+  <section class="section" id="ingest">
+    <div class="section-head">
+      <div>
+        <span class="label"><span class="num">02</span>Ingest</span>
+        <h2>Add the <em>candidates</em>.</h2>
+      </div>
+      <p class="desc">Dropzone spans wide on desktop with URL + ISRC inputs in a 2-column row. Queued tracks render in a 2-column grid on desktop, list on mobile.</p>
+    </div>
+    <div class="pair">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="label">Desktop <span class="dim">&ge; 880px</span></span>
+          <a class="open-link" href="ingest-responsive.html" target="_blank" rel="noopener">open &nearr;</a>
+        </div>
+        <div class="browser">
+          <div class="browser-chrome">
+            <div class="traffic"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <div class="browser-url">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M5 7V5a3 3 0 016 0v2M4 7h8v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7z" stroke="currentColor" stroke-width="1.2"/></svg>
+              syncvision.app<b>/ingest</b>
+            </div>
+          </div>
+          <div class="scaled-wrap"><iframe src="ingest-responsive.html" title="Ingest — desktop" loading="lazy"></iframe></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="label">Mobile <span class="dim">390 &times; 844</span></span>
+        </div>
+        <div class="phone-stage">
+          <div class="phone"><div class="phone-screen">
+            <iframe class="phone-frame" src="ingest-responsive.html" title="Ingest — mobile" loading="lazy"></iframe>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 03 ANALYZING ============ -->
+  <section class="section" id="analyzing">
+    <div class="section-head">
+      <div>
+        <span class="label"><span class="num">03</span>Analyzing</span>
+        <h2>Between <em>states</em>.</h2>
+      </div>
+      <p class="desc">Hero visual sits left, progress list sits right on desktop &mdash; the empty time becomes a moment to breathe. Mobile centers the visual above the progress list.</p>
+    </div>
+    <div class="pair">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="label">Desktop <span class="dim">&ge; 880px</span></span>
+          <a class="open-link" href="analyzing-responsive.html" target="_blank" rel="noopener">open &nearr;</a>
+        </div>
+        <div class="browser">
+          <div class="browser-chrome">
+            <div class="traffic"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <div class="browser-url">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M5 7V5a3 3 0 016 0v2M4 7h8v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7z" stroke="currentColor" stroke-width="1.2"/></svg>
+              syncvision.app<b>/analyzing</b>
+            </div>
+          </div>
+          <div class="scaled-wrap"><iframe src="analyzing-responsive.html" title="Analyzing — desktop" loading="lazy"></iframe></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="label">Mobile <span class="dim">390 &times; 844</span></span>
+        </div>
+        <div class="phone-stage">
+          <div class="phone"><div class="phone-screen">
+            <iframe class="phone-frame" src="analyzing-responsive.html" title="Analyzing — mobile" loading="lazy"></iframe>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 04 RESULTS ============ -->
+  <section class="section" id="results">
+    <div class="section-head">
+      <div>
+        <span class="label"><span class="num">04</span>Shortlist</span>
+        <h2>The <em>scalar</em> leads.</h2>
+      </div>
+      <p class="desc">Lead card on the left with the weighted score visualization &mdash; bar widths reflect axis weight (Scene 45%, Rights 25%, Lyrics 25%, Signal 5%), fills reflect value. Mini-cards rank to the right.</p>
+    </div>
+    <div class="pair">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="label">Desktop <span class="dim">&ge; 1000px</span></span>
+          <a class="open-link" href="results-responsive.html" target="_blank" rel="noopener">open &nearr;</a>
+        </div>
+        <div class="browser">
+          <div class="browser-chrome">
+            <div class="traffic"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <div class="browser-url">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M5 7V5a3 3 0 016 0v2M4 7h8v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7z" stroke="currentColor" stroke-width="1.2"/></svg>
+              syncvision.app<b>/scene/14/shortlist</b>
+            </div>
+          </div>
+          <div class="scaled-wrap tall"><iframe src="results-responsive.html" title="Shortlist — desktop" loading="lazy"></iframe></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="label">Mobile <span class="dim">390 &times; 844</span></span>
+        </div>
+        <div class="phone-stage">
+          <div class="phone"><div class="phone-screen">
+            <iframe class="phone-frame" src="results-responsive.html" title="Shortlist — mobile" loading="lazy"></iframe>
+          </div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- score notes -->
+    <div class="notes-strip">
+      <div class="note">
+        <h4><span class="n">A</span>The scalar leads.</h4>
+        <p>One large 74. The vector explains it &mdash; it doesn't compete for attention.</p>
+      </div>
+      <div class="note">
+        <h4><span class="n">B</span>Bars are weighted.</h4>
+        <p>Each axis bar's <code>width</code> = its weight. Scene gets a wide track, Signal gets a thin strip. The visual <em>is</em> the math.</p>
+      </div>
+      <div class="note">
+        <h4><span class="n">C</span>Fixed vs actionable.</h4>
+        <p>Scene is fixed after upload (<code>&mdash;</code>). Rights and Lyrics show an action chevron (<code>&uarr;</code>) that opens the relevant intake.</p>
+      </div>
+      <div class="note">
+        <h4><span class="n">D</span>Unscored is empty.</h4>
+        <p>Lyrics shows <code>&mdash;</code> as value with an empty track. The space itself communicates "score not yet computed."</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 05 DIRECTOR VIEW ============ -->
+  <section class="section" id="share">
+    <div class="section-head">
+      <div>
+        <span class="label"><span class="num">05</span>Director View</span>
+        <h2>The decision <em>moment</em>.</h2>
+      </div>
+      <p class="desc">Scene brief sticks to the left as the director scrolls through ranked tracks on the right. Each card has waveform, AI &ldquo;why this track&rdquo; pull-quote, Approve/Pass, and a comment line.</p>
+    </div>
+    <div class="pair">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="label">Desktop <span class="dim">&ge; 1000px</span></span>
+          <a class="open-link" href="share-responsive.html" target="_blank" rel="noopener">open &nearr;</a>
+        </div>
+        <div class="browser">
+          <div class="browser-chrome">
+            <div class="traffic"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <div class="browser-url">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M5 7V5a3 3 0 016 0v2M4 7h8v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7z" stroke="currentColor" stroke-width="1.2"/></svg>
+              syncvision.app<b>/share/abc123</b>
+            </div>
+          </div>
+          <div class="scaled-wrap tall"><iframe src="share-responsive.html" title="Director View — desktop" loading="lazy"></iframe></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="label">Mobile <span class="dim">390 &times; 844</span></span>
+        </div>
+        <div class="phone-stage">
+          <div class="phone"><div class="phone-screen">
+            <iframe class="phone-frame" src="share-responsive.html" title="Director View — mobile" loading="lazy"></iframe>
+          </div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes-strip">
+      <div class="note">
+        <h4><span class="n">A</span>Brief stays anchored.</h4>
+        <p>Scene context is sticky in the left rail so the director can re-read while scrolling tracks. Mobile drops to top of the stack.</p>
+      </div>
+      <div class="note">
+        <h4><span class="n">B</span>Per-card state lives in the border.</h4>
+        <p>Approved cards get a green left accent + green pill; passed cards dim; the leader pulses with the brand gradient.</p>
+      </div>
+      <div class="note">
+        <h4><span class="n">C</span>AI reasoning as pull-quote.</h4>
+        <p>Big serif quote glyph, italic Instrument Serif body, bolded turn. Treats AI like an opinion, not a debug log.</p>
+      </div>
+      <div class="note">
+        <h4><span class="n">D</span>Decision summary is live.</h4>
+        <p>The brief panel's tally updates as the director clicks Approve / Pass &mdash; visible accountability without a confirmation modal.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  // Scale desktop iframes from a fixed 1440px-wide render down to wrapper width.
+  function scaleFrames() {
+    document.querySelectorAll('.scaled-wrap').forEach(wrap => {
+      const iframe = wrap.querySelector('iframe');
+      if (!iframe) return;
+      const w = wrap.getBoundingClientRect().width;
+      const scale = w / 1440;
+      iframe.style.transform = `scale(${scale})`;
+    });
+  }
+  scaleFrames();
+  window.addEventListener('resize', scaleFrames);
+  // re-scale once images/fonts settle
+  setTimeout(scaleFrames, 200);
+  setTimeout(scaleFrames, 600);
+
+  // active tab highlight via IntersectionObserver
+  const sections = document.querySelectorAll('.section');
+  const links = document.querySelectorAll('.tab-link');
+  const linkFor = id => document.querySelector(`.tab-link[href="#${id}"]`);
+
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if (en.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const link = linkFor(en.target.id);
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
+
+  sections.forEach(s => io.observe(s));
+</script>
+
+</body>
+</html>
