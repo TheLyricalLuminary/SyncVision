@@ -94,17 +94,17 @@ export default function ShortlistPage() {
 
   return (
     <div
-      style={{ minHeight: '100vh', background: '#06030F', fontFamily: '"Manrope", system-ui, sans-serif', WebkitFontSmoothing: 'antialiased' }}
+      style={{ minHeight: '100vh', background: '#0D0B1E', fontFamily: '"Manrope", system-ui, sans-serif', WebkitFontSmoothing: 'antialiased' }}
     >
       <div style={{ maxWidth: 820, margin: '0 auto', padding: '48px 24px 80px' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 32, flexWrap: 'wrap', gap: 16 }}>
           <div>
-            <div style={{ letterSpacing: '0.125em', fontSize: 11, textTransform: 'uppercase', color: '#A78BFA', marginBottom: 6 }}>
+            <div style={{ letterSpacing: '0.125em', fontSize: 11, textTransform: 'uppercase', color: '#9B93C4', marginBottom: 6 }}>
               Shortlist · Scene 14
             </div>
-            <h1 style={{ fontFamily: '"Instrument Serif", Georgia, serif', fontSize: 36, fontWeight: 400, color: '#E2E8F0', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.1 }}>
+            <h1 style={{ fontFamily: '"Instrument Serif", Georgia, serif', fontSize: 36, fontWeight: 400, color: '#F4F2FA', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.1 }}>
               The Quiet <span style={{ color: '#DB2777' }}>Surrender</span>
             </h1>
           </div>
@@ -162,7 +162,7 @@ export default function ShortlistPage() {
           ))}
         </div>
 
-        <div style={{ marginTop: 48, textAlign: 'center', fontSize: 11, color: 'rgba(167,139,250,0.5)', letterSpacing: '0.04em' }}>
+        <div style={{ marginTop: 48, textAlign: 'center', fontSize: 11, color: 'rgba(123,112,178,0.5)', letterSpacing: '0.04em' }}>
           Drag cards to reorder · Tap play to expand AI reasoning + waveform
         </div>
       </div>

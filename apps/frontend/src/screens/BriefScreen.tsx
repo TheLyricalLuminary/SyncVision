@@ -3,19 +3,19 @@ import { classifyBrief, BRIEF_LABELS, type BriefId } from '../engine/classifyBri
 import type { SceneParams } from '../utils/apiClient';
 
 const C = {
-  purple:        '#7C3AED',
+  purple:        '#F5A623',
   magenta:       '#DB2777',
-  silver:        '#E2E8F0',
-  lavender:      '#A78BFA',
+  silver:        '#F4F2FA',
+  lavender:      '#9B93C4',
   amber:         '#F5B544',
-  hairline:      'rgba(167, 139, 250, 0.14)',
-  hairlineStrong:'rgba(167, 139, 250, 0.22)',
-  bg:            '#0F0823',
+  hairline:      'rgba(123, 112, 178, 0.16)',
+  hairlineStrong:'rgba(123, 112, 178, 0.30)',
+  bg:            '#0D0B1E',
 };
 
 const SERIF = '"Instrument Serif", Georgia, serif';
 const SANS  = '"Manrope", system-ui, sans-serif';
-const BG_GRADIENT = `radial-gradient(1200px 700px at 18% 0%, rgba(124,58,237,0.18), transparent 60%), radial-gradient(900px 600px at 82% 100%, rgba(219,39,119,0.10), transparent 60%), #06030F`;
+const BG_GRADIENT = `radial-gradient(900px 600px at 12% 8%, rgba(245,166,35,0.14), transparent 60%), radial-gradient(800px 500px at 95% 100%, rgba(221,122,58,0.10), transparent 60%), #0D0B1E`;
 
 const EXAMPLES = [
   'Two estranged brothers reconnect at a funeral.',
@@ -126,7 +126,7 @@ function SectionLabel({ label, hint }: { label: string; hint?: string }) {
     <div style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
       <span>{label}</span>
       {hint && (
-        <span style={{ color: 'rgba(167,139,250,0.5)', letterSpacing: '0.06em', textTransform: 'none', fontStyle: 'italic', fontFamily: SERIF, fontSize: 12 }}>
+        <span style={{ color: 'rgba(123,112,178,0.5)', letterSpacing: '0.06em', textTransform: 'none', fontStyle: 'italic', fontFamily: SERIF, fontSize: 12 }}>
           {hint}
         </span>
       )}
@@ -203,13 +203,13 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
         .sv-topbar { position: sticky; top: 0; z-index: 10; background: linear-gradient(180deg, rgba(6,3,15,0.94), rgba(6,3,15,0.6) 70%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid ${C.hairline}; }
         .sv-topbar-inner { max-width: 1280px; margin: 0 auto; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
         .sv-stepper { display: none; align-items: center; gap: 10px; }
-        .sv-step { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: rgba(167,139,250,0.6); }
-        .sv-step .sv-step-num { width: 22px; height: 22px; border-radius: 50%; border: 1px solid ${C.hairlineStrong}; display: grid; place-items: center; font-family: "JetBrains Mono",monospace; font-size: 10px; font-weight: 600; color: rgba(167,139,250,0.7); }
+        .sv-step { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: rgba(123,112,178,0.6); }
+        .sv-step .sv-step-num { width: 22px; height: 22px; border-radius: 50%; border: 1px solid ${C.hairlineStrong}; display: grid; place-items: center; font-family: "JetBrains Mono",monospace; font-size: 10px; font-weight: 600; color: rgba(123,112,178,0.7); }
         .sv-step.active { color: ${C.silver}; }
-        .sv-step.active .sv-step-num { background: linear-gradient(135deg,${C.purple},${C.magenta}); border-color: transparent; color: white; box-shadow: 0 4px 14px -4px rgba(124,58,237,0.6); }
-        .sv-step.done .sv-step-num { background: rgba(124,58,237,0.18); border-color: rgba(167,139,250,0.35); color: ${C.silver}; }
+        .sv-step.active .sv-step-num { background: linear-gradient(135deg,${C.purple},${C.magenta}); border-color: transparent; color: white; box-shadow: 0 4px 14px -4px rgba(245,166,35,0.6); }
+        .sv-step.done .sv-step-num { background: rgba(245,166,35,0.18); border-color: rgba(123,112,178,0.35); color: ${C.silver}; }
         .sv-tick { width: 18px; height: 1px; background: ${C.hairlineStrong}; }
-        .sv-step-badge { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: ${C.lavender}; padding: 4px 10px; border-radius: 999px; background: rgba(167,139,250,0.08); border: 1px solid ${C.hairline}; white-space: nowrap; }
+        .sv-step-badge { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: ${C.lavender}; padding: 4px 10px; border-radius: 999px; background: rgba(123,112,178,0.08); border: 1px solid ${C.hairline}; white-space: nowrap; }
         .sv-step-badge b { color: ${C.silver}; font-weight: 700; }
         .sv-shell { max-width: 1280px; margin: 0 auto; padding: 28px 28px 80px; }
         .sv-hero-row { display: flex; align-items: baseline; gap: 20px; margin-bottom: 22px; flex-wrap: wrap; }
@@ -266,7 +266,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
               Set the <em style={{ fontStyle: 'italic', color: C.lavender }}>scene.</em>
             </h1>
           </div>
-          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(13px,1.3vw,17px)', color: 'rgba(167,139,250,0.7)', maxWidth: 300, marginLeft: 'auto' }}>
+          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(13px,1.3vw,17px)', color: 'rgba(123,112,178,0.7)', maxWidth: 300, marginLeft: 'auto' }}>
             Describe the moment — we'll find tracks that fit.
           </div>
         </div>
@@ -278,7 +278,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
           <section className="sv-card sv-scene">
             <SectionLabel label="The Scene" hint="tell the story in a line" />
             <div
-              style={{ padding: '14px 16px', borderRadius: 14, background: 'radial-gradient(120% 80% at 50% -10%,rgba(124,58,237,0.16),transparent 60%),linear-gradient(180deg,rgba(124,58,237,0.10),rgba(124,58,237,0.02))', border: `1px solid ${C.hairline}`, position: 'relative', minHeight: 80 }}
+              style={{ padding: '14px 16px', borderRadius: 14, background: 'radial-gradient(120% 80% at 50% -10%,rgba(245,166,35,0.16),transparent 60%),linear-gradient(180deg,rgba(245,166,35,0.10),rgba(245,166,35,0.02))', border: `1px solid ${C.hairline}`, position: 'relative', minHeight: 80 }}
               onClick={() => textareaRef.current?.focus()}
             >
               <textarea
@@ -303,7 +303,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                       {(manualBriefId ?? detectedBriefId) && (
                         <span
                           onClick={() => setShowBriefPicker(v => !v)}
-                          style={{ cursor: 'pointer', background: 'rgba(124,58,237,0.15)', border: `1px solid rgba(124,58,237,0.3)`, borderRadius: 999, padding: '1px 8px', color: C.lavender, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', userSelect: 'none' }}
+                          style={{ cursor: 'pointer', background: 'rgba(245,166,35,0.15)', border: `1px solid rgba(245,166,35,0.3)`, borderRadius: 999, padding: '1px 8px', color: C.lavender, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', userSelect: 'none' }}
                           title="Click to change scene type"
                         >
                           {BRIEF_LABELS[manualBriefId ?? detectedBriefId!]} ✎
@@ -316,7 +316,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                           <span
                             key={id}
                             onClick={() => { setManualBriefId(id); setShowBriefPicker(false); }}
-                            style={{ cursor: 'pointer', padding: '2px 8px', borderRadius: 999, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', border: `1px solid ${(manualBriefId ?? detectedBriefId) === id ? C.lavender : C.hairline}`, color: (manualBriefId ?? detectedBriefId) === id ? C.silver : C.lavender, background: (manualBriefId ?? detectedBriefId) === id ? 'rgba(124,58,237,0.2)' : 'transparent', userSelect: 'none' }}
+                            style={{ cursor: 'pointer', padding: '2px 8px', borderRadius: 999, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', border: `1px solid ${(manualBriefId ?? detectedBriefId) === id ? C.lavender : C.hairline}`, color: (manualBriefId ?? detectedBriefId) === id ? C.silver : C.lavender, background: (manualBriefId ?? detectedBriefId) === id ? 'rgba(245,166,35,0.2)' : 'transparent', userSelect: 'none' }}
                           >
                             {label}
                           </span>
@@ -340,9 +340,9 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
             </div>
             {/* example chips */}
             <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(167,139,250,0.6)', flexShrink: 0 }}>Try</span>
+              <span style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(123,112,178,0.6)', flexShrink: 0 }}>Try</span>
               <span
-                style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.silver, padding: '5px 12px', borderRadius: 999, background: 'rgba(167,139,250,0.06)', border: `1px solid ${C.hairline}`, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.silver, padding: '5px 12px', borderRadius: 999, background: 'rgba(123,112,178,0.06)', border: `1px solid ${C.hairline}`, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
                 onClick={() => { setBriefText(EXAMPLES[exampleIdx]); cycleExample(); }}
                 title="Click to use this example"
               >
@@ -352,7 +352,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                 type="button"
                 onClick={cycleExample}
                 aria-label="Next example"
-                style={{ width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, background: 'rgba(167,139,250,0.10)', border: `1px solid ${C.hairline}`, color: C.lavender, cursor: 'pointer', padding: 0 }}
+                style={{ width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, background: 'rgba(123,112,178,0.10)', border: `1px solid ${C.hairline}`, color: C.lavender, cursor: 'pointer', padding: 0 }}
               >
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden>
                   <path d="M4 12 H20 M14 6 L20 12 L14 18" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
@@ -376,9 +376,9 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                     style={{
                       display: 'flex', alignItems: 'center', gap: 12,
                       padding: '10px 14px', borderRadius: 14,
-                      background: on ? 'linear-gradient(135deg, rgba(124,58,237,0.22), rgba(219,39,119,0.10))' : 'rgba(15,8,35,0.5)',
-                      border: `1px solid ${on ? 'rgba(167,139,250,0.5)' : C.hairline}`,
-                      boxShadow: on ? '0 0 0 1px rgba(124,58,237,0.16) inset, 0 6px 14px -6px rgba(124,58,237,0.4)' : 'none',
+                      background: on ? 'linear-gradient(135deg, rgba(245,166,35,0.22), rgba(219,39,119,0.10))' : 'rgba(15,8,35,0.5)',
+                      border: `1px solid ${on ? 'rgba(123,112,178,0.5)' : C.hairline}`,
+                      boxShadow: on ? '0 0 0 1px rgba(245,166,35,0.16) inset, 0 6px 14px -6px rgba(245,166,35,0.4)' : 'none',
                       cursor: 'pointer', textAlign: 'left', fontFamily: SANS, width: '100%',
                     }}
                   >
@@ -401,7 +401,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {MOOD_FAMILIES.map(family => (
                 <div key={family.name} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(167,139,250,0.7)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(123,112,178,0.7)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ width: 5, height: 5, borderRadius: '50%', background: family.isStyle ? C.magenta : C.lavender, opacity: family.isStyle ? 0.7 : 0.5, display: 'inline-block', flexShrink: 0 }} />
                     {family.name}
                   </div>
@@ -417,10 +417,10 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                           style={{
                             fontSize: 12, fontWeight: 600, letterSpacing: '0.01em',
                             borderRadius: 999,
-                            background: on ? 'linear-gradient(135deg, rgba(124,58,237,0.32), rgba(219,39,119,0.22))' : 'transparent',
+                            background: on ? 'linear-gradient(135deg, rgba(245,166,35,0.32), rgba(219,39,119,0.22))' : 'transparent',
                             color: C.silver,
-                            border: `1px solid ${on ? 'rgba(167,139,250,0.55)' : C.hairlineStrong}`,
-                            boxShadow: on ? '0 0 0 1px rgba(124,58,237,0.18) inset' : 'none',
+                            border: `1px solid ${on ? 'rgba(123,112,178,0.55)' : C.hairlineStrong}`,
+                            boxShadow: on ? '0 0 0 1px rgba(245,166,35,0.18) inset' : 'none',
                             display: 'inline-flex', alignItems: 'center', gap: 5,
                             whiteSpace: 'nowrap', cursor: 'pointer', fontFamily: SANS,
                           }}
@@ -438,7 +438,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
 
           {/* Synthesis preview — spans both cols on desktop */}
           {synthesis && (
-            <div className="sv-synthesis" style={{ padding: '16px 20px', borderRadius: 18, background: 'linear-gradient(180deg,rgba(219,39,119,0.16),rgba(124,58,237,0.08) 60%,rgba(124,58,237,0.03))', border: '1px solid rgba(219,39,119,0.32)', position: 'relative', overflow: 'hidden' }}>
+            <div className="sv-synthesis" style={{ padding: '16px 20px', borderRadius: 18, background: 'linear-gradient(180deg,rgba(219,39,119,0.16),rgba(245,166,35,0.08) 60%,rgba(245,166,35,0.03))', border: '1px solid rgba(219,39,119,0.32)', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: `linear-gradient(180deg, ${C.magenta}, ${C.purple})` }} />
               <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.magenta, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" fill="currentColor" /></svg>
@@ -460,11 +460,11 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                 width: '100%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 padding: '15px 20px', borderRadius: 14, minHeight: 52,
-                background: canContinue ? `linear-gradient(135deg, ${C.purple}, ${C.magenta})` : 'rgba(167,139,250,0.10)',
+                background: canContinue ? `linear-gradient(135deg, ${C.purple}, ${C.magenta})` : 'rgba(123,112,178,0.10)',
                 color: canContinue ? 'white' : C.lavender,
                 fontWeight: 700, fontSize: 15, letterSpacing: '0.01em',
                 border: canContinue ? 'none' : `1px solid ${C.hairlineStrong}`,
-                boxShadow: canContinue ? '0 16px 30px -12px rgba(124,58,237,0.55), 0 0 0 1px rgba(255,255,255,0.06) inset' : 'none',
+                boxShadow: canContinue ? '0 16px 30px -12px rgba(245,166,35,0.55), 0 0 0 1px rgba(255,255,255,0.06) inset' : 'none',
                 cursor: canContinue ? 'pointer' : 'not-allowed',
                 fontFamily: SANS,
               }}

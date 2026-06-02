@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SyncVision — Brief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ============================ TOKENS ============================ */
+  :root {
+    --bg-0:        #07041a;
+    --bg-1:        #0f0823;
+    --bg-2:        #170b33;
+    --surface:     rgba(23, 11, 51, 0.55);
+    --surface-2:   rgba(15, 8, 35, 0.72);
+    --hairline:        rgba(167, 139, 250, 0.14);
+    --hairline-strong: rgba(167, 139, 250, 0.28);
+    --silver:   #e2e8f0;
+    --lavender: #a78bfa;
+    --purple:   #7C3AED;
+    --magenta:  #DB2777;
+    --magenta-soft: rgba(219,39,119,0.16);
+    --purple-soft:  rgba(124,58,237,0.16);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Manrope", system-ui, sans-serif;
+    color: var(--silver);
+    background: var(--bg-0);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Ambient atmosphere — visible only when there's room (desktop) */
+  body::before, body::after {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::before {
+    background:
+      radial-gradient(900px 600px at 12% 8%,  rgba(124,58,237,0.18), transparent 60%),
+      radial-gradient(800px 500px at 95% 12%, rgba(219,39,119,0.12), transparent 60%),
+      radial-gradient(1200px 700px at 50% 110%, rgba(124,58,237,0.10), transparent 70%);
+  }
+  /* film grain */
+  body::after {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    opacity: 0.5; mix-blend-mode: overlay;
+  }
+
+  /* ============================ TOP BAR ============================ */
+  .topbar {
+    position: sticky; top: 0; z-index: 10;
+    background: linear-gradient(180deg, rgba(7,4,26,0.92), rgba(7,4,26,0.6) 70%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .topbar-inner {
+    max-width: 1280px; margin: 0 auto;
+    padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 14px;
+    font-family: "Instrument Serif", serif;
+    color: var(--silver);
+  }
+  .brand .wordmark {
+    font-size: 22px; letter-spacing: -0.01em;
+    display: inline-flex; align-items: center; gap: 2px;
+  }
+  .brand .wordmark em {
+    font-style: italic; color: var(--lavender);
+  }
+  .brand .pulse {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--magenta);
+    box-shadow: 0 0 12px var(--magenta), 0 0 0 3px rgba(219,39,119,0.18);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    50%      { opacity: 1;   transform: scale(1.15); }
+  }
+  .brand .divider {
+    width: 1px; height: 18px; background: var(--hairline-strong);
+  }
+  .brand .subtitle {
+    font-style: italic; font-size: 15px; color: var(--lavender);
+    letter-spacing: 0.005em;
+  }
+
+  /* Stepper, desktop only */
+  .stepper {
+    display: none;
+    align-items: center; gap: 10px;
+    font-family: "Manrope", sans-serif;
+  }
+  .stepper .step {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(167,139,250,0.6);
+  }
+  .stepper .step .num {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 1px solid var(--hairline-strong);
+    display: grid; place-items: center;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px; font-weight: 600;
+    color: rgba(167,139,250,0.7);
+  }
+  .stepper .step.active { color: var(--silver); }
+  .stepper .step.active .num {
+    background: linear-gradient(135deg, var(--purple), var(--magenta));
+    border-color: transparent;
+    color: white;
+    box-shadow: 0 4px 14px -4px rgba(124,58,237,0.6);
+  }
+  .stepper .step.done .num {
+    background: rgba(124,58,237,0.18);
+    border-color: rgba(167,139,250,0.35);
+    color: var(--silver);
+  }
+  .stepper .tick { width: 18px; height: 1px; background: var(--hairline-strong); }
+  @media (min-width: 880px) { .stepper { display: inline-flex; } }
+
+  /* Mobile fallback: compact step badge */
+  .step-badge {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--lavender); padding: 4px 10px; border-radius: 999px;
+    background: rgba(167,139,250,0.08); border: 1px solid var(--hairline);
+    white-space: nowrap;
+    font-family: "Manrope", sans-serif;
+  }
+  .step-badge b { color: var(--silver); font-weight: 700; }
+  @media (min-width: 880px) { .step-badge { display: none; } }
+
+  /* ============================ LAYOUT ============================ */
+  .shell {
+    position: relative; z-index: 1;
+    max-width: 1280px; margin: 0 auto;
+    padding: 36px 28px 96px;
+  }
+
+  .hero-row {
+    display: flex; align-items: baseline; gap: 24px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .hero-row .kicker {
+    font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: var(--lavender);
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .hero-row .kicker::before {
+    content: ""; width: 28px; height: 1px;
+    background: linear-gradient(90deg, var(--magenta), transparent);
+  }
+  .hero-row h1 {
+    margin: 0;
+    font-family: "Instrument Serif", serif;
+    font-weight: 400;
+    font-size: clamp(28px, 4.4vw, 56px);
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    color: var(--silver);
+    flex: 1; min-width: 280px;
+  }
+  .hero-row h1 em {
+    font-style: italic; color: var(--lavender);
+  }
+  .hero-row .hero-meta {
+    font-family: "Instrument Serif", serif;
+    font-style: italic;
+    font-size: clamp(14px, 1.4vw, 18px);
+    color: rgba(167,139,250,0.7);
+    max-width: 320px;
+    text-align: right;
+  }
+  @media (max-width: 720px) {
+    .hero-row { gap: 8px; margin-bottom: 18px; }
+    .hero-row .hero-meta { display: none; }
+  }
+
+  /* Two-column grid on desktop, stack on mobile */
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 28px;
+  }
+  @media (max-width: 880px) {
+    .grid { grid-template-columns: 1fr; gap: 18px; }
+  }
+  .col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+  @media (max-width: 880px) {
+    .col { gap: 18px; }
+  }
+
+  /* ============================ CARD / SECTION ============================ */
+  .card {
+    position: relative;
+    border-radius: 22px;
+    background:
+      linear-gradient(180deg, var(--surface), var(--surface-2));
+    border: 1px solid var(--hairline);
+    padding: 24px 26px;
+    box-shadow: 0 18px 40px -28px rgba(0,0,0,0.6);
+  }
+  @media (max-width: 880px) {
+    .card { border-radius: 18px; padding: 18px 18px; }
+  }
+
+  .section-label {
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--lavender);
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    margin-bottom: 14px;
+  }
+  .section-label .hint {
+    color: rgba(167,139,250,0.5); letter-spacing: 0.06em;
+    text-transform: none; font-style: italic;
+    font-family: "Instrument Serif", serif; font-size: 13px;
+  }
+
+  /* ============================ SCENE TEXTAREA ============================ */
+  .scene {
+    grid-column: 1 / -1; /* full width above the two columns */
+  }
+  .scene-input {
+    position: relative;
+    padding: 22px 24px;
+    border-radius: 16px;
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(124,58,237,0.18), transparent 60%),
+      linear-gradient(180deg, rgba(124,58,237,0.10), rgba(124,58,237,0.02));
+    border: 1px solid var(--hairline);
+    min-height: 140px;
+    cursor: text;
+  }
+  .scene-input textarea {
+    width: 100%;
+    background: transparent; border: 0; outline: 0; resize: none;
+    color: var(--silver);
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: clamp(17px, 1.9vw, 22px);
+    line-height: 1.4;
+    letter-spacing: -0.005em;
+    min-height: 100px;
+  }
+  .scene-input textarea::placeholder {
+    color: rgba(167,139,250,0.55);
+  }
+  .scene-examples {
+    margin-top: 14px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .scene-examples .try {
+    font-size: 9px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: rgba(167,139,250,0.6);
+    flex-shrink: 0;
+  }
+  .ex-chip {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 14px;
+    color: var(--silver);
+    padding: 6px 14px 7px;
+    border-radius: 999px;
+    background: rgba(167,139,250,0.06);
+    border: 1px solid var(--hairline);
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, transform .15s ease;
+  }
+  .ex-chip:hover {
+    border-color: rgba(167,139,250,0.4);
+    background: rgba(167,139,250,0.10);
+    transform: translateY(-1px);
+  }
+  .ex-chip::before { content: "\201C"; color: var(--lavender); opacity: 0.65; margin-right: 1px; }
+  .ex-chip::after  { content: "\201D"; color: var(--lavender); opacity: 0.65; margin-left:  1px; }
+
+  /* ============================ PACING ============================ */
+  .pacing-list { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .pacing-card {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(15,8,35,0.5);
+    border: 1px solid var(--hairline);
+    cursor: pointer;
+    transition: border-color .15s ease, background .2s ease, transform .15s ease;
+  }
+  .pacing-card:hover { border-color: rgba(167,139,250,0.32); }
+  .pacing-card.on {
+    background: linear-gradient(135deg, rgba(124,58,237,0.22), rgba(219,39,119,0.10));
+    border-color: rgba(167,139,250,0.5);
+    box-shadow: 0 0 0 1px rgba(124,58,237,0.16) inset, 0 12px 26px -16px rgba(124,58,237,0.5);
+  }
+  .pacing-card .radio {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 1.5px solid var(--hairline-strong);
+    flex-shrink: 0; position: relative;
+  }
+  .pacing-card.on .radio { border-color: var(--magenta); }
+  .pacing-card.on .radio::after {
+    content: ""; position: absolute; inset: 2.5px; border-radius: 50%;
+    background: var(--magenta);
+  }
+  .pacing-card .pc-name {
+    font-size: 14px; color: var(--silver); font-weight: 700; letter-spacing: -0.005em;
+  }
+  .pacing-card .pc-desc {
+    font-family: "Instrument Serif", serif; font-style: italic; font-size: 13px;
+    color: var(--lavender); line-height: 1.2;
+    margin-top: 1px;
+  }
+  .pacing-card.on .pc-desc { color: rgba(226,232,240,0.82); }
+
+  /* ============================ MOOD ============================ */
+  .mood-families {
+    display: grid; grid-template-columns: 1fr; gap: 16px;
+  }
+  /* on wider mood card, allow two columns of families */
+  @media (min-width: 1100px) {
+    .mood-families.cols-2 { grid-template-columns: 1fr 1fr; gap: 18px 28px; }
+  }
+  .mood-family { display: flex; flex-direction: column; gap: 8px; }
+  .mood-family-label {
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(167,139,250,0.7);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .mood-family-label::before {
+    content: ""; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--lavender); opacity: 0.5;
+  }
+  .mood-family[data-tone="dark"]   .mood-family-label::before { background: #5b21b6; opacity: 0.9; }
+  .mood-family[data-tone="hope"]   .mood-family-label::before { background: #f59e0b; opacity: 0.7; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.01em;
+    padding: 7px 12px; border-radius: 999px;
+    background: transparent; color: var(--silver);
+    border: 1px solid var(--hairline-strong);
+    display: inline-flex; align-items: center; gap: 6px;
+    cursor: pointer;
+    transition: border-color .15s ease, background .2s ease, transform .15s ease;
+    user-select: none;
+  }
+  .pill:hover { border-color: rgba(167,139,250,0.55); }
+  .pill .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--lavender); opacity: 0.5; }
+  .pill.on {
+    background: linear-gradient(135deg, rgba(124,58,237,0.32), rgba(219,39,119,0.22));
+    border-color: rgba(167,139,250,0.6);
+    color: var(--silver);
+    box-shadow: 0 0 0 1px rgba(124,58,237,0.18) inset, 0 6px 14px -8px rgba(124,58,237,0.6);
+  }
+  .pill.on .dot { background: var(--magenta); opacity: 1; }
+
+  /* ============================ SYNTHESIS ============================ */
+  .synthesis {
+    grid-column: 1 / -1;
+    padding: 22px 26px;
+    border-radius: 18px;
+    background:
+      linear-gradient(180deg, rgba(219,39,119,0.18), rgba(124,58,237,0.08) 60%, rgba(124,58,237,0.03));
+    border: 1px solid rgba(219,39,119,0.32);
+    position: relative;
+    overflow: hidden;
+  }
+  .synthesis::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, var(--magenta), var(--purple));
+  }
+  .syn-label {
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--magenta);
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .syn-text {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: clamp(17px, 1.6vw, 22px);
+    line-height: 1.4;
+    color: var(--silver);
+    letter-spacing: -0.005em;
+    max-width: 70ch;
+  }
+  .syn-text strong {
+    font-style: normal; font-family: "Manrope", sans-serif;
+    font-weight: 700; color: var(--magenta); letter-spacing: 0.02em;
+    text-transform: uppercase; font-size: 10px;
+    background: rgba(219,39,119,0.18); padding: 2px 7px; border-radius: 5px;
+    margin: 0 3px; vertical-align: 2px;
+  }
+
+  /* ============================ CTA ============================ */
+  .cta-row {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; gap: 18px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+  .cta-meta {
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--lavender);
+    font-family: "JetBrains Mono", monospace;
+  }
+  .cta-meta b {
+    color: var(--silver); font-weight: 700;
+    font-family: "Manrope", sans-serif;
+    font-size: 13px; letter-spacing: -0.01em;
+  }
+  .cta {
+    flex: 1; min-width: 240px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 16px 28px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--purple), var(--magenta));
+    color: white; font-weight: 700; font-size: 15px; letter-spacing: 0.02em;
+    border: 0; cursor: pointer;
+    box-shadow: 0 22px 44px -18px rgba(124,58,237,0.65), 0 0 0 1px rgba(255,255,255,0.06) inset;
+    position: relative; overflow: hidden;
+    transition: transform .15s ease, box-shadow .2s ease;
+  }
+  .cta::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(220px 100px at 30% 0%, rgba(255,255,255,0.22), transparent 60%);
+    pointer-events: none;
+  }
+  .cta:hover { transform: translateY(-1px); }
+  .cta:active { transform: translateY(0); }
+
+  /* Mobile tightening */
+  @media (max-width: 720px) {
+    .shell { padding: 24px 18px 80px; }
+    .scene-input { padding: 16px 18px; min-height: 120px; }
+    .scene-input textarea { min-height: 90px; }
+    .topbar-inner { padding: 14px 18px; }
+    .brand .subtitle { display: none; }
+    .scene-examples { gap: 6px; }
+    .ex-chip { font-size: 13px; padding: 5px 12px 6px; }
+    .pacing-card { padding: 12px 14px; gap: 12px; }
+    .cta { padding: 14px 18px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar" data-screen-label="Brief">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="pulse"></span>
+      <span class="wordmark">Sync<em>Vision</em></span>
+      <span class="divider"></span>
+      <span class="subtitle">music supervision</span>
+    </div>
+
+    <nav class="stepper" aria-label="Progress">
+      <span class="step active"><span class="num">1</span> Brief</span>
+      <span class="tick"></span>
+      <span class="step"><span class="num">2</span> Ingest</span>
+      <span class="tick"></span>
+      <span class="step"><span class="num">3</span> Match</span>
+    </nav>
+
+    <span class="step-badge">Step <b>1</b> of 3</span>
+  </div>
+</header>
+
+<main class="shell">
+
+  <div class="hero-row">
+    <div style="display:flex; flex-direction:column; gap:10px; flex:1; min-width:280px;">
+      <span class="kicker">The Brief</span>
+      <h1>Tell us about the <em>scene.</em></h1>
+    </div>
+    <div class="hero-meta">
+      A few sentences and a feeling. We'll do the rest.
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- SCENE — spans both columns -->
+    <section class="card scene" aria-label="Scene description">
+      <div class="section-label">
+        <span>The Scene</span>
+        <span class="hint">tell the story in a line or two</span>
+      </div>
+      <div class="scene-input" onclick="document.getElementById('scene-text').focus()">
+        <textarea id="scene-text" rows="3" placeholder="Describe the emotional turn — what changes, where the scene lands, and the unspoken thing underneath."></textarea>
+      </div>
+      <div class="scene-examples">
+        <span class="try">Try</span>
+        <button class="ex-chip" onclick="setScene(this)">Two estranged brothers reconnect at a funeral.</button>
+        <button class="ex-chip" onclick="setScene(this)">She walks home through the rain after the wedding she didn't go to.</button>
+        <button class="ex-chip" onclick="setScene(this)">Sunrise on the empty highway, an hour from the border.</button>
+      </div>
+    </section>
+
+    <!-- PACING -->
+    <section class="card" aria-label="Pacing">
+      <div class="section-label">
+        <span>Pacing</span>
+        <span class="hint">how does it move?</span>
+      </div>
+      <div class="pacing-list">
+        <button class="pacing-card on" data-pacing="slow" onclick="pickPacing(this)">
+          <span class="radio"></span>
+          <span>
+            <span class="pc-name">Slow</span>
+            <div class="pc-desc">restrained, emotional, atmospheric</div>
+          </span>
+        </button>
+        <button class="pacing-card" data-pacing="medium" onclick="pickPacing(this)">
+          <span class="radio"></span>
+          <span>
+            <span class="pc-name">Medium</span>
+            <div class="pc-desc">conversational, building momentum</div>
+          </span>
+        </button>
+        <button class="pacing-card" data-pacing="driving" onclick="pickPacing(this)">
+          <span class="radio"></span>
+          <span>
+            <span class="pc-name">Driving</span>
+            <div class="pc-desc">kinetic, urgent, forward motion</div>
+          </span>
+        </button>
+      </div>
+    </section>
+
+    <!-- MOOD -->
+    <section class="card" aria-label="Mood">
+      <div class="section-label">
+        <span>Mood</span>
+        <span class="hint">pick by feeling</span>
+      </div>
+      <div class="mood-families cols-2">
+        <div class="mood-family" data-tone="warm">
+          <span class="mood-family-label">Connection</span>
+          <div class="pill-row">
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Intimate</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Romantic</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Vulnerable</button>
+            <button class="pill on" onclick="togglePill(this)"><span class="dot"></span>Yearning</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Tender</button>
+            <button class="pill on" onclick="togglePill(this)"><span class="dot"></span>Longing</button>
+          </div>
+        </div>
+
+        <div class="mood-family" data-tone="dark">
+          <span class="mood-family-label">Conflict</span>
+          <div class="pill-row">
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Tense</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Defiant</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Desperate</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Eerie</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Foreboding</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Dread</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Volatile</button>
+          </div>
+        </div>
+
+        <div class="mood-family" data-tone="hope">
+          <span class="mood-family-label">Resolution</span>
+          <div class="pill-row">
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Hopeful</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Triumphant</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Euphoric</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Serene</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Cathartic</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Redemptive</button>
+          </div>
+        </div>
+
+        <div class="mood-family" data-tone="dark">
+          <span class="mood-family-label">Dark</span>
+          <div class="pill-row">
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Grief</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Haunted</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Numb</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Rage</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Sinister</button>
+            <button class="pill" onclick="togglePill(this)"><span class="dot"></span>Desolate</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SYNTHESIS — spans both -->
+    <section class="synthesis" aria-label="AI synthesis">
+      <div class="syn-label">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+          <path d="M8 1.5l1.6 4.2L14 7l-4.4 1.3L8 12.5 6.4 8.3 2 7l4.4-1.3L8 1.5z" fill="currentColor"/>
+        </svg>
+        Listening for
+      </div>
+      <p class="syn-text">
+        Slow, restrained tracks with a sense of <strong>yearning</strong> and <strong>longing</strong> — sparse arrangements that carry weight without resolving too quickly. The kind of song that lets a moment land.
+      </p>
+    </section>
+
+    <!-- CTA -->
+    <div class="cta-row">
+      <span class="cta-meta">Credits remaining <b>120</b></span>
+      <button class="cta">
+        Continue to ingest
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M3 8h10M9 4l4 4-4 4" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+
+  </div>
+</main>
+
+<script>
+  function pickPacing(el) {
+    document.querySelectorAll('.pacing-card').forEach(c => c.classList.remove('on'));
+    el.classList.add('on');
+  }
+  function togglePill(el) {
+    el.classList.toggle('on');
+  }
+  function setScene(el) {
+    const ta = document.getElementById('scene-text');
+    ta.value = el.textContent.trim().replace(/^\u201C|\u201D$/g, '');
+    ta.focus();
+  }
+</script>
+
+</body>
+</html>

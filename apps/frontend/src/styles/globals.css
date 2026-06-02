@@ -21,9 +21,9 @@ html {
 }
 
 body {
-  background-color: #0a0612;
+  background-color: #0D0B1E;
   color: var(--color-mg-silver);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: "Manrope", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;

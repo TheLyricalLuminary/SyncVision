@@ -10,18 +10,18 @@ type AnalyzingScreenProps = {
 };
 
 const C = {
-  purple:        '#7C3AED',
+  purple:        '#F5A623',
   magenta:       '#DB2777',
-  silver:        '#E2E8F0',
-  lavender:      '#A78BFA',
+  silver:        '#F4F2FA',
+  lavender:      '#9B93C4',
   good:          '#34D399',
   amber:         '#F5B544',
-  hairline:      'rgba(167, 139, 250, 0.14)',
-  hairlineStrong:'rgba(167, 139, 250, 0.22)',
+  hairline:      'rgba(123, 112, 178, 0.16)',
+  hairlineStrong:'rgba(123, 112, 178, 0.30)',
 };
 const SERIF = '"Instrument Serif", Georgia, serif';
 const SANS  = '"Manrope", system-ui, sans-serif';
-const BG    = `radial-gradient(1200px 700px at 18% 0%, rgba(124,58,237,0.18), transparent 60%), radial-gradient(900px 600px at 82% 100%, rgba(219,39,119,0.10), transparent 60%), #06030F`;
+const BG    = `radial-gradient(900px 600px at 12% 8%, rgba(245,166,35,0.14), transparent 60%), radial-gradient(800px 500px at 95% 100%, rgba(221,122,58,0.10), transparent 60%), #0D0B1E`;
 
 const PHASE_STAGE: Partial<Record<JobPhase, string>> = {
   submitting:  'Sending your tracks…',
@@ -42,24 +42,24 @@ export function AnalyzingScreen({ phase, warning, error, elapsedMs, onRetry, onB
         @keyframes sv-dotwave { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
         @keyframes sv-analyzing { 0% { transform: translateX(-100%); } 100% { transform: translateX(180%); } }
         @keyframes sv-pulse-dot { 0%,100%{opacity:.7;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)} }
-        .sv-pulse-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(167,139,250,0.3); animation: sv-pulse 2.6s ease-out infinite; }
+        .sv-pulse-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(123,112,178,0.3); animation: sv-pulse 2.6s ease-out infinite; }
         .sv-spin-core { animation: sv-spin 6s linear infinite; }
         .sv-eq-bar { display: block; width: 4px; border-radius: 2px; background: linear-gradient(180deg, ${C.magenta}, ${C.purple}); animation: sv-eq 1.1s ease-in-out infinite; }
         .sv-dot { display: inline-block; animation: sv-dotwave 1.4s ease-in-out infinite; color: ${C.magenta}; }
         .sv-an-topbar { position: sticky; top: 0; z-index: 10; background: linear-gradient(180deg,rgba(6,3,15,0.94),rgba(6,3,15,0.6) 70%,transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid ${C.hairline}; }
         .sv-an-topbar-inner { max-width: 1280px; margin: 0 auto; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
         .sv-an-stepper { display: none; align-items: center; gap: 10px; }
-        .sv-an-step { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: rgba(167,139,250,0.6); }
-        .sv-an-step .n { width: 22px; height: 22px; border-radius: 50%; border: 1px solid ${C.hairlineStrong}; display: grid; place-items: center; font-family: "JetBrains Mono",monospace; font-size: 10px; font-weight: 600; color: rgba(167,139,250,0.7); }
+        .sv-an-step { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: rgba(123,112,178,0.6); }
+        .sv-an-step .n { width: 22px; height: 22px; border-radius: 50%; border: 1px solid ${C.hairlineStrong}; display: grid; place-items: center; font-family: "JetBrains Mono",monospace; font-size: 10px; font-weight: 600; color: rgba(123,112,178,0.7); }
         .sv-an-step.active { color: ${C.silver}; }
         .sv-an-step.active .n { background: linear-gradient(135deg,${C.purple},${C.magenta}); border-color: transparent; color: white; }
-        .sv-an-step.done .n { background: rgba(124,58,237,0.18); border-color: rgba(167,139,250,0.35); color: ${C.silver}; }
+        .sv-an-step.done .n { background: rgba(245,166,35,0.18); border-color: rgba(123,112,178,0.35); color: ${C.silver}; }
         .sv-an-tick { width: 18px; height: 1px; background: ${C.hairlineStrong}; display: inline-block; }
-        .sv-an-badge { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: ${C.lavender}; padding: 4px 10px; border-radius: 999px; background: rgba(167,139,250,0.08); border: 1px solid ${C.hairline}; white-space: nowrap; }
+        .sv-an-badge { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: ${C.lavender}; padding: 4px 10px; border-radius: 999px; background: rgba(123,112,178,0.08); border: 1px solid ${C.hairline}; white-space: nowrap; }
         .sv-an-badge b { color: ${C.silver}; font-weight: 700; }
         .sv-an-shell { max-width: 1280px; margin: 0 auto; padding: 28px 28px 80px; }
         .sv-an-stage { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: stretch; }
-        .sv-an-hero { position: relative; padding: 32px 24px; border-radius: 22px; background: radial-gradient(80% 80% at 50% 50%,rgba(124,58,237,0.22),transparent 70%),linear-gradient(180deg,rgba(23,11,51,0.55),rgba(15,8,35,0.72)); border: 1px solid ${C.hairline}; display: flex; flex-direction: column; align-items: center; gap: 18px; overflow: hidden; }
+        .sv-an-hero { position: relative; padding: 32px 24px; border-radius: 22px; background: radial-gradient(80% 80% at 50% 50%,rgba(245,166,35,0.22),transparent 70%),linear-gradient(180deg,rgba(23,11,51,0.55),rgba(15,8,35,0.72)); border: 1px solid ${C.hairline}; display: flex; flex-direction: column; align-items: center; gap: 18px; overflow: hidden; }
         @media (min-width: 880px) {
           .sv-an-stepper { display: inline-flex; }
           .sv-an-badge { display: none; }
@@ -103,7 +103,7 @@ export function AnalyzingScreen({ phase, warning, error, elapsedMs, onRetry, onB
               Listening for the <em style={{ fontStyle: 'italic', color: C.lavender }}>scene.</em>
             </h1>
           </div>
-          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(13px,1.3vw,16px)', color: 'rgba(167,139,250,0.7)', marginLeft: 'auto' }}>
+          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(13px,1.3vw,16px)', color: 'rgba(123,112,178,0.7)', marginLeft: 'auto' }}>
             Hold tight — about 30 seconds.
           </div>
         </div>
@@ -132,9 +132,9 @@ export function AnalyzingScreen({ phase, warning, error, elapsedMs, onRetry, onB
                 <div className="sv-pulse-ring" style={{ animationDelay: '1.3s' }} />
                 <div
                   className="sv-spin-core"
-                  style={{ position: 'absolute', inset: '22%', borderRadius: '50%', background: `radial-gradient(circle at 35% 35%, rgba(255,255,255,0.18), transparent 60%), conic-gradient(from 0deg, ${C.purple}, ${C.magenta}, ${C.purple})`, boxShadow: '0 0 80px rgba(124,58,237,0.5), inset 0 0 0 1px rgba(255,255,255,0.1)' }}
+                  style={{ position: 'absolute', inset: '22%', borderRadius: '50%', background: `radial-gradient(circle at 35% 35%, rgba(255,255,255,0.18), transparent 60%), conic-gradient(from 0deg, ${C.purple}, ${C.magenta}, ${C.purple})`, boxShadow: '0 0 80px rgba(245,166,35,0.5), inset 0 0 0 1px rgba(255,255,255,0.1)' }}
                 >
-                  <div style={{ position: 'absolute', inset: '12%', borderRadius: '50%', background: '#07041a', boxShadow: 'inset 0 0 0 1px rgba(167,139,250,0.2)' }} />
+                  <div style={{ position: 'absolute', inset: '12%', borderRadius: '50%', background: '#0D0B1E', boxShadow: 'inset 0 0 0 1px rgba(123,112,178,0.2)' }} />
                 </div>
                 <div style={{ position: 'absolute', inset: '34%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, zIndex: 2 }}>
                   {[30, 60, 90, 70, 40].map((h, i) => (
@@ -156,14 +156,14 @@ export function AnalyzingScreen({ phase, warning, error, elapsedMs, onRetry, onB
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
                 <span style={{ fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: C.lavender }}>Status</span>
                 {elapsedSec > 0 && (
-                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: 'rgba(167,139,250,0.7)', letterSpacing: '0.04em' }}>
+                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: 'rgba(123,112,178,0.7)', letterSpacing: '0.04em' }}>
                     {elapsedSec}s elapsed
                   </span>
                 )}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 14, background: 'linear-gradient(180deg,rgba(124,58,237,0.14),rgba(124,58,237,0.04))', border: `1px solid rgba(167,139,250,0.3)`, position: 'relative', overflow: 'hidden' }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(124,58,237,0.24)', border: '1px solid rgba(167,139,250,0.5)', display: 'grid', placeItems: 'center', color: C.silver, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 14, background: 'linear-gradient(180deg,rgba(245,166,35,0.14),rgba(245,166,35,0.04))', border: `1px solid rgba(123,112,178,0.3)`, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(245,166,35,0.24)', border: '1px solid rgba(123,112,178,0.5)', display: 'grid', placeItems: 'center', color: C.silver, flexShrink: 0 }}>
                   <div style={{ width: 13, height: 13, borderRadius: '50%', border: `1.5px solid rgba(255,255,255,0.15)`, borderTopColor: C.magenta, animation: 'sv-spin 0.9s linear infinite' }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -187,7 +187,7 @@ export function AnalyzingScreen({ phase, warning, error, elapsedMs, onRetry, onB
               )}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 8, paddingTop: 14, borderTop: `1px solid ${C.hairline}` }}>
-                <span style={{ fontFamily: SERIF, fontStyle: 'italic', color: 'rgba(167,139,250,0.65)', fontSize: 14 }}>
+                <span style={{ fontFamily: SERIF, fontStyle: 'italic', color: 'rgba(123,112,178,0.65)', fontSize: 14 }}>
                   Usually under 30s
                 </span>
                 <button type="button" onClick={onBackToIngest} style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.lavender, padding: '9px 16px', minHeight: 44, borderRadius: 999, background: 'transparent', border: `1px solid ${C.hairlineStrong}`, cursor: 'pointer', fontFamily: SANS }}>

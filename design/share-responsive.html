@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SyncVision — Director View</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="sv-shared.css">
+<style>
+  /* ============================ SHARE-SPECIFIC TOP BAR ============================
+     No stepper here. Replace with sender-info + read-only mode badge.
+  =========================================================================== */
+  .topbar-share .stepper { display: none !important; }
+
+  .read-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 12px 5px 6px;
+    border-radius: 999px;
+    background: rgba(167,139,250,0.08);
+    border: 1px solid var(--hairline-strong);
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--lavender);
+  }
+  .read-badge .lock {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(167,139,250,0.18);
+    color: var(--lavender);
+    display: grid; place-items: center;
+  }
+  .read-badge b { color: var(--silver); font-weight: 700; }
+
+  .sender-card {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 10px 6px 6px;
+    border-radius: 999px;
+    background: rgba(167,139,250,0.06);
+    border: 1px solid var(--hairline);
+  }
+  .sender-card .avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--purple), var(--magenta));
+    color: white; font-weight: 700; font-size: 11px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .sender-card .who { font-size: 12px; color: var(--silver); font-weight: 600; line-height: 1.2; }
+  .sender-card .who .role {
+    display: block;
+    font-family: "Instrument Serif", serif; font-style: italic;
+    color: var(--lavender);
+    font-weight: 400; font-size: 11px;
+    margin-top: 1px;
+  }
+  @media (max-width: 640px) {
+    .sender-card .who { display: none; }
+    .sender-card { padding: 4px; }
+  }
+
+  /* ============================ STAGE ============================ */
+  .share-stage {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  @media (min-width: 1000px) {
+    .share-stage {
+      grid-template-columns: minmax(280px, 1fr) minmax(0, 1.7fr);
+      gap: 36px;
+      align-items: start;
+    }
+  }
+
+  /* ============================ SCENE BRIEF (sticky on desktop) ============================ */
+  .brief-panel {
+    position: relative;
+    border-radius: 22px;
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    border: 1px solid var(--hairline);
+    padding: 28px;
+    overflow: hidden;
+  }
+  @media (min-width: 1000px) {
+    .brief-panel {
+      position: sticky;
+      top: 96px;
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+    }
+  }
+  .brief-panel::after {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, var(--magenta), var(--purple));
+  }
+  .brief-panel .crumb {
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--lavender);
+  }
+  .brief-panel h2 {
+    margin: 6px 0 16px;
+    font-family: "Instrument Serif", serif; font-weight: 400;
+    font-size: clamp(28px, 3.4vw, 38px);
+    line-height: 1.05; letter-spacing: -0.015em;
+    color: var(--silver);
+  }
+  .brief-panel h2 em { font-style: italic; color: var(--lavender); }
+
+  .brief-line {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: clamp(17px, 1.6vw, 19px);
+    line-height: 1.4;
+    color: rgba(226,232,240,0.85);
+    margin: 0 0 18px;
+    max-width: 32ch;
+  }
+
+  .brief-meta {
+    display: flex; flex-direction: column; gap: 10px;
+    padding-top: 16px;
+    border-top: 1px solid var(--hairline);
+  }
+  .brief-meta .row {
+    display: flex; align-items: baseline; gap: 14px;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+  }
+  .brief-meta .k { color: rgba(167,139,250,0.55); width: 62px; flex-shrink: 0; }
+  .brief-meta .v {
+    color: var(--silver); font-weight: 600; letter-spacing: -0.005em; text-transform: none;
+    font-size: 13px;
+    font-family: "Manrope", sans-serif;
+  }
+  .brief-meta .v em {
+    font-style: italic; font-family: "Instrument Serif", serif;
+    color: var(--lavender); font-weight: 400; font-size: 14px;
+  }
+
+  .brief-pills {
+    margin-top: 12px;
+    display: flex; flex-wrap: wrap; gap: 5px;
+  }
+  .brief-pills .pill {
+    font-size: 11px; font-weight: 600;
+    padding: 4px 10px; border-radius: 999px;
+    background: rgba(167,139,250,0.08);
+    border: 1px solid var(--hairline);
+    color: var(--silver);
+  }
+
+  /* ============================ DECISION SUMMARY BOX ============================ */
+  .decision-summary {
+    margin-top: 18px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: rgba(7,4,26,0.5);
+    border: 1px solid var(--hairline);
+  }
+  .decision-summary .label {
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--lavender);
+    margin-bottom: 10px;
+  }
+  .decision-summary .count-row {
+    display: flex; align-items: baseline; gap: 16px;
+    font-family: "Instrument Serif", serif;
+  }
+  .decision-summary .cnt {
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .decision-summary .cnt.ap { color: var(--good); }
+  .decision-summary .cnt.ps { color: rgba(167,139,250,0.6); }
+  .decision-summary .cnt.left { color: var(--magenta); font-style: italic; }
+  .decision-summary .lbl {
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(167,139,250,0.55);
+    font-family: "Manrope", sans-serif;
+  }
+  .decision-summary .progress {
+    margin-top: 12px;
+    display: flex; height: 5px; border-radius: 4px;
+    background: rgba(167,139,250,0.08); overflow: hidden;
+  }
+  .decision-summary .progress .ap-fill { background: var(--good); }
+  .decision-summary .progress .ps-fill { background: rgba(167,139,250,0.35); }
+
+  /* ============================ TRACKS COLUMN ============================ */
+  .tracks-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .tracks-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    padding: 0 4px 0;
+    flex-wrap: wrap;
+  }
+  .tracks-head .label {
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--lavender);
+  }
+  .tracks-head .count {
+    color: var(--silver); font-weight: 700; margin-right: 4px;
+  }
+  .tracks-head .nav-helper {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 14px; color: rgba(167,139,250,0.65);
+  }
+
+  /* ============================ TRACK CARD ============================ */
+  .track-card {
+    position: relative;
+    border-radius: 22px;
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    border: 1px solid var(--hairline);
+    padding: 24px 26px 22px;
+    transition: border-color .2s ease, transform .15s ease;
+  }
+  @media (max-width: 720px) { .track-card { padding: 20px; border-radius: 18px; } }
+
+  .track-card[data-state="approved"] {
+    border-color: rgba(52,211,153,0.5);
+    background:
+      linear-gradient(180deg, rgba(52,211,153,0.06), rgba(15,8,35,0.7));
+  }
+  .track-card[data-state="approved"]::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--good);
+    border-radius: 22px 0 0 22px;
+  }
+  .track-card[data-state="passed"] { opacity: 0.55; }
+  .track-card[data-state="passed"]::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: rgba(167,139,250,0.4);
+    border-radius: 22px 0 0 22px;
+  }
+  .track-card[data-state="leader"]::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, var(--magenta), var(--purple));
+    border-radius: 22px 0 0 22px;
+  }
+
+  .track-head {
+    display: flex; align-items: flex-start; gap: 16px;
+    margin-bottom: 14px;
+  }
+  .track-rank {
+    font-family: "Instrument Serif", serif;
+    font-size: clamp(36px, 5vw, 52px);
+    line-height: 0.85;
+    color: rgba(167,139,250,0.75);
+    letter-spacing: -0.03em;
+    flex-shrink: 0;
+    min-width: 36px;
+  }
+  .track-card[data-state="leader"] .track-rank {
+    background: linear-gradient(180deg, var(--silver) 0%, var(--lavender) 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .track-info { flex: 1; min-width: 0; }
+  .track-state-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 999px;
+    background: rgba(167,139,250,0.10);
+    border: 1px solid var(--hairline);
+    color: var(--lavender);
+    margin-bottom: 6px;
+  }
+  .track-card[data-state="leader"] .track-state-pill {
+    background: rgba(219,39,119,0.14); border-color: rgba(219,39,119,0.32); color: var(--magenta);
+  }
+  .track-card[data-state="approved"] .track-state-pill {
+    background: rgba(52,211,153,0.14); border-color: rgba(52,211,153,0.32); color: var(--good);
+  }
+  .track-name {
+    font-family: "Instrument Serif", serif;
+    font-size: clamp(22px, 2.8vw, 30px);
+    line-height: 1.05; letter-spacing: -0.015em;
+    color: var(--silver);
+  }
+  .track-artist {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 15px; color: var(--lavender);
+    margin-top: 3px;
+  }
+  .track-score-block {
+    text-align: right; flex-shrink: 0;
+  }
+  .track-score-block .n {
+    font-family: "Instrument Serif", serif;
+    font-size: clamp(36px, 4.5vw, 52px);
+    line-height: 0.85;
+    color: var(--silver);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .track-score-block .l {
+    font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(167,139,250,0.55);
+    margin-top: 4px;
+  }
+
+  /* ============================ WAVEFORM ============================ */
+  .track-waveform {
+    margin-top: 4px;
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid var(--hairline);
+  }
+  .track-card[data-state="passed"] .track-waveform { display: none; }
+  .track-waveform .play {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--purple), var(--magenta));
+    border: 0; color: white;
+    display: grid; place-items: center;
+    cursor: pointer; flex-shrink: 0;
+    box-shadow: 0 12px 26px -12px rgba(124,58,237,0.65);
+  }
+  .track-waveform .wave {
+    flex: 1; min-width: 0;
+    display: flex; align-items: center; gap: 2px;
+    height: 40px;
+  }
+  .track-waveform .wave i {
+    flex: 1; min-width: 2px;
+    background: rgba(167,139,250,0.32);
+    border-radius: 2px;
+  }
+  .track-waveform .wave i.played {
+    background: linear-gradient(180deg, var(--magenta), var(--purple));
+  }
+  .track-waveform .time {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; color: var(--lavender);
+    letter-spacing: 0.04em; flex-shrink: 0;
+  }
+
+  /* ============================ AI REASONING PULL-QUOTE ============================ */
+  .ai-quote {
+    margin-top: 16px;
+    position: relative;
+    padding: 18px 22px 18px 56px;
+    border-radius: 16px;
+    background:
+      linear-gradient(135deg, rgba(124,58,237,0.10), rgba(219,39,119,0.04));
+    border: 1px solid rgba(167,139,250,0.22);
+  }
+  .ai-quote::before {
+    content: "\201C";
+    position: absolute;
+    left: 16px; top: -10px;
+    font-family: "Instrument Serif", serif;
+    font-size: 80px; line-height: 1;
+    color: rgba(219,39,119,0.45);
+    font-style: italic;
+  }
+  .ai-quote .ai-label {
+    font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--magenta);
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-bottom: 6px;
+  }
+  .ai-quote p {
+    margin: 0;
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: clamp(16px, 1.7vw, 19px);
+    line-height: 1.4;
+    color: var(--silver);
+    letter-spacing: -0.005em;
+  }
+  .ai-quote p strong {
+    font-style: normal; font-family: "Manrope", sans-serif; font-weight: 700;
+    color: var(--magenta); letter-spacing: 0.01em;
+  }
+
+  /* ============================ APPROVE/PASS ============================ */
+  .decision-row {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .decision-btn {
+    padding: 14px 18px;
+    border-radius: 14px;
+    border: 1px solid var(--hairline-strong);
+    background: rgba(15,8,35,0.6);
+    color: var(--silver);
+    font-size: 14px; font-weight: 700; letter-spacing: 0.02em;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    transition: border-color .15s ease, background .2s ease, transform .12s ease;
+  }
+  .decision-btn:hover { transform: translateY(-1px); }
+  .decision-btn .ico {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .decision-btn.approve .ico {
+    background: rgba(52,211,153,0.18);
+    color: var(--good);
+    border: 1px solid rgba(52,211,153,0.4);
+  }
+  .decision-btn.approve:hover {
+    border-color: var(--good);
+    background: rgba(52,211,153,0.10);
+  }
+  .decision-btn.pass .ico {
+    background: rgba(167,139,250,0.12);
+    color: var(--lavender);
+    border: 1px solid var(--hairline-strong);
+  }
+  .decision-btn.pass:hover {
+    border-color: var(--lavender);
+    color: var(--lavender);
+  }
+
+  /* approved/passed states for the decision row */
+  .track-card[data-state="approved"] .decision-btn.approve {
+    background: linear-gradient(135deg, rgba(52,211,153,0.25), rgba(52,211,153,0.08));
+    border-color: var(--good);
+    color: var(--good);
+  }
+  .track-card[data-state="approved"] .decision-btn.approve .ico {
+    background: var(--good); color: #062b1f; border-color: var(--good);
+  }
+  .track-card[data-state="passed"]   .decision-btn.pass {
+    background: rgba(167,139,250,0.14);
+    border-color: var(--lavender);
+    color: var(--lavender);
+  }
+
+  /* COMMENT */
+  .comment-strip {
+    margin-top: 12px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(167,139,250,0.04);
+    border: 1px solid var(--hairline);
+    cursor: text;
+  }
+  .comment-strip .comment-input {
+    flex: 1;
+    background: transparent; border: 0; outline: 0;
+    color: var(--silver);
+    font-size: 13px;
+    font-family: "Manrope", sans-serif;
+    min-width: 0;
+  }
+  .comment-strip .comment-input::placeholder {
+    color: rgba(167,139,250,0.55);
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 14px;
+  }
+  .comment-strip svg { color: var(--lavender); flex-shrink: 0; }
+
+  /* ============================ FINAL DECISION ROW ============================ */
+  .final-cta {
+    margin-top: 14px;
+    padding: 22px 24px;
+    border-radius: 18px;
+    background:
+      linear-gradient(135deg, rgba(124,58,237,0.18), rgba(219,39,119,0.10));
+    border: 1px solid rgba(167,139,250,0.28);
+    display: flex; align-items: center; justify-content: space-between; gap: 18px;
+    flex-wrap: wrap;
+  }
+  .final-cta .copy {
+    font-family: "Instrument Serif", serif;
+    font-size: clamp(17px, 1.8vw, 21px);
+    line-height: 1.3;
+    color: var(--silver);
+    max-width: 38ch;
+  }
+  .final-cta .copy em { font-style: italic; color: var(--lavender); }
+  .final-cta .cta { flex-shrink: 0; }
+
+  /* ============================ MOBILE TIGHTEN ============================ */
+  @media (max-width: 720px) {
+    .track-head { gap: 12px; }
+    .track-rank { font-size: 36px; }
+    .track-score-block .n { font-size: 36px; }
+    .decision-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar topbar-share" data-screen-label="Director View">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="pulse"></span>
+      <span class="wordmark">Sync<em>Vision</em></span>
+      <span class="divider"></span>
+      <span class="read-badge">
+        <span class="lock">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M7 11 V8 a5 5 0 0 1 10 0 v3 M5 11 h14 v9 H5 z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        Read-only &middot; <b>Director View</b>
+      </span>
+    </div>
+    <div class="sender-card">
+      <span class="avatar">MK</span>
+      <span class="who">
+        Shared by Maya K.
+        <span class="role">music supervisor</span>
+      </span>
+    </div>
+  </div>
+</header>
+
+<main class="shell">
+
+  <div class="hero-row">
+    <div class="titles">
+      <span class="kicker">For your review</span>
+      <h1>3 candidates for <em>Scene 14.</em></h1>
+    </div>
+    <div class="hero-meta">
+      Approve, pass, or leave a note. Decisions sync back to Maya.
+    </div>
+  </div>
+
+  <section class="share-stage">
+
+    <!-- ============ STICKY BRIEF ============ -->
+    <aside class="brief-panel">
+      <div class="crumb">The Scene</div>
+      <h2>The Quiet <em>Surrender</em></h2>
+      <p class="brief-line">
+        Two estranged brothers reconnect at a funeral. The moment before either of them speaks.
+      </p>
+
+      <div class="brief-meta">
+        <div class="row">
+          <span class="k">Pacing</span>
+          <span class="v">Slow &middot; <em>restrained</em></span>
+        </div>
+        <div class="row">
+          <span class="k">Listening for</span>
+          <span class="v" style="line-height: 1.4;">
+            <em>Yearning, intimate, bittersweet emotional release.</em>
+          </span>
+        </div>
+      </div>
+
+      <div class="brief-pills">
+        <span class="pill">Yearning</span>
+        <span class="pill">Intimate</span>
+        <span class="pill">Bittersweet</span>
+        <span class="pill">Slow</span>
+      </div>
+
+      <div class="decision-summary">
+        <div class="label">Your decisions</div>
+        <div class="count-row">
+          <div>
+            <div class="cnt ap">1</div>
+            <div class="lbl">Approved</div>
+          </div>
+          <div>
+            <div class="cnt ps">1</div>
+            <div class="lbl">Passed</div>
+          </div>
+          <div>
+            <div class="cnt left">1</div>
+            <div class="lbl">Pending</div>
+          </div>
+        </div>
+        <div class="progress">
+          <span class="ap-fill" style="width:33%"></span>
+          <span class="ps-fill" style="width:33%"></span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ TRACKS COLUMN ============ -->
+    <div class="tracks-col">
+      <div class="tracks-head">
+        <span class="label"><span class="count">3</span> tracks &middot; ranked by fit</span>
+        <span class="nav-helper">scroll to review</span>
+      </div>
+
+      <!-- TRACK 1 — APPROVED -->
+      <article class="track-card" data-state="approved">
+        <div class="track-head">
+          <div class="track-rank">1</div>
+          <div class="track-info">
+            <span class="track-state-pill">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Approved
+            </span>
+            <div class="track-name">Never Letting Go</div>
+            <div class="track-artist">by The Quiet Cellar &middot; 2:54</div>
+          </div>
+          <div class="track-score-block">
+            <div class="n">74</div>
+            <div class="l">Fit</div>
+          </div>
+        </div>
+
+        <div class="track-waveform">
+          <button class="play"><svg width="14" height="14" viewBox="0 0 10 10"><path d="M2 1 L8 5 L2 9 Z" fill="currentColor"/></svg></button>
+          <div class="wave">
+            <i style="height:30%" class="played"></i><i style="height:55%" class="played"></i><i style="height:40%" class="played"></i><i style="height:72%" class="played"></i><i style="height:50%" class="played"></i><i style="height:90%" class="played"></i><i style="height:60%" class="played"></i><i style="height:35%" class="played"></i><i style="height:65%" class="played"></i><i style="height:48%" class="played"></i><i style="height:78%" class="played"></i><i style="height:42%" class="played"></i>
+            <i style="height:62%"></i><i style="height:38%"></i><i style="height:55%"></i><i style="height:80%"></i><i style="height:45%"></i><i style="height:60%"></i><i style="height:30%"></i><i style="height:70%"></i><i style="height:42%"></i><i style="height:55%"></i><i style="height:36%"></i><i style="height:50%"></i><i style="height:65%"></i><i style="height:40%"></i><i style="height:58%"></i><i style="height:32%"></i><i style="height:48%"></i><i style="height:55%"></i><i style="height:38%"></i><i style="height:60%"></i><i style="height:42%"></i><i style="height:50%"></i><i style="height:30%"></i><i style="height:45%"></i>
+          </div>
+          <span class="time">1:12 / 2:54</span>
+        </div>
+
+        <div class="ai-quote">
+          <div class="ai-label">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" fill="currentColor"/></svg>
+            Why this track
+          </div>
+          <p>
+            A held breath of cello, then a voice that almost breaks &mdash; this is <strong>the moment of surrender</strong>, scored. Sparse arrangement leaves room for the actors. Lands on the emotional turn at 1:32.
+          </p>
+        </div>
+
+        <div class="decision-row">
+          <button class="decision-btn approve" onclick="setState(this, 'approved')">
+            <span class="ico"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            Approved
+          </button>
+          <button class="decision-btn pass" onclick="setState(this, 'passed')">
+            <span class="ico"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></span>
+            Pass
+          </button>
+        </div>
+
+        <div class="comment-strip">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 5 H20 V17 H10 L6 21 V17 H4 Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <input class="comment-input" value="This is the one. Use full track up to the second verse." />
+        </div>
+      </article>
+
+      <!-- TRACK 2 — PENDING / LEADER -->
+      <article class="track-card" data-state="leader">
+        <div class="track-head">
+          <div class="track-rank">2</div>
+          <div class="track-info">
+            <span class="track-state-pill">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
+              Awaiting decision
+            </span>
+            <div class="track-name">Breaking Chains</div>
+            <div class="track-artist">by Halfway Light &middot; 3:12</div>
+          </div>
+          <div class="track-score-block">
+            <div class="n">65</div>
+            <div class="l">Fit</div>
+          </div>
+        </div>
+
+        <div class="track-waveform">
+          <button class="play"><svg width="14" height="14" viewBox="0 0 10 10"><path d="M2 1 L8 5 L2 9 Z" fill="currentColor"/></svg></button>
+          <div class="wave">
+            <i style="height:55%"></i><i style="height:30%"></i><i style="height:62%"></i><i style="height:40%"></i><i style="height:78%"></i><i style="height:50%"></i><i style="height:42%"></i><i style="height:68%"></i><i style="height:35%"></i><i style="height:55%"></i><i style="height:72%"></i><i style="height:48%"></i><i style="height:60%"></i><i style="height:35%"></i><i style="height:78%"></i><i style="height:42%"></i><i style="height:55%"></i><i style="height:30%"></i><i style="height:65%"></i><i style="height:48%"></i><i style="height:72%"></i><i style="height:38%"></i><i style="height:58%"></i><i style="height:42%"></i><i style="height:50%"></i><i style="height:34%"></i><i style="height:62%"></i><i style="height:45%"></i><i style="height:55%"></i><i style="height:30%"></i><i style="height:48%"></i><i style="height:60%"></i><i style="height:38%"></i><i style="height:52%"></i><i style="height:42%"></i><i style="height:30%"></i><i style="height:55%"></i><i style="height:40%"></i><i style="height:48%"></i><i style="height:32%"></i><i style="height:42%"></i>
+          </div>
+          <span class="time">0:00 / 3:12</span>
+        </div>
+
+        <div class="ai-quote">
+          <div class="ai-label">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" fill="currentColor"/></svg>
+            Why this track
+          </div>
+          <p>
+            Strong emotional swell, but <strong>percussion fights the intimacy</strong>. Works if you want to lift out of the scene at the end &mdash; doesn't if you want to stay inside it.
+          </p>
+        </div>
+
+        <div class="decision-row">
+          <button class="decision-btn approve" onclick="setState(this, 'approved')">
+            <span class="ico"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            Approve
+          </button>
+          <button class="decision-btn pass" onclick="setState(this, 'passed')">
+            <span class="ico"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></span>
+            Pass
+          </button>
+        </div>
+
+        <div class="comment-strip">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 5 H20 V17 H10 L6 21 V17 H4 Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <input class="comment-input" placeholder="Leave a note for Maya&hellip;" />
+        </div>
+      </article>
+
+      <!-- TRACK 3 — PASSED -->
+      <article class="track-card" data-state="passed">
+        <div class="track-head">
+          <div class="track-rank">3</div>
+          <div class="track-info">
+            <span class="track-state-pill">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+              Passed
+            </span>
+            <div class="track-name">Where We Belong</div>
+            <div class="track-artist">by Pale Field &middot; 3:18</div>
+          </div>
+          <div class="track-score-block">
+            <div class="n">58</div>
+            <div class="l">Fit</div>
+          </div>
+        </div>
+
+        <div class="ai-quote">
+          <div class="ai-label">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" fill="currentColor"/></svg>
+            Why this track
+          </div>
+          <p>
+            Lovely chorus, but the <strong>tempo lifts where the scene wants to settle</strong>. Better suited for the closing montage than this funeral beat.
+          </p>
+        </div>
+
+        <div class="decision-row">
+          <button class="decision-btn approve" onclick="setState(this, 'approved')">
+            <span class="ico"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            Approve
+          </button>
+          <button class="decision-btn pass" onclick="setState(this, 'passed')">
+            <span class="ico"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></span>
+            Passed
+          </button>
+        </div>
+      </article>
+
+      <!-- FINAL DECISION -->
+      <div class="final-cta">
+        <div class="copy">
+          One <em>pending</em>. When you've made all three calls, Maya gets a notification.
+        </div>
+        <button class="cta">
+          Send decisions
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<script>
+  function setState(btn, state) {
+    const card = btn.closest('.track-card');
+    if (card.dataset.state === state) {
+      card.dataset.state = 'leader';
+    } else {
+      card.dataset.state = state;
+    }
+    updateSummary();
+  }
+  function updateSummary() {
+    const cards = document.querySelectorAll('.track-card');
+    let ap = 0, ps = 0, pending = 0;
+    cards.forEach(c => {
+      if (c.dataset.state === 'approved') ap++;
+      else if (c.dataset.state === 'passed') ps++;
+      else pending++;
+    });
+    const total = cards.length;
+    document.querySelector('.cnt.ap').textContent = ap;
+    document.querySelector('.cnt.ps').textContent = ps;
+    document.querySelector('.cnt.left').textContent = pending;
+    document.querySelector('.progress .ap-fill').style.width = (ap/total*100) + '%';
+    document.querySelector('.progress .ps-fill').style.width = (ps/total*100) + '%';
+  }
+</script>
+
+</body>
+</html>

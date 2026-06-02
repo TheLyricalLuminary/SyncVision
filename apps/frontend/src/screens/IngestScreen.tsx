@@ -32,18 +32,18 @@ function isAcceptedFile(file: File): boolean {
 
 // ── design tokens ────────────────────────────────────────────
 const C = {
-  purple:        '#7C3AED',
+  purple:        '#F5A623',
   magenta:       '#DB2777',
-  silver:        '#E2E8F0',
-  lavender:      '#A78BFA',
+  silver:        '#F4F2FA',
+  lavender:      '#9B93C4',
   good:          '#34D399',
   amber:         '#F5B544',
-  hairline:      'rgba(167, 139, 250, 0.14)',
-  hairlineStrong:'rgba(167, 139, 250, 0.22)',
+  hairline:      'rgba(123, 112, 178, 0.16)',
+  hairlineStrong:'rgba(123, 112, 178, 0.30)',
 };
 const SERIF = '"Instrument Serif", Georgia, serif';
 const SANS  = '"Manrope", system-ui, sans-serif';
-const BG    = `radial-gradient(1200px 700px at 18% 0%, rgba(124,58,237,0.18), transparent 60%), radial-gradient(900px 600px at 82% 100%, rgba(219,39,119,0.10), transparent 60%), #06030F`;
+const BG    = `radial-gradient(900px 600px at 12% 8%, rgba(245,166,35,0.14), transparent 60%), radial-gradient(800px 500px at 95% 100%, rgba(221,122,58,0.10), transparent 60%), #0D0B1E`;
 
 export function IngestScreen({ creditBalance, onBack, onAnalyze }: IngestScreenProps) {
   const [tracks, setTracks]         = useState<IngestedTrack[]>([]);
@@ -147,7 +147,7 @@ const handleAddIsrc = () => {
 
   const addBtnStyle: React.CSSProperties = {
     padding: '0 14px', borderRadius: 11,
-    background: `rgba(167,139,250,0.10)`, border: `1px solid ${C.hairlineStrong}`,
+    background: `rgba(123,112,178,0.10)`, border: `1px solid ${C.hairlineStrong}`,
     color: C.silver, fontSize: 11, fontWeight: 700, letterSpacing: '0.12em',
     whiteSpace: 'nowrap', cursor: 'pointer', fontFamily: SANS,
   };
@@ -159,13 +159,13 @@ const handleAddIsrc = () => {
         .sv-ing-topbar { position: sticky; top: 0; z-index: 10; background: linear-gradient(180deg,rgba(6,3,15,0.94),rgba(6,3,15,0.6) 70%,transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid ${C.hairline}; }
         .sv-ing-topbar-inner { max-width: 1280px; margin: 0 auto; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
         .sv-ing-stepper { display: none; align-items: center; gap: 10px; }
-        .sv-ing-step { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: rgba(167,139,250,0.6); }
-        .sv-ing-step .n { width: 22px; height: 22px; border-radius: 50%; border: 1px solid ${C.hairlineStrong}; display: grid; place-items: center; font-family: "JetBrains Mono",monospace; font-size: 10px; font-weight: 600; color: rgba(167,139,250,0.7); }
+        .sv-ing-step { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: rgba(123,112,178,0.6); }
+        .sv-ing-step .n { width: 22px; height: 22px; border-radius: 50%; border: 1px solid ${C.hairlineStrong}; display: grid; place-items: center; font-family: "JetBrains Mono",monospace; font-size: 10px; font-weight: 600; color: rgba(123,112,178,0.7); }
         .sv-ing-step.active { color: ${C.silver}; }
         .sv-ing-step.active .n { background: linear-gradient(135deg,${C.purple},${C.magenta}); border-color: transparent; color: white; }
-        .sv-ing-step.done .n { background: rgba(124,58,237,0.18); border-color: rgba(167,139,250,0.35); color: ${C.silver}; }
+        .sv-ing-step.done .n { background: rgba(245,166,35,0.18); border-color: rgba(123,112,178,0.35); color: ${C.silver}; }
         .sv-ing-tick { width: 18px; height: 1px; background: ${C.hairlineStrong}; display: inline-block; }
-        .sv-ing-badge { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: ${C.lavender}; padding: 4px 10px; border-radius: 999px; background: rgba(167,139,250,0.08); border: 1px solid ${C.hairline}; white-space: nowrap; }
+        .sv-ing-badge { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: ${C.lavender}; padding: 4px 10px; border-radius: 999px; background: rgba(123,112,178,0.08); border: 1px solid ${C.hairline}; white-space: nowrap; }
         .sv-ing-badge b { color: ${C.silver}; font-weight: 700; }
         .sv-ing-shell { max-width: 1280px; margin: 0 auto; padding: 28px 28px 80px; }
         .sv-ing-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
@@ -224,7 +224,7 @@ const handleAddIsrc = () => {
               Add your <em style={{ fontStyle: 'italic', color: C.lavender }}>candidates.</em>
             </h1>
           </div>
-          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(13px,1.3vw,16px)', color: 'rgba(167,139,250,0.7)', marginLeft: 'auto' }}>
+          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(13px,1.3vw,16px)', color: 'rgba(123,112,178,0.7)', marginLeft: 'auto' }}>
             Audio files or ISRCs — we'll handle the rest.
           </div>
         </div>
@@ -235,7 +235,7 @@ const handleAddIsrc = () => {
           <section className="sv-ing-card full">
             <div style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
               <span>Upload</span>
-              <span style={{ color: 'rgba(167,139,250,0.5)', letterSpacing: '0.06em', textTransform: 'none', fontStyle: 'italic', fontFamily: SERIF, fontSize: 12 }}>drop a folder or pick files</span>
+              <span style={{ color: 'rgba(123,112,178,0.5)', letterSpacing: '0.06em', textTransform: 'none', fontStyle: 'italic', fontFamily: SERIF, fontSize: 12 }}>drop a folder or pick files</span>
             </div>
 
             {/* ── dropzone ── */}
@@ -248,20 +248,20 @@ const handleAddIsrc = () => {
               style={{
                 padding: '28px 24px', borderRadius: 18, textAlign: 'center',
                 background: isDragging
-                  ? 'radial-gradient(120% 80% at 50% 0%,rgba(124,58,237,0.26),transparent 60%),linear-gradient(180deg,rgba(124,58,237,0.12),rgba(15,8,35,0.5))'
-                  : 'radial-gradient(120% 80% at 50% 0%,rgba(124,58,237,0.18),transparent 60%),linear-gradient(180deg,rgba(124,58,237,0.08),rgba(15,8,35,0.5))',
-                border: `1.5px dashed ${isDragging ? 'rgba(167,139,250,0.6)' : 'rgba(167,139,250,0.35)'}`,
+                  ? 'radial-gradient(120% 80% at 50% 0%,rgba(245,166,35,0.26),transparent 60%),linear-gradient(180deg,rgba(245,166,35,0.12),rgba(15,8,35,0.5))'
+                  : 'radial-gradient(120% 80% at 50% 0%,rgba(245,166,35,0.18),transparent 60%),linear-gradient(180deg,rgba(245,166,35,0.08),rgba(15,8,35,0.5))',
+                border: `1.5px dashed ${isDragging ? 'rgba(123,112,178,0.6)' : 'rgba(123,112,178,0.35)'}`,
                 cursor: 'pointer',
               }}
             >
-              <div style={{ width: 48, height: 48, margin: '0 auto 14px', borderRadius: 16, background: 'rgba(124,58,237,0.18)', border: '1px solid rgba(167,139,250,0.32)', display: 'grid', placeItems: 'center', color: C.lavender }}>
+              <div style={{ width: 48, height: 48, margin: '0 auto 14px', borderRadius: 16, background: 'rgba(245,166,35,0.18)', border: '1px solid rgba(123,112,178,0.32)', display: 'grid', placeItems: 'center', color: C.lavender }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M12 4 V16 M6 10 L12 4 L18 10 M4 20 H20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </div>
               <div style={{ fontFamily: SERIF, fontSize: 'clamp(17px,2vw,24px)', color: C.silver, letterSpacing: '-0.005em' }}>Drag audio files here</div>
               <div style={{ fontSize: 13, color: C.lavender, marginTop: 6 }}>
                 or <span style={{ color: C.silver, textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: C.magenta }}>browse</span> from your device
               </div>
-              <div style={{ marginTop: 14, fontSize: 9, letterSpacing: '0.22em', color: 'rgba(167,139,250,0.55)', textTransform: 'uppercase', fontFamily: '"JetBrains Mono", monospace' }}>
+              <div style={{ marginTop: 14, fontSize: 9, letterSpacing: '0.22em', color: 'rgba(123,112,178,0.55)', textTransform: 'uppercase', fontFamily: '"JetBrains Mono", monospace' }}>
                 MP3 · ISRC
               </div>
               <input ref={fileInputRef} type="file" accept={ACCEPTED_TYPES.join(',')} multiple style={{ display: 'none' }} onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
@@ -269,7 +269,7 @@ const handleAddIsrc = () => {
             {dropError && <div style={{ fontSize: 11, color: C.amber, marginTop: 8 }}>{dropError}</div>}
 
             {/* divider-or */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '18px 0 14px', fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(167,139,250,0.55)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '18px 0 14px', fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(123,112,178,0.55)' }}>
               <div style={{ flex: 1, height: 1, background: C.hairline }} />
               <span>Or paste an ISRC</span>
               <div style={{ flex: 1, height: 1, background: C.hairline }} />
@@ -295,15 +295,15 @@ const handleAddIsrc = () => {
             <section className="sv-ing-card full">
               <div style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
                 <span>Queue</span>
-                <span style={{ color: 'rgba(167,139,250,0.5)', letterSpacing: '0.06em', textTransform: 'none', fontStyle: 'italic', fontFamily: SERIF, fontSize: 12 }}>{readyCount} ready to analyze</span>
+                <span style={{ color: 'rgba(123,112,178,0.5)', letterSpacing: '0.06em', textTransform: 'none', fontStyle: 'italic', fontFamily: SERIF, fontSize: 12 }}>{readyCount} ready to analyze</span>
               </div>
               <div className="sv-ing-track-list">
                 {tracks.map(t => {
                   const isUrl = t.source === 'url';
-                  const iconBg = t.source === 'isrc' ? 'rgba(52,211,153,0.16)' : isUrl ? 'rgba(219,39,119,0.20)' : 'rgba(124,58,237,0.20)';
+                  const iconBg = t.source === 'isrc' ? 'rgba(52,211,153,0.16)' : isUrl ? 'rgba(219,39,119,0.20)' : 'rgba(245,166,35,0.20)';
                   const iconColor = t.source === 'isrc' ? C.good : isUrl ? '#f9a8d4' : C.lavender;
                   return (
-                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, background: 'rgba(167,139,250,0.05)', border: `1px solid ${C.hairline}` }}>
+                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, background: 'rgba(123,112,178,0.05)', border: `1px solid ${C.hairline}` }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: iconBg, display: 'grid', placeItems: 'center', fontSize: 9, letterSpacing: '0.06em', fontWeight: 700, color: iconColor, fontFamily: '"JetBrains Mono", monospace', flexShrink: 0 }}>
                         {t.source === 'isrc' ? 'ISRC' : isUrl ? 'URL' : 'MP3'}
                       </div>
@@ -313,7 +313,7 @@ const handleAddIsrc = () => {
                           {(t.status === 'uploading' || t.status === 'resolving') && (
                             <>
                               <span>{t.status === 'uploading' ? 'Uploading…' : 'Resolving…'}</span>
-                              <div style={{ flex: 1, height: 2, background: 'rgba(167,139,250,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+                              <div style={{ flex: 1, height: 2, background: 'rgba(123,112,178,0.15)', borderRadius: 2, overflow: 'hidden' }}>
                                 <div style={{ height: '100%', width: `${t.progress}%`, background: `linear-gradient(90deg, ${C.purple}, ${C.magenta})`, transition: 'width 50ms linear' }} />
                               </div>
                             </>
@@ -355,11 +355,11 @@ const handleAddIsrc = () => {
               style={{
                 flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 padding: '14px 20px', borderRadius: 14, minHeight: 52,
-                background: canAnalyze ? `linear-gradient(135deg, ${C.purple}, ${C.magenta})` : 'rgba(167,139,250,0.10)',
+                background: canAnalyze ? `linear-gradient(135deg, ${C.purple}, ${C.magenta})` : 'rgba(123,112,178,0.10)',
                 color: canAnalyze ? 'white' : C.lavender,
                 fontWeight: 700, fontSize: 14, letterSpacing: '0.01em', fontFamily: SANS,
                 border: canAnalyze ? 'none' : `1px solid ${C.hairlineStrong}`,
-                boxShadow: canAnalyze ? '0 16px 30px -12px rgba(124,58,237,0.55)' : 'none',
+                boxShadow: canAnalyze ? '0 16px 30px -12px rgba(245,166,35,0.55)' : 'none',
                 cursor: canAnalyze ? 'pointer' : 'not-allowed',
               }}
             >

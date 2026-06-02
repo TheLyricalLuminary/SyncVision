@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SyncVision — Ingest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="sv-shared.css">
+<style>
+  /* ========== INGEST-SPECIFIC ========== */
+  .dropzone {
+    position: relative;
+    padding: 36px 28px;
+    border-radius: 18px;
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgba(124,58,237,0.18), transparent 60%),
+      linear-gradient(180deg, rgba(124,58,237,0.08), rgba(15,8,35,0.5));
+    border: 1.5px dashed rgba(167,139,250,0.35);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s ease, background .2s ease;
+  }
+  .dropzone:hover {
+    border-color: rgba(167,139,250,0.6);
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgba(124,58,237,0.26), transparent 60%),
+      linear-gradient(180deg, rgba(124,58,237,0.12), rgba(15,8,35,0.5));
+  }
+  .dropzone .icon {
+    width: 56px; height: 56px; border-radius: 18px;
+    background: rgba(124,58,237,0.18);
+    border: 1px solid rgba(167,139,250,0.32);
+    display: grid; place-items: center;
+    color: var(--lavender);
+    margin: 0 auto 18px;
+  }
+  .dropzone .primary {
+    font-family: "Instrument Serif", serif;
+    font-size: clamp(20px, 2.4vw, 28px);
+    color: var(--silver);
+    letter-spacing: -0.005em;
+  }
+  .dropzone .secondary {
+    font-size: 14px; color: var(--lavender); margin-top: 8px;
+  }
+  .dropzone .secondary .browse {
+    color: var(--silver); text-decoration: underline; text-underline-offset: 3px;
+    text-decoration-color: var(--magenta);
+  }
+  .dropzone .formats {
+    margin-top: 18px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px; letter-spacing: 0.18em;
+    color: rgba(167,139,250,0.55);
+  }
+
+  .divider-or {
+    display: flex; align-items: center; gap: 14px;
+    margin: 24px 0 18px;
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(167,139,250,0.55);
+  }
+  .divider-or::before, .divider-or::after {
+    content: ""; flex: 1; height: 1px; background: var(--hairline);
+  }
+
+  .input-rows {
+    display: grid; gap: 10px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 720px) {
+    .input-rows { grid-template-columns: 1fr 1fr; gap: 12px; }
+  }
+  .input-row {
+    display: flex; gap: 8px; align-items: center;
+    background: rgba(0,0,0,0.28);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    padding: 4px 4px 4px 14px;
+  }
+  .input-row:focus-within {
+    border-color: rgba(167,139,250,0.5);
+    background: rgba(0,0,0,0.4);
+  }
+  .input-row .field {
+    flex: 1;
+    background: transparent; border: 0; outline: 0;
+    color: var(--silver);
+    font-family: "Manrope", sans-serif;
+    font-size: 14px;
+    padding: 10px 0;
+    min-width: 0;
+  }
+  .input-row .field::placeholder { color: rgba(167,139,250,0.55); }
+  .input-row .field.mono { font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.04em; }
+  .input-row .add-btn {
+    padding: 9px 14px; border-radius: 10px;
+    background: rgba(167,139,250,0.10);
+    border: 1px solid var(--hairline-strong);
+    color: var(--silver);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+    cursor: pointer;
+  }
+  .input-row .add-btn:hover {
+    background: rgba(167,139,250,0.18);
+    border-color: rgba(167,139,250,0.45);
+  }
+
+  /* TRACK LIST — single column on mobile, 2-col on desktop */
+  .ingest-section {
+    grid-column: 1 / -1;
+  }
+  .ingest-list {
+    display: grid; gap: 10px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 900px) {
+    .ingest-list { grid-template-columns: 1fr 1fr; }
+  }
+  .track-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(167,139,250,0.05);
+    border: 1px solid var(--hairline);
+    transition: border-color .15s ease, background .2s ease;
+  }
+  .track-item:hover { border-color: rgba(167,139,250,0.32); }
+  .track-item .file-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: rgba(124,58,237,0.20);
+    display: grid; place-items: center;
+    font-size: 9px; letter-spacing: 0.06em; font-weight: 700;
+    color: var(--lavender);
+    font-family: "JetBrains Mono", monospace;
+    flex-shrink: 0;
+  }
+  .track-item.url .file-icon { background: rgba(219,39,119,0.20); color: #f9a8d4; }
+  .track-item.isrc .file-icon { background: rgba(52,211,153,0.16); color: var(--good); }
+  .track-item .info { flex: 1; min-width: 0; }
+  .track-item .name {
+    font-size: 14px; color: var(--silver); font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    letter-spacing: -0.005em;
+  }
+  .track-item .sub {
+    font-size: 11px; color: var(--lavender); letter-spacing: 0.02em; margin-top: 3px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .track-item .sub .ok {
+    color: var(--good); display: inline-flex; align-items: center; gap: 4px;
+    font-weight: 600;
+  }
+  .track-item .sub .dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: 0.4; }
+  .track-item .close {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: transparent; border: 0;
+    color: var(--lavender); display: grid; place-items: center;
+    opacity: 0.6; cursor: pointer;
+    transition: opacity .15s ease, background .15s ease;
+  }
+  .track-item .close:hover {
+    opacity: 1; background: rgba(244,63,94,0.12); color: var(--bad);
+  }
+
+  .empty-hint {
+    grid-column: 1 / -1;
+    padding: 22px;
+    text-align: center;
+    border-radius: 14px;
+    border: 1px dashed var(--hairline-strong);
+    color: rgba(167,139,250,0.65);
+    font-style: italic; font-family: "Instrument Serif", serif;
+    font-size: 15px;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar" data-screen-label="Ingest">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="pulse"></span>
+      <span class="wordmark">Sync<em>Vision</em></span>
+      <span class="divider"></span>
+      <span class="subtitle">add tracks</span>
+    </div>
+    <nav class="stepper" aria-label="Progress">
+      <span class="step done"><span class="num"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Brief</span>
+      <span class="tick"></span>
+      <span class="step active"><span class="num">2</span> Ingest</span>
+      <span class="tick"></span>
+      <span class="step"><span class="num">3</span> Match</span>
+    </nav>
+    <span class="step-badge">Step <b>2</b> of 3</span>
+  </div>
+</header>
+
+<main class="shell">
+
+  <div class="hero-row">
+    <div class="titles">
+      <span class="kicker">The Tracks</span>
+      <h1>Add your <em>candidates.</em></h1>
+    </div>
+    <div class="hero-meta">
+      Audio files, links, or ISRCs &mdash; we'll handle the rest.
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- DROPZONE: spans both cols, becomes hero -->
+    <section class="card full" aria-label="Upload">
+      <div class="section-label">
+        <span>Upload</span>
+        <span class="hint">drop a folder or pick files</span>
+      </div>
+      <div class="dropzone">
+        <div class="icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 4 V16 M6 10 L12 4 L18 10 M4 20 H20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="primary">Drag audio files here</div>
+        <div class="secondary">or <span class="browse">browse</span> from your device</div>
+        <div class="formats">WAV · MP3 · AIFF · MULTI · STEMS</div>
+      </div>
+
+      <div class="divider-or"><span>Or paste a link / identifier</span></div>
+
+      <div class="input-rows">
+        <div class="input-row">
+          <input class="field" placeholder="Spotify, SoundCloud, or Dropbox URL" />
+          <button class="add-btn">ADD</button>
+        </div>
+        <div class="input-row">
+          <input class="field mono" placeholder="ISRC · e.g. QZRP52418558" />
+          <button class="add-btn">ADD</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRACK LIST -->
+    <section class="card ingest-section" aria-label="Queue">
+      <div class="section-label">
+        <span>Queue</span>
+        <span class="hint">3 ready to analyze</span>
+      </div>
+      <div class="ingest-list">
+        <div class="track-item">
+          <div class="file-icon">WAV</div>
+          <div class="info">
+            <div class="name">never_letting_go_master_v3.wav</div>
+            <div class="sub">
+              <span>24.8 MB</span><span class="dot"></span>
+              <span>2:54</span><span class="dot"></span>
+              <span class="ok"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg> Ready</span>
+            </div>
+          </div>
+          <button class="close" aria-label="remove"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        </div>
+        <div class="track-item url">
+          <div class="file-icon">URL</div>
+          <div class="info">
+            <div class="name">Breaking Chains &mdash; Spotify</div>
+            <div class="sub">
+              <span>spotify.com / track / 6KQp…</span><span class="dot"></span>
+              <span class="ok"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg> Linked</span>
+            </div>
+          </div>
+          <button class="close" aria-label="remove"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        </div>
+        <div class="track-item isrc">
+          <div class="file-icon">ISRC</div>
+          <div class="info">
+            <div class="name">Where We Belong</div>
+            <div class="sub">
+              <span>QZRP52418558</span><span class="dot"></span>
+              <span>3:18</span><span class="dot"></span>
+              <span class="ok">Resolved</span>
+            </div>
+          </div>
+          <button class="close" aria-label="remove"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <div class="cta-row">
+      <span class="cta-meta">Tracks queued <b>3</b> &nbsp;·&nbsp; Credits <b>117</b></span>
+      <button class="cta">
+        Run analysis
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+
+  </div>
+</main>
+
+</body>
+</html>

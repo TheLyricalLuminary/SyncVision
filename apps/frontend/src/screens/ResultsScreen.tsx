@@ -5,23 +5,23 @@ import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
 
 // ── design tokens ────────────────────────────────────────────
 const C = {
-  purple:        '#7C3AED',
+  purple:        '#F5A623',
   magenta:       '#DB2777',
-  silver:        '#E2E8F0',
-  lavender:      '#A78BFA',
+  silver:        '#F4F2FA',
+  lavender:      '#9B93C4',
   amber:         '#F5B544',
   amberSoft:     'rgba(245, 181, 68, 0.12)',
   amberBorder:   'rgba(245, 181, 68, 0.28)',
-  hairline:      'rgba(167, 139, 250, 0.14)',
-  hairlineStrong:'rgba(167, 139, 250, 0.22)',
-  bg:            '#0F0823',
-  chipBg:        'rgba(167,139,250,0.08)',
-  bpmBg:         'rgba(124,58,237,0.16)',
-  bpmBorder:     'rgba(124,58,237,0.36)',
+  hairline:      'rgba(123, 112, 178, 0.16)',
+  hairlineStrong:'rgba(123, 112, 178, 0.30)',
+  bg:            '#0D0B1E',
+  chipBg:        'rgba(123,112,178,0.08)',
+  bpmBg:         'rgba(245,166,35,0.16)',
+  bpmBorder:     'rgba(245,166,35,0.36)',
 };
 const SERIF = '"Instrument Serif", Georgia, serif';
 const SANS  = '"Manrope", system-ui, sans-serif';
-const BG    = `radial-gradient(1200px 700px at 18% 0%, rgba(124,58,237,0.18), transparent 60%), radial-gradient(900px 600px at 82% 100%, rgba(219,39,119,0.10), transparent 60%), #06030F`;
+const BG    = `radial-gradient(900px 600px at 12% 8%, rgba(245,166,35,0.14), transparent 60%), radial-gradient(800px 500px at 95% 100%, rgba(221,122,58,0.10), transparent 60%), #0D0B1E`;
 
 // ── share payload ─────────────────────────────────────────────
 type SharePayload = { briefText: string; briefId: BriefId; sceneParams: SceneParams; results: AnalysisResult[] };
@@ -219,8 +219,8 @@ function RightsPipelineView({
         {stages.map(s => (
           <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ width: 14, height: 14, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', fontSize: 9, fontWeight: 800,
-              background: s.done ? 'rgba(52,211,153,0.18)' : s.warn ? 'rgba(219,39,119,0.15)' : 'rgba(167,139,250,0.10)',
-              color: s.done ? '#34D399' : s.warn ? C.magenta : 'rgba(167,139,250,0.5)',
+              background: s.done ? 'rgba(52,211,153,0.18)' : s.warn ? 'rgba(219,39,119,0.15)' : 'rgba(123,112,178,0.10)',
+              color: s.done ? '#34D399' : s.warn ? C.magenta : 'rgba(123,112,178,0.5)',
               border: `1px solid ${s.done ? 'rgba(52,211,153,0.4)' : s.warn ? 'rgba(219,39,119,0.3)' : C.hairline}`,
             }}>
               {s.done ? '✓' : s.warn ? '!' : '⧗'}
@@ -299,7 +299,7 @@ function RightsPipelineView({
                   <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Writer: </span>
                   {fpResult.autoFill.writerName}
                   {fpResult.autoFill.sources.writer && (
-                    <span style={{ color: 'rgba(167,139,250,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.writer}</span>
+                    <span style={{ color: 'rgba(123,112,178,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.writer}</span>
                   )}
                 </div>
               )}
@@ -308,7 +308,7 @@ function RightsPipelineView({
                   <span style={{ color: C.lavender, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Publisher: </span>
                   {fpResult.autoFill.publisherName}
                   {fpResult.autoFill.sources.publisher && (
-                    <span style={{ color: 'rgba(167,139,250,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.publisher}</span>
+                    <span style={{ color: 'rgba(123,112,178,0.5)', fontSize: 9, marginLeft: 6 }}>via {fpResult.autoFill.sources.publisher}</span>
                   )}
                 </div>
               )}
@@ -354,7 +354,7 @@ function RightsPipelineView({
           {stages.filter(s => !s.done).map(s => (
             <span key={s.label} style={{
               fontSize: 9, padding: '3px 8px', borderRadius: 999,
-              background: s.warn ? 'rgba(219,39,119,0.10)' : 'rgba(167,139,250,0.08)',
+              background: s.warn ? 'rgba(219,39,119,0.10)' : 'rgba(123,112,178,0.08)',
               border: `1px solid ${s.warn ? 'rgba(219,39,119,0.25)' : C.hairline}`,
               color: s.warn ? C.magenta : 'rgba(226,232,240,0.5)',
               letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap',
@@ -527,7 +527,7 @@ function RightsPanel({
       </div>
 
       {/* Composition sync + lyric license */}
-      <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 9, background: 'rgba(124,58,237,0.07)', border: `1px solid ${C.hairline}` }}>
+      <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 9, background: 'rgba(245,166,35,0.07)', border: `1px solid ${C.hairline}` }}>
         <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.lavender, marginBottom: 8 }}>Composition &amp; Lyric Licenses</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <div>
@@ -660,15 +660,15 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
       style={{
         position: 'relative',
         background: isFirst
-          ? 'linear-gradient(180deg, rgba(124,58,237,0.22), rgba(219,39,119,0.06) 70%, rgba(124,58,237,0.02))'
-          : 'linear-gradient(180deg, rgba(124,58,237,0.07), rgba(124,58,237,0.02))',
-        border: `1px solid ${isFirst ? 'rgba(167,139,250,0.34)' : C.hairline}`,
-        boxShadow: isFirst ? '0 20px 40px -20px rgba(124,58,237,0.35)' : 'none',
+          ? 'linear-gradient(180deg, rgba(245,166,35,0.22), rgba(219,39,119,0.06) 70%, rgba(245,166,35,0.02))'
+          : 'linear-gradient(180deg, rgba(245,166,35,0.07), rgba(245,166,35,0.02))',
+        border: `1px solid ${isFirst ? 'rgba(123,112,178,0.34)' : C.hairline}`,
+        boxShadow: isFirst ? '0 20px 40px -20px rgba(245,166,35,0.35)' : 'none',
         borderRadius: 16, marginBottom: 10, overflow: 'hidden',
       }}
     >
       {/* ghosted rank */}
-      <span aria-hidden style={{ position: 'absolute', top: 2, right: 14, fontFamily: SERIF, fontSize: 78, lineHeight: 1, color: isFirst ? 'rgba(255,255,255,0.10)' : 'rgba(167,139,250,0.10)', letterSpacing: '-0.04em', fontWeight: 400, pointerEvents: 'none', userSelect: 'none' }}>
+      <span aria-hidden style={{ position: 'absolute', top: 2, right: 14, fontFamily: SERIF, fontSize: 78, lineHeight: 1, color: isFirst ? 'rgba(255,255,255,0.10)' : 'rgba(123,112,178,0.10)', letterSpacing: '-0.04em', fontWeight: 400, pointerEvents: 'none', userSelect: 'none' }}>
         {result.rank}
       </span>
 
@@ -748,7 +748,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
                       title="Enter rights data"
                     >↑</button>
                   ) : axis.pending ? (
-                    <span style={{ fontSize: 9, color: 'rgba(167,139,250,0.4)' }}>–</span>
+                    <span style={{ fontSize: 9, color: 'rgba(123,112,178,0.4)' }}>–</span>
                   ) : null}
                 </div>
 
@@ -757,14 +757,14 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
                   <div style={{
                     height: '100%',
                     width: `${pct}%`,
-                    background: axis.pending ? 'rgba(167,139,250,0.15)' : barColor,
+                    background: axis.pending ? 'rgba(123,112,178,0.15)' : barColor,
                     borderRadius: 999,
                     transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1)',
                   }} />
                 </div>
 
                 {/* value */}
-                <div style={{ fontSize: 9, fontFamily: 'monospace', color: axis.pending ? 'rgba(167,139,250,0.4)' : C.lavender, letterSpacing: '0.04em' }}>
+                <div style={{ fontSize: 9, fontFamily: 'monospace', color: axis.pending ? 'rgba(123,112,178,0.4)' : C.lavender, letterSpacing: '0.04em' }}>
                   {axis.pending ? '—' : `${pct}`}
                   {/* weight label only on wider axes */}
                   {axis.weight >= 0.2 && <span style={{ opacity: 0.45, marginLeft: 2 }}>{axis.sub}</span>}
@@ -776,13 +776,13 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
 
         {/* weight legend — shown once, bottom right */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-          <span style={{ fontSize: 8, color: 'rgba(167,139,250,0.35)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          <span style={{ fontSize: 8, color: 'rgba(123,112,178,0.35)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
             bar width = weight · bar fill = axis value
           </span>
         </div>
 
         {/* epistemic line */}
-        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.hairline}`, fontSize: 9, color: 'rgba(167,139,250,0.45)', letterSpacing: '0.06em', lineHeight: 1.5 }}>
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.hairline}`, fontSize: 9, color: 'rgba(123,112,178,0.45)', letterSpacing: '0.06em', lineHeight: 1.5 }}>
           Surfaces what you need to decide, faster — does not decide for you.
         </div>
       </div>
@@ -865,7 +865,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
 
       {/* waveform player */}
       <div className="no-print" style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px 8px 8px', borderRadius: 11, background: 'rgba(0,0,0,0.28)', border: `1px solid ${C.hairline}` }}>
-        <button type="button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause' : 'Play'} style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', background: isFirst ? `linear-gradient(135deg, ${C.purple}, ${C.magenta})` : C.silver, color: isFirst ? '#fff' : '#0F0823', border: 'none', cursor: 'pointer', boxShadow: isFirst ? '0 6px 14px -6px rgba(219,39,119,0.5)' : undefined }}>
+        <button type="button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause' : 'Play'} style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', background: isFirst ? `linear-gradient(135deg, ${C.purple}, ${C.magenta})` : C.silver, color: isFirst ? '#fff' : '#0D0B1E', border: 'none', cursor: 'pointer', boxShadow: isFirst ? '0 6px 14px -6px rgba(219,39,119,0.5)' : undefined }}>
           {isPlaying
             ? <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden><rect x="1.5" y="1" width="2.5" height="8" /><rect x="6" y="1" width="2.5" height="8" /></svg>
             : <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden><path d="M2 1 L8 5 L2 9 Z" /></svg>
@@ -874,7 +874,7 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1.5, height: 26, overflow: 'hidden' }}>
           {[30,55,40,72,50,90,60,35,65,48,78,42,62,38,55,80,45,60,30,70,42,55,36,50,65,40,58,32,48,55,38,60,42,50,30,45,38,52,34,48].map((h, i) => {
             const played = duration > 0 && (i / 40) < (currentTime / duration);
-            return <span key={i} style={{ display: 'block', width: 2, flexShrink: 0, height: `${h}%`, borderRadius: 2, background: played ? `linear-gradient(180deg, ${C.purple}, ${C.magenta})` : 'rgba(167,139,250,0.3)' }} />;
+            return <span key={i} style={{ display: 'block', width: 2, flexShrink: 0, height: `${h}%`, borderRadius: 2, background: played ? `linear-gradient(180deg, ${C.purple}, ${C.magenta})` : 'rgba(123,112,178,0.3)' }} />;
           })}
         </div>
         <span style={{ fontFamily: 'monospace', fontSize: 10, color: C.lavender, letterSpacing: '0.05em', flexShrink: 0 }}>{timeLabel}</span>
@@ -989,7 +989,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
             color-adjust: exact !important;
           }
           html, body {
-            background: #06030F !important;
+            background: #0D0B1E !important;
             color: #E2E8F0 !important;
           }
           .sv-rs-topbar { display: none; }
@@ -1052,8 +1052,8 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
         </div>
 
         {/* ── tab bar ── */}
-        <div className="no-print" style={{ display: 'flex', gap: 4, padding: 4, marginBottom: 18, background: 'rgba(167,139,250,0.06)', borderRadius: 12, border: `1px solid ${C.hairline}`, fontSize: 12, fontWeight: 600 }}>
-          <div style={{ flex: 1, padding: '8px 0', textAlign: 'center', borderRadius: 8, background: 'rgba(124,58,237,0.22)', color: C.silver, boxShadow: 'inset 0 0 0 1px rgba(124,58,237,0.4)', letterSpacing: '0.02em' }}>
+        <div className="no-print" style={{ display: 'flex', gap: 4, padding: 4, marginBottom: 18, background: 'rgba(123,112,178,0.06)', borderRadius: 12, border: `1px solid ${C.hairline}`, fontSize: 12, fontWeight: 600 }}>
+          <div style={{ flex: 1, padding: '8px 0', textAlign: 'center', borderRadius: 8, background: 'rgba(245,166,35,0.22)', color: C.silver, boxShadow: 'inset 0 0 0 1px rgba(245,166,35,0.4)', letterSpacing: '0.02em' }}>
             Shortlist · {results.length}
           </div>
           <div style={{ flex: 1, padding: '8px 0', textAlign: 'center', color: C.lavender, letterSpacing: '0.02em' }}>Considered</div>
@@ -1081,8 +1081,8 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
                 const score = r.confidenceScore.score;
                 const title = cleanTrackTitle(r.track.title);
                 return (
-                  <div key={r.track.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 14, background: 'rgba(167,139,250,0.04)', border: `1px solid ${C.hairline}` }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(124,58,237,0.18)', display: 'grid', placeItems: 'center', flexShrink: 0, fontFamily: '"JetBrains Mono",monospace', fontSize: 10, fontWeight: 700, color: C.lavender }}>
+                  <div key={r.track.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 14, background: 'rgba(123,112,178,0.04)', border: `1px solid ${C.hairline}` }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(245,166,35,0.18)', display: 'grid', placeItems: 'center', flexShrink: 0, fontFamily: '"JetBrains Mono",monospace', fontSize: 10, fontWeight: 700, color: C.lavender }}>
                       {i + 2}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1093,7 +1093,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
                 );
               })}
               {results.length > 5 && (
-                <div style={{ fontSize: 11, color: 'rgba(167,139,250,0.55)', textAlign: 'center', paddingTop: 4, fontStyle: 'italic', fontFamily: SERIF }}>
+                <div style={{ fontSize: 11, color: 'rgba(123,112,178,0.55)', textAlign: 'center', paddingTop: 4, fontStyle: 'italic', fontFamily: SERIF }}>
                   +{results.length - 5} more below
                 </div>
               )}

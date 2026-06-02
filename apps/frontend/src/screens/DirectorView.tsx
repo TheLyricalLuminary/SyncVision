@@ -3,21 +3,21 @@ import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
 import type { AnalysisResult, SceneParams } from '../utils/apiClient';
 
 const C = {
-  purple:        '#7C3AED',
+  purple:        '#F5A623',
   magenta:       '#DB2777',
-  silver:        '#E2E8F0',
-  lavender:      '#A78BFA',
+  silver:        '#F4F2FA',
+  lavender:      '#9B93C4',
   amber:         '#F5B544',
   amberSoft:     'rgba(245, 181, 68, 0.12)',
   amberBorder:   'rgba(245, 181, 68, 0.28)',
-  hairline:      'rgba(167, 139, 250, 0.14)',
-  hairlineStrong:'rgba(167, 139, 250, 0.22)',
-  bg:            '#0F0823',
-  textFaint:     'rgba(226,232,240,0.60)',
-  textNarrative: 'rgba(226,232,240,0.75)',
-  chipBg:        'rgba(167,139,250,0.08)',
-  bpmBg:         'rgba(124,58,237,0.16)',
-  bpmBorder:     'rgba(124,58,237,0.36)',
+  hairline:      'rgba(123, 112, 178, 0.16)',
+  hairlineStrong:'rgba(123, 112, 178, 0.30)',
+  bg:            '#0D0B1E',
+  textFaint:     'rgba(244,242,250,0.60)',
+  textNarrative: 'rgba(244,242,250,0.75)',
+  chipBg:        'rgba(123,112,178,0.08)',
+  bpmBg:         'rgba(245,166,35,0.16)',
+  bpmBorder:     'rgba(245,166,35,0.36)',
   scoreBg:       'rgba(255,255,255,0.05)',
   cardBg:        'rgba(255,255,255,0.02)',
 };
@@ -93,7 +93,7 @@ export function DirectorView({ briefText, briefId, sceneParams, results }: Direc
   if (sceneParams.sceneLengthSec != null) briefChips.push(`${sceneParams.sceneLengthSec}s`);
 
   return (
-    <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: `radial-gradient(1200px 700px at 18% 0%, rgba(124,58,237,0.18), transparent 60%), radial-gradient(900px 600px at 82% 100%, rgba(219,39,119,0.10), transparent 60%), #06030F` }}>
+    <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: `radial-gradient(900px 600px at 12% 8%, rgba(245,166,35,0.14), transparent 60%), radial-gradient(800px 500px at 95% 100%, rgba(221,122,58,0.10), transparent 60%), #0D0B1E` }}>
       <div style={{ maxWidth: 520, margin: '0 auto', padding: '8px 20px 56px' }}>
 
         {/* ── doc-head ── */}
@@ -113,7 +113,7 @@ export function DirectorView({ briefText, briefId, sceneParams, results }: Direc
           </div>
 
           {/* brief card */}
-          <div style={{ padding: '18px 18px 16px', borderRadius: 16, background: 'linear-gradient(180deg, rgba(124,58,237,0.10), rgba(124,58,237,0.02))', border: `1px solid ${C.hairline}` }}>
+          <div style={{ padding: '18px 18px 16px', borderRadius: 16, background: 'linear-gradient(180deg, rgba(245,166,35,0.10), rgba(245,166,35,0.02))', border: `1px solid ${C.hairline}` }}>
             <div style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 8 }}>
               The Scene
             </div>
@@ -152,9 +152,9 @@ export function DirectorView({ briefText, briefId, sceneParams, results }: Direc
               style={{
                 position: 'relative',
                 background: isTop
-                  ? 'linear-gradient(180deg, rgba(124,58,237,0.16), rgba(124,58,237,0.02) 70%)'
+                  ? 'linear-gradient(180deg, rgba(245,166,35,0.16), rgba(245,166,35,0.02) 70%)'
                   : C.cardBg,
-                border: `1px solid ${isTop ? 'rgba(167,139,250,0.30)' : C.hairline}`,
+                border: `1px solid ${isTop ? 'rgba(123,112,178,0.30)' : C.hairline}`,
                 borderRadius: 16,
                 padding: '14px 14px 12px',
                 marginBottom: 12,
@@ -163,7 +163,7 @@ export function DirectorView({ briefText, briefId, sceneParams, results }: Direc
               {/* ghosted rank */}
               <span
                 aria-hidden
-                style={{ position: 'absolute', top: 12, right: 14, fontFamily: SERIF, fontSize: 32, lineHeight: 1, color: 'rgba(167,139,250,0.30)', fontWeight: 400, letterSpacing: '-0.03em', userSelect: 'none' }}
+                style={{ position: 'absolute', top: 12, right: 14, fontFamily: SERIF, fontSize: 32, lineHeight: 1, color: 'rgba(123,112,178,0.30)', fontWeight: 400, letterSpacing: '-0.03em', userSelect: 'none' }}
               >
                 {r.rank}
               </span>
@@ -197,7 +197,7 @@ export function DirectorView({ briefText, briefId, sceneParams, results }: Direc
               {/* score bar */}
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1, height: 8, background: C.scoreBg, borderRadius: 999, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${fillPct}%`, background: `linear-gradient(90deg, ${C.purple}, ${C.magenta})`, borderRadius: 999, boxShadow: '0 0 14px rgba(124,58,237,0.4)' }} />
+                  <div style={{ height: '100%', width: `${fillPct}%`, background: `linear-gradient(90deg, ${C.purple}, ${C.magenta})`, borderRadius: 999, boxShadow: '0 0 14px rgba(245,166,35,0.4)' }} />
                 </div>
                 <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 14, fontWeight: 700, color: C.silver, minWidth: 56, textAlign: 'right', letterSpacing: '-0.01em' }}>
                   {score}<span style={{ color: C.lavender, fontWeight: 500, fontSize: 11, marginLeft: 2 }}>/100</span>
@@ -208,7 +208,7 @@ export function DirectorView({ briefText, briefId, sceneParams, results }: Direc
               <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <button
                   type="button"
-                  style={{ borderRadius: 11, padding: '11px 8px', fontSize: 13, fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: `linear-gradient(135deg, ${C.purple}, ${C.magenta})`, color: 'white', border: 'none', boxShadow: '0 10px 22px -10px rgba(124,58,237,0.6)', cursor: 'default' }}
+                  style={{ borderRadius: 11, padding: '11px 8px', fontSize: 13, fontWeight: 700, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: `linear-gradient(135deg, ${C.purple}, ${C.magenta})`, color: 'white', border: 'none', boxShadow: '0 10px 22px -10px rgba(245,166,35,0.6)', cursor: 'default' }}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
                     <path d="M5 12 L10 17 L20 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />

@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SyncVision — Shortlist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="sv-shared.css">
+<style>
+  /* ============================ RESULTS LAYOUT ============================ */
+  .results-stage {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  @media (min-width: 1000px) {
+    .results-stage {
+      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+      gap: 32px;
+      align-items: start;
+    }
+  }
+
+  /* ============================ TABS ============================ */
+  .scene-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 18px;
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--hairline);
+    flex-wrap: wrap;
+  }
+  .scene-bar .crumb {
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--lavender);
+  }
+  .scene-bar .scene-name {
+    margin-top: 4px;
+    font-family: "Instrument Serif", serif;
+    font-size: clamp(22px, 2.6vw, 32px);
+    line-height: 1.05; letter-spacing: -0.015em;
+    color: var(--silver);
+  }
+  .scene-bar .scene-name em { font-style: italic; color: var(--lavender); }
+
+  .tablist {
+    display: inline-flex; gap: 2px;
+    padding: 4px;
+    border-radius: 12px;
+    background: rgba(15,8,35,0.6);
+    border: 1px solid var(--hairline);
+    font-family: "Manrope", sans-serif;
+  }
+  .tab {
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: transparent; border: 0;
+    font-size: 12px; font-weight: 600;
+    color: rgba(167,139,250,0.7);
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: color .15s ease, background .15s ease;
+  }
+  .tab:hover { color: var(--silver); }
+  .tab.active {
+    background: rgba(167,139,250,0.12);
+    color: var(--silver);
+    box-shadow: 0 0 0 1px rgba(167,139,250,0.18) inset;
+  }
+  .tab .count {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px; font-weight: 500;
+    color: rgba(167,139,250,0.55);
+    padding: 1px 5px; border-radius: 4px;
+    background: rgba(167,139,250,0.08);
+  }
+  .tab.active .count { color: var(--magenta); background: rgba(219,39,119,0.14); }
+
+  /* ============================ LEAD CARD ============================ */
+  .lead-card {
+    position: relative;
+    border-radius: 22px;
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    border: 1px solid var(--hairline);
+    padding: 28px;
+    overflow: hidden;
+  }
+  .lead-card::before {
+    content: ""; position: absolute; inset: -1px; border-radius: 22px; padding: 1.5px;
+    background: linear-gradient(180deg, rgba(124,58,237,0.55), rgba(219,39,119,0.45) 40%, transparent 80%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    pointer-events: none;
+  }
+  @media (max-width: 720px) { .lead-card { padding: 22px 20px; } }
+
+  .lead-head {
+    display: flex; align-items: flex-start; gap: 16px;
+    margin-bottom: 18px;
+  }
+  .lead-rank {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: clamp(48px, 7vw, 76px);
+    line-height: 0.85;
+    color: var(--silver);
+    letter-spacing: -0.03em;
+    flex-shrink: 0;
+    background: linear-gradient(180deg, var(--silver) 0%, rgba(167,139,250,0.6) 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .lead-head .meta { flex: 1; min-width: 0; }
+  .lead-head .leader-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--magenta);
+    background: rgba(219,39,119,0.14);
+    border: 1px solid rgba(219,39,119,0.32);
+    padding: 4px 9px; border-radius: 999px;
+    margin-bottom: 8px;
+  }
+  .lead-head .track-title {
+    font-family: "Instrument Serif", serif;
+    font-size: clamp(26px, 3.4vw, 38px);
+    line-height: 1.05; letter-spacing: -0.015em;
+    color: var(--silver);
+  }
+  .lead-head .artist {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 16px; color: var(--lavender);
+    margin-top: 4px;
+  }
+
+  .chip-row {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 12px;
+  }
+  .chip {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
+    padding: 5px 10px; border-radius: 999px;
+    border: 1px solid var(--hairline-strong);
+    color: var(--silver);
+    background: rgba(167,139,250,0.05);
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .chip.bpm { font-family: "JetBrains Mono", monospace; letter-spacing: 0.04em; }
+  .chip.warn {
+    background: rgba(245,158,11,0.10); border-color: rgba(245,158,11,0.35);
+    color: #fbbf24;
+  }
+  .chip.warn .qmark {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: rgba(245,158,11,0.3);
+    color: #fbbf24; display: grid; place-items: center;
+    font-size: 9px; font-weight: 800;
+  }
+  .chip.good {
+    background: rgba(52,211,153,0.10); border-color: rgba(52,211,153,0.32);
+    color: var(--good);
+  }
+
+  /* ============================ WEIGHTED SCORE ============================
+     This is the centerpiece. The scalar leads. Bars are weighted by axis.
+     Bar container width = axis weight. Fill = axis value. Empty = unrealized.
+  =========================================================================== */
+  .score-block {
+    margin-top: 22px;
+    padding: 20px 22px 20px 22px;
+    border-radius: 16px;
+    background: rgba(7,4,26,0.55);
+    border: 1px solid var(--hairline);
+  }
+  .score-head {
+    display: flex; align-items: baseline; gap: 18px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .score-num-big {
+    font-family: "Instrument Serif", serif;
+    font-size: clamp(64px, 8vw, 96px);
+    line-height: 0.85;
+    letter-spacing: -0.04em;
+    color: var(--silver);
+    font-variant-numeric: tabular-nums;
+  }
+  .score-num-big .of {
+    font-size: 0.3em;
+    color: rgba(167,139,250,0.55);
+    letter-spacing: -0.01em;
+    margin-left: 4px;
+    vertical-align: 0.55em;
+  }
+  .score-caption {
+    flex: 1; min-width: 200px;
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: clamp(15px, 1.5vw, 18px);
+    line-height: 1.35;
+    color: rgba(226,232,240,0.78);
+    max-width: 38ch;
+  }
+  .score-caption strong {
+    font-style: normal; font-family: "Manrope", sans-serif; font-weight: 700;
+    color: var(--silver); letter-spacing: -0.005em;
+  }
+
+  /* Weighted bars row — total width represents total score space (100%) */
+  .axes {
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .axis-header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(167,139,250,0.6);
+    padding: 0 2px 6px;
+    border-bottom: 1px dashed var(--hairline);
+    margin-bottom: 2px;
+  }
+  .axis-header .right { color: rgba(167,139,250,0.45); letter-spacing: 0.06em; text-transform: none; font-family: "Instrument Serif", serif; font-style: italic; font-size: 12px;}
+
+  .axis {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) 38px 22px;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background .15s ease;
+  }
+  .axis:hover { background: rgba(167,139,250,0.04); }
+  .axis-name {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--silver);
+  }
+  .axis-name .weight {
+    display: block;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px; letter-spacing: 0.04em; font-weight: 500;
+    color: rgba(167,139,250,0.55);
+    text-transform: none;
+    margin-top: 1px;
+  }
+  /* The weighted bar TRACK — its width is proportional to the axis weight */
+  .axis-track-wrap {
+    /* This wrap is the full available width; we set --w on each .axis to size the inner track */
+    position: relative;
+    height: 22px;
+    display: flex; align-items: center;
+  }
+  .axis-track {
+    height: 14px;
+    border-radius: 7px;
+    background:
+      linear-gradient(90deg, rgba(167,139,250,0.05), rgba(167,139,250,0.10));
+    border: 1px solid var(--hairline);
+    position: relative;
+    overflow: hidden;
+    width: var(--w, 50%);
+    transition: width .4s cubic-bezier(.2,.7,.2,1);
+  }
+  .axis-track::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: var(--v, 0%);
+    background: linear-gradient(90deg, var(--purple), var(--magenta));
+    box-shadow: 0 0 12px rgba(219,39,119,0.4);
+    border-radius: 6px;
+    transition: width .6s cubic-bezier(.2,.7,.2,1);
+  }
+  /* "fixed" axis style — uses a different palette to read as not-actionable */
+  .axis[data-fixed="true"] .axis-track::before {
+    background: linear-gradient(90deg, rgba(167,139,250,0.5), rgba(167,139,250,0.75));
+    box-shadow: none;
+  }
+  /* Faint label inside bar at 100% mark for context */
+  .axis-track::after {
+    content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 1px;
+    background: var(--hairline-strong);
+  }
+  .axis-value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px; font-weight: 600;
+    color: var(--silver);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .axis[data-unscored="true"] .axis-value {
+    color: rgba(167,139,250,0.4);
+  }
+  .axis-action {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; font-weight: 700;
+  }
+  .axis-action.fixed {
+    color: rgba(167,139,250,0.4);
+    border: 1px dashed rgba(167,139,250,0.25);
+  }
+  .axis-action.up {
+    color: var(--magenta);
+    background: rgba(219,39,119,0.10);
+    border: 1px solid rgba(219,39,119,0.35);
+    cursor: pointer;
+    transition: transform .15s ease, background .2s ease;
+  }
+  .axis-action.up:hover {
+    background: rgba(219,39,119,0.20);
+    transform: translateY(-1px);
+  }
+  .axis-hint {
+    grid-column: 2 / -1;
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 12px; color: rgba(167,139,250,0.55);
+    line-height: 1.2;
+    margin-top: 2px;
+    margin-left: 0;
+  }
+  .axis[data-fixed="true"] .axis-hint { color: rgba(167,139,250,0.40); }
+
+  /* ============================ NARRATIVE + ACTIONS ============================ */
+  .narrative {
+    margin-top: 20px;
+    padding: 16px 18px;
+    border-radius: 14px;
+    background: rgba(167,139,250,0.05);
+    border-left: 2px solid var(--magenta);
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: clamp(15px, 1.5vw, 18px);
+    line-height: 1.45;
+    color: var(--silver);
+    max-width: 56ch;
+  }
+
+  .lead-actions {
+    margin-top: 18px;
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  .lead-actions .btn {
+    flex: 1; min-width: 130px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--hairline-strong);
+    background: rgba(167,139,250,0.06);
+    color: var(--silver);
+    font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    transition: border-color .15s ease, background .15s ease, transform .1s ease;
+  }
+  .lead-actions .btn:hover { border-color: rgba(167,139,250,0.5); }
+  .lead-actions .btn.primary {
+    background: linear-gradient(135deg, var(--purple), var(--magenta));
+    border-color: transparent; color: white;
+    box-shadow: 0 14px 30px -14px rgba(219,39,119,0.55);
+  }
+  .lead-actions .btn.primary:hover { transform: translateY(-1px); }
+
+  /* ============================ PLAYER ============================ */
+  .player {
+    margin-top: 18px;
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.32);
+    border: 1px solid var(--hairline);
+  }
+  .play-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--purple), var(--magenta));
+    border: 0; color: white;
+    display: grid; place-items: center;
+    cursor: pointer;
+    box-shadow: 0 10px 22px -10px rgba(124,58,237,0.6);
+    flex-shrink: 0;
+  }
+  .wave {
+    flex: 1; min-width: 0;
+    display: flex; align-items: center; gap: 2px;
+    height: 36px;
+  }
+  .wave i {
+    flex: 1; min-width: 2px;
+    background: rgba(167,139,250,0.32);
+    border-radius: 2px;
+  }
+  .wave i.played {
+    background: linear-gradient(180deg, var(--magenta), var(--purple));
+  }
+  .player .time {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; color: var(--lavender);
+    letter-spacing: 0.04em; flex-shrink: 0;
+  }
+
+  /* ============================ SIDE LIST ============================ */
+  .side-list { display: flex; flex-direction: column; gap: 12px; }
+  .side-list-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    padding: 4px 4px 8px;
+  }
+  .side-list-head .label {
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--lavender);
+  }
+  .side-list-head .sort {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 13px; color: rgba(167,139,250,0.6);
+    cursor: pointer;
+  }
+  .mini-card {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    gap: 14px;
+    align-items: center;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(15,8,35,0.55);
+    border: 1px solid var(--hairline);
+    transition: border-color .15s ease, transform .15s ease, background .2s ease;
+    cursor: pointer;
+  }
+  .mini-card:hover {
+    border-color: rgba(167,139,250,0.4);
+    transform: translateX(-2px);
+  }
+  .mini-rank {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 26px;
+    color: rgba(167,139,250,0.7);
+    line-height: 1; text-align: center;
+  }
+  .mini-info { min-width: 0; }
+  .mini-title {
+    font-size: 14px; font-weight: 600; color: var(--silver);
+    letter-spacing: -0.005em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mini-narrative {
+    font-family: "Instrument Serif", serif; font-style: italic;
+    font-size: 13px; color: var(--lavender);
+    margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+  }
+  .mini-meta {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px; color: rgba(167,139,250,0.5);
+    letter-spacing: 0.06em; margin-top: 5px;
+    display: flex; gap: 6px;
+  }
+  .mini-score {
+    text-align: right;
+  }
+  .mini-score .n {
+    font-family: "Instrument Serif", serif;
+    font-size: 22px; color: var(--silver);
+    line-height: 1; font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .mini-score .d {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px; color: var(--magenta);
+    letter-spacing: 0.04em; margin-top: 3px;
+  }
+  .mini-score .d.neg { color: rgba(167,139,250,0.6); }
+
+  /* ============================ BOTTOM TOOLBAR ============================ */
+  .toolbar {
+    grid-column: 1 / -1;
+    margin-top: 18px;
+    padding: 14px 18px;
+    border-radius: 14px;
+    background: rgba(15,8,35,0.7);
+    border: 1px solid var(--hairline);
+    display: flex; align-items: center; gap: 14px;
+    flex-wrap: wrap;
+  }
+  .toolbar .stat {
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--lavender);
+  }
+  .toolbar .stat b {
+    color: var(--silver); font-weight: 700;
+    font-family: "Manrope", sans-serif;
+    font-size: 13px; letter-spacing: -0.01em;
+    margin-right: 3px;
+  }
+  .toolbar .spacer { flex: 1; }
+  .toolbar .btn-ghost {
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: transparent;
+    border: 1px solid var(--hairline-strong);
+    color: var(--silver);
+    font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .toolbar .btn-ghost:hover { border-color: rgba(167,139,250,0.5); }
+  .toolbar .cta-small {
+    padding: 10px 18px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar" data-screen-label="Shortlist">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="pulse"></span>
+      <span class="wordmark">Sync<em>Vision</em></span>
+      <span class="divider"></span>
+      <span class="subtitle">shortlist</span>
+    </div>
+    <nav class="stepper" aria-label="Progress">
+      <span class="step done"><span class="num"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Brief</span>
+      <span class="tick"></span>
+      <span class="step done"><span class="num"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Ingest</span>
+      <span class="tick"></span>
+      <span class="step done"><span class="num"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Match</span>
+    </nav>
+    <span class="step-badge">Match &middot; <b>complete</b></span>
+  </div>
+</header>
+
+<main class="shell">
+
+  <!-- SCENE BAR -->
+  <div class="scene-bar">
+    <div>
+      <div class="crumb">Scene 14 &middot; Shortlist</div>
+      <div class="scene-name">The Quiet <em>Surrender</em></div>
+    </div>
+    <div class="tablist">
+      <button class="tab active">Shortlist <span class="count">3</span></button>
+      <button class="tab">Considered <span class="count">12</span></button>
+      <button class="tab">Archive</button>
+    </div>
+  </div>
+
+  <section class="results-stage">
+
+    <!-- ============ LEAD CARD ============ -->
+    <article class="lead-card">
+      <div class="lead-head">
+        <div class="lead-rank">1</div>
+        <div class="meta">
+          <span class="leader-pill">&mdash; Leader &mdash;</span>
+          <div class="track-title">Never Letting Go</div>
+          <div class="artist">by The Quiet Cellar &middot; 2:54</div>
+          <div class="chip-row">
+            <span class="chip bpm">68 BPM</span>
+            <span class="chip">Yearning &middot; Warm</span>
+            <span class="chip">Indie · Folk</span>
+            <span class="chip warn"><span class="qmark">?</span>Rights unclear</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ WEIGHTED SCORE ============ -->
+      <div class="score-block">
+        <div class="score-head">
+          <div class="score-num-big">74<span class="of">/100</span></div>
+          <p class="score-caption">
+            <strong>Scene fit is strong</strong> &mdash; that's most of the score. Rights are dragging. Lyrics aren't scored yet. Signal is decent.
+          </p>
+        </div>
+
+        <div class="axes">
+          <div class="axis-header">
+            <span>Axis</span>
+            <span class="right">bar width = weight &middot; fill = value</span>
+          </div>
+
+          <!-- Scene 45% weighted — FIXED -->
+          <div class="axis" data-fixed="true">
+            <div class="axis-name">Scene<span class="weight">45% wt</span></div>
+            <div class="axis-track-wrap">
+              <div class="axis-track" style="--w: 100%; --v: 82%"></div>
+            </div>
+            <div class="axis-value">82</div>
+            <div class="axis-action fixed" title="Fixed after upload">&mdash;</div>
+          </div>
+
+          <!-- Rights 25% — ACTIONABLE -->
+          <div class="axis">
+            <div class="axis-name">Rights<span class="weight">25% wt</span></div>
+            <div class="axis-track-wrap">
+              <div class="axis-track" style="--w: 55%; --v: 34%"></div>
+            </div>
+            <div class="axis-value">34</div>
+            <div class="axis-action up" title="Click to clear blockers">↑</div>
+            <div class="axis-hint">Add writer + publisher to clear this axis.</div>
+          </div>
+
+          <!-- Lyrics 25% — ACTIONABLE / unscored -->
+          <div class="axis" data-unscored="true">
+            <div class="axis-name">Lyrics<span class="weight">25% wt</span></div>
+            <div class="axis-track-wrap">
+              <div class="axis-track" style="--w: 55%; --v: 0%"></div>
+            </div>
+            <div class="axis-value">&mdash;</div>
+            <div class="axis-action up" title="Click to add lyrics">↑</div>
+            <div class="axis-hint">Add lyrics to score this axis.</div>
+          </div>
+
+          <!-- Signal 5% — passive -->
+          <div class="axis" data-fixed="true">
+            <div class="axis-name">Signal<span class="weight">5% wt</span></div>
+            <div class="axis-track-wrap">
+              <div class="axis-track" style="--w: 18%; --v: 60%"></div>
+            </div>
+            <div class="axis-value">60</div>
+            <div class="axis-action fixed" title="Improves as data fills in">&mdash;</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="narrative">
+        A held breath of cello, then a voice that almost breaks &mdash; exactly the moment of surrender.
+      </div>
+
+      <div class="player">
+        <button class="play-btn"><svg width="13" height="13" viewBox="0 0 10 10"><path d="M2 1 L8 5 L2 9 Z" fill="currentColor"/></svg></button>
+        <div class="wave">
+          <i style="height:30%" class="played"></i><i style="height:55%" class="played"></i><i style="height:40%" class="played"></i><i style="height:72%" class="played"></i><i style="height:50%" class="played"></i><i style="height:90%" class="played"></i><i style="height:60%" class="played"></i><i style="height:35%" class="played"></i><i style="height:65%" class="played"></i><i style="height:48%" class="played"></i><i style="height:78%" class="played"></i><i style="height:42%" class="played"></i>
+          <i style="height:62%"></i><i style="height:38%"></i><i style="height:55%"></i><i style="height:80%"></i><i style="height:45%"></i><i style="height:60%"></i><i style="height:30%"></i><i style="height:70%"></i><i style="height:42%"></i><i style="height:55%"></i><i style="height:36%"></i><i style="height:50%"></i><i style="height:65%"></i><i style="height:40%"></i><i style="height:58%"></i><i style="height:32%"></i><i style="height:48%"></i><i style="height:55%"></i><i style="height:38%"></i><i style="height:60%"></i><i style="height:42%"></i><i style="height:50%"></i><i style="height:30%"></i><i style="height:45%"></i>
+        </div>
+        <span class="time">1:12 / 2:54</span>
+      </div>
+
+      <div class="lead-actions">
+        <button class="btn primary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 12 L10 18 L20 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Pitch to director
+        </button>
+        <button class="btn">
+          Move to considered
+        </button>
+        <button class="btn">
+          Notes
+        </button>
+      </div>
+    </article>
+
+    <!-- ============ SIDE LIST ============ -->
+    <aside class="side-list">
+      <div class="side-list-head">
+        <span class="label">Also in shortlist &middot; 2</span>
+        <span class="sort">sort by score &darr;</span>
+      </div>
+
+      <div class="mini-card">
+        <div class="mini-rank">2</div>
+        <div class="mini-info">
+          <div class="mini-title">Breaking Chains</div>
+          <div class="mini-narrative">Strong emotional swell, but percussion fights the intimacy.</div>
+          <div class="mini-meta">
+            <span>74 BPM</span><span>&middot;</span><span>BITTERSWEET</span><span>&middot;</span><span>ALT &middot; POP</span>
+          </div>
+        </div>
+        <div class="mini-score">
+          <div class="n">65</div>
+          <div class="d neg">&minus;9</div>
+        </div>
+      </div>
+
+      <div class="mini-card">
+        <div class="mini-rank">3</div>
+        <div class="mini-info">
+          <div class="mini-title">Where We Belong</div>
+          <div class="mini-narrative">Lovely chorus, but the tempo lifts where the scene wants to settle.</div>
+          <div class="mini-meta">
+            <span>82 BPM</span><span>&middot;</span><span>HOPEFUL</span><span>&middot;</span><span>INDIE &middot; POP</span>
+          </div>
+        </div>
+        <div class="mini-score">
+          <div class="n">58</div>
+          <div class="d neg">&minus;16</div>
+        </div>
+      </div>
+
+      <div class="side-list-head" style="margin-top: 14px;">
+        <span class="label">Considered &middot; 3 of 12</span>
+        <span class="sort">view all</span>
+      </div>
+
+      <div class="mini-card" style="opacity: 0.78;">
+        <div class="mini-rank">4</div>
+        <div class="mini-info">
+          <div class="mini-title">Slow Tide</div>
+          <div class="mini-narrative">Right mood, wrong key &mdash; clashes with the score cue.</div>
+          <div class="mini-meta">
+            <span>62 BPM</span><span>&middot;</span><span>MELANCHOLIC</span>
+          </div>
+        </div>
+        <div class="mini-score">
+          <div class="n">51</div>
+          <div class="d neg">&minus;23</div>
+        </div>
+      </div>
+
+      <div class="mini-card" style="opacity: 0.62;">
+        <div class="mini-rank">5</div>
+        <div class="mini-info">
+          <div class="mini-title">Halfway Light</div>
+          <div class="mini-narrative">Solid track, too crowded for the close-up.</div>
+          <div class="mini-meta">
+            <span>96 BPM</span><span>&middot;</span><span>HOPEFUL</span>
+          </div>
+        </div>
+        <div class="mini-score">
+          <div class="n">47</div>
+          <div class="d neg">&minus;27</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ TOOLBAR ============ -->
+    <div class="toolbar">
+      <span class="stat"><b>3</b> shortlisted</span>
+      <span class="stat"><b>1</b> rights blocker</span>
+      <span class="stat"><b>2</b> need lyrics</span>
+      <span class="spacer"></span>
+      <button class="btn-ghost">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M6 3 H18 V21 L12 16 L6 21 Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        Export PDF
+      </button>
+      <button class="cta cta-small">
+        Share with director
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+
+  </section>
+</main>
+
+<script>
+  // tabs
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+  }));
+</script>
+
+</body>
+</html>
