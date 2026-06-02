@@ -687,6 +687,249 @@ function QRBlock({ url }: { url: string }) {
   );
 }
 
+function fieldValue(slot: TrackSlot, field: RightsFieldName): string {
+  const ledgerField = slot.rightsLedger.find(item => item.field === field);
+  const entry = ledgerField?.entries.find(item => item.value !== null && item.value !== '');
+  if (entry?.value !== undefined && entry.value !== null && entry.value !== '') return String(entry.value);
+  if (field === 'isrc' && slot.isrc) return slot.isrc;
+  return '- not entered -';
+}
+
+function clearanceLabel(rights: string | null): { label: string; tone: 'clear' | 'part' | 'blocked' } {
+  if (rights === 'CLEAR') return { label: 'Cleared', tone: 'clear' };
+  if (rights === 'BLOCKED') return { label: 'Blocked', tone: 'blocked' };
+  if (rights === 'PARTIALLY_CLEAR') return { label: 'Partially cleared', tone: 'part' };
+  return { label: 'Largely unverified', tone: 'part' };
+}
+
+function PrintRunHead({ stamp }: { stamp: string }) {
+  return (
+    <div className="sv-p-runhead">
+      <img className="sv-p-logo" src="/logo.png" alt="SyncVision" />
+      <span className="sv-p-stamp">{stamp}</span>
+    </div>
+  );
+}
+
+function PrintRunFoot({ page, pages }: { page: number; pages: number }) {
+  return (
+    <div className="sv-p-runfoot">
+      <span>SyncVision - Sync Report</span>
+      <span>Confidential - Page {page} of {pages}</span>
+    </div>
+  );
+}
+
+function PrintTrackPage({ slot, index, total, pages }: { slot: TrackSlot; index: number; total: number; pages: number }) {
+  const clearance = clearanceLabel(slot.rightsState);
+  const completed = slot.pipeline.filter(stage => stage.completed).length;
+  const confidence = slot.pipeline.length ? Math.round((completed / slot.pipeline.length) * 100) : 0;
+  const meta = [
+    slot.artistName,
+    slot.tonalCharacter,
+    slot.energyCharacter,
+    slot.tempo ? `${Math.round(slot.tempo)} BPM` : null,
+    slot.isrc,
+  ].filter(Boolean).join(' - ');
+
+  const rightsFields: { label: string; value: string; tone?: string }[] = [
+    { label: 'ISRC', value: slot.isrc ?? '- not entered -' },
+    { label: 'Work ID - ISWC', value: fieldValue(slot, 'iswc') },
+    { label: 'Writer', value: fieldValue(slot, 'writer') },
+    { label: 'Writer split %', value: fieldValue(slot, 'split_pct') },
+    { label: 'Writer IPI', value: fieldValue(slot, 'ipi') },
+    { label: 'Publisher', value: fieldValue(slot, 'publisher') },
+    { label: 'PRO affiliation', value: fieldValue(slot, 'pro_affiliation') },
+    { label: 'Rights status', value: clearance.label, tone: clearance.tone },
+  ];
+
+  return (
+    <section className="sv-p-page">
+      <div className="sv-p-noise" />
+      <PrintRunHead stamp={`Candidate ${index + 1} of ${total} - Fit ${slot.fitIndex}`} />
+
+      <div className={`sv-p-td-head ${index === 0 ? 'is-leader' : ''}`}>
+        <div className="sv-p-rk">{slot.rank}</div>
+        <div className="sv-p-info">
+          <span className={`sv-p-state ${clearance.tone}`}>{index === 0 ? 'Recommended' : clearance.label}</span>
+          <div className="sv-p-track-name">{slot.title}</div>
+          <div className="sv-p-meta">{meta || 'Metadata pending'}</div>
+        </div>
+        <div className="sv-p-score"><div>{slot.fitIndex}</div><span>Fit</span></div>
+      </div>
+
+      <div className="sv-p-assess">
+        <div className="sv-p-lab">Sync assessment <em>deterministic - audit-stable</em></div>
+        <p>{slot.explanation}</p>
+      </div>
+
+      <div className="sv-p-panel-label">SyncScore axes</div>
+      <div className="sv-p-axes">
+        {([
+          ['Scene', slot.vector.scene],
+          ['Rights', slot.vector.rights],
+          ['Lyrics', slot.vector.lyrics],
+          ['Signal', slot.vector.signal],
+        ] as const).map(([label, value]) => {
+          const pct = Math.round(value * 100);
+          return (
+            <div className="sv-p-axis" key={label}>
+              <span>{label}</span>
+              <i><b style={{ width: `${pct}%` }} /></i>
+              <strong>{pct}</strong>
+            </div>
+          );
+        })}
+      </div>
+      <div className="sv-p-axis-cap">Bar fill = axis value (0-100)</div>
+
+      <div className="sv-p-rights">
+        <div className="sv-p-rights-head">
+          <span>Rights & clearance</span>
+          <b className={clearance.tone}>{clearance.label}</b>
+        </div>
+        <div className="sv-p-rfields">
+          {rightsFields.map(field => (
+            <div className="sv-p-rf" key={field.label}>
+              <div>{field.label}</div>
+              <span className={field.value.startsWith('-') ? 'none' : field.tone}>{field.value}</span>
+            </div>
+          ))}
+        </div>
+        <div className="sv-p-pipe">
+          <div className="sv-p-pc"><span>Confidence</span><b>{confidence}%</b></div>
+          {slot.pipeline.map(stage => (
+            <div className={`sv-p-stage ${stage.completed ? 'ok' : 'no'}`} key={stage.stage}>
+              <i>{stage.completed ? '✓' : '×'}</i>
+              {stage.stage.replace(/_/g, ' ')}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <PrintRunFoot page={index + 3} pages={pages} />
+    </section>
+  );
+}
+
+function PrintReport({ packet }: { packet: DecisionPacket }) {
+  const pages = packet.tracks.length + (packet.tracks.length > 1 ? 3 : 2);
+  const top = packet.tracks[0];
+  const runnerUp = packet.tracks[1];
+  const sp = packet.sceneParams;
+
+  return (
+    <div className="sv-print-report">
+      <section className="sv-p-page sv-p-cover">
+        <div className="sv-p-noise" />
+        <div className="sv-p-brandrow">
+          <img className="sv-p-cover-logo" src="/logo.png" alt="SyncVision" />
+          <span>Director View - <b>Read-only</b></span>
+        </div>
+
+        <div className="sv-p-hero">
+          <span className="sv-p-kicker">Sync Report - Decision Packet</span>
+          <h1>Sync Report<br /><em>Shortlist.</em></h1>
+          <p>{packet.briefText || 'Ranked music candidates with rights and clearance detail.'}</p>
+          <div className="sv-p-moods">
+            {sp.emotionalRegister && <span className="accent">{sp.emotionalRegister}</span>}
+            {sp.pacing && <span className="accent">{sp.pacing}</span>}
+            {sp.sceneLengthSec && <span>Scene {sp.sceneLengthSec}s</span>}
+            <span>{packet.tracks.length} ranked candidates</span>
+            <span>Audit-stable scoring</span>
+          </div>
+        </div>
+
+        <div className="sv-p-metagrid">
+          <div><span>Shared by</span><b>SyncVision<br /><em>decision packet</em></b></div>
+          <div><span>Candidates</span><b>{packet.tracks.length} ranked<br /><em>shortlist</em></b></div>
+          <div><span>Generated</span><b>{formatDate(packet.createdAt)}</b></div>
+          <div><span>Link expires</span><b>{formatDate(packet.expiresAt)}</b></div>
+        </div>
+
+        <PrintRunFoot page={1} pages={pages} />
+      </section>
+
+      <section className="sv-p-page">
+        <div className="sv-p-noise" />
+        <PrintRunHead stamp="Ranked candidates" />
+        <span className="sv-p-kicker">The shortlist</span>
+        <div className="sv-p-sec-title">Ranked candidates</div>
+        <div className="sv-p-sec-sub">Ordered by Fit Index. Surfaces what you need to decide, faster.</div>
+
+        <div className="sv-p-scene-card">
+          <div>The scene</div>
+          <h3>Decision <em>brief</em></h3>
+          <p>{packet.briefText || 'Scene brief pending.'}</p>
+        </div>
+
+        <div className="sv-p-rank-list">
+          {packet.tracks.map((slot, i) => (
+            <div className={`sv-p-rank-row ${i === 0 ? 'approved' : ''}`} key={slot.trackId}>
+              <div className="rk">{slot.rank}</div>
+              <div className="nm"><div>{slot.title}</div><span>{slot.artistName ? `by ${slot.artistName}` : 'Artist pending'}</span></div>
+              <div className={`state ${i === 0 ? 'approved' : 'pending'}`}>{i === 0 ? 'Recommended' : 'Review'}</div>
+              <div className="cov"><b>{slot.rightsAggregate.confirmedFields}</b>/{slot.rightsAggregate.totalFields} rights</div>
+              <div className="fit"><div>{slot.fitIndex}</div><span>Fit</span></div>
+            </div>
+          ))}
+        </div>
+
+        <div className="sv-p-tally">
+          <div><b className="ap">{top ? 1 : 0}</b><span>Recommended</span></div>
+          <div><b className="ps">{Math.max(packet.tracks.length - 1, 0)}</b><span>For review</span></div>
+          <div><b className="pe">{packet.totalConflicts}</b><span>Rights conflicts</span></div>
+        </div>
+
+        <PrintRunFoot page={2} pages={pages} />
+      </section>
+
+      {packet.tracks.map((slot, index) => (
+        <PrintTrackPage key={slot.trackId} slot={slot} index={index} total={packet.tracks.length} pages={pages} />
+      ))}
+
+      {top && runnerUp && (
+        <section className="sv-p-page">
+          <div className="sv-p-noise" />
+          <PrintRunHead stamp="Top 2 - Head-to-head" />
+          <span className="sv-p-kicker">The decision</span>
+          <div className="sv-p-sec-title">Top 2 head-to-head</div>
+          <div className="sv-p-sec-sub">{top.title} vs {runnerUp.title} against the same scene.</div>
+
+          <div className="sv-p-h2h">
+            <div className="leader">
+              <span>Clear leader</span>
+              <h3>{top.title}</h3>
+              <p>{[top.tonalCharacter, top.energyCharacter, top.tempo ? `${Math.round(top.tempo)} BPM` : null].filter(Boolean).join(' - ')}</p>
+              <b>{top.fitIndex}</b>
+              <em>{top.explanation}</em>
+            </div>
+            <div className="gut"><i>▲</i><b>+{Math.max(top.fitIndex - runnerUp.fitIndex, 0)}</b><span>Lead</span></div>
+            <div>
+              <h3>{runnerUp.title}</h3>
+              <p>{[runnerUp.tonalCharacter, runnerUp.energyCharacter, runnerUp.tempo ? `${Math.round(runnerUp.tempo)} BPM` : null].filter(Boolean).join(' - ')}</p>
+              <b>{runnerUp.fitIndex}</b>
+              <em>{runnerUp.explanation}</em>
+            </div>
+          </div>
+
+          <div className="sv-p-verdict">
+            <div>Recommendation</div>
+            <p><b>{top.title}</b> leads by {Math.max(top.fitIndex - runnerUp.fitIndex, 0)} points. Use the rights detail above to confirm clearance before final placement.</p>
+          </div>
+
+          <div className="sv-p-closing">
+            <img src="/logo.png" alt="SyncVision" />
+            <p>SyncScore is deterministic and audit-stable: the same inputs produce the same ranking. Shared via syncvision.app.</p>
+          </div>
+
+          <PrintRunFoot page={pages} pages={pages} />
+        </section>
+      )}
+    </div>
+  );
+}
+
 // ─── Main ShareView ───────────────────────────────────────────────────────────
 interface ShareViewProps {
   packet: DecisionPacket;
@@ -711,14 +954,661 @@ export default function ShareView({ packet }: ShareViewProps) {
         .sv-ledger-body   { display: none; }
         .sv-pipeline-body { display: none; }
         .print-only       { display: none; }
+        .sv-print-report  { display: none; }
+
+        .sv-p-page, .sv-p-page * { box-sizing: border-box; }
+        .sv-p-page {
+          width: 210mm;
+          min-height: 297mm;
+          position: relative;
+          overflow: hidden;
+          background:
+            radial-gradient(620px 420px at 8% 4%, rgba(245,166,35,0.13), transparent 58%),
+            radial-gradient(560px 380px at 98% 6%, rgba(219,39,119,0.13), transparent 58%),
+            radial-gradient(760px 520px at 50% 108%, rgba(124,58,237,0.13), transparent 70%),
+            linear-gradient(160deg, #120D26, #0D0B1E);
+          color: #F4F2FA;
+          padding: 17mm 16mm 14mm;
+          font-family: ${SANS};
+        }
+        .sv-p-page > * { position: relative; z-index: 1; }
+        .sv-p-cover { display: flex; flex-direction: column; }
+        .sv-p-noise {
+          position: absolute;
+          inset: 0;
+          z-index: 0;
+          pointer-events: none;
+          opacity: 0.45;
+          mix-blend-mode: overlay;
+          background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+        }
+        .sv-p-logo { height: 17px; width: auto; display: block; }
+        .sv-p-runhead {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-bottom: 14px;
+          border-bottom: 1px solid rgba(123,112,178,0.18);
+          margin-bottom: 22px;
+        }
+        .sv-p-stamp,
+        .sv-p-runfoot {
+          font-family: ${MONO};
+          font-size: 8px;
+          letter-spacing: 0.08em;
+          color: rgba(155,147,196,0.62);
+          text-transform: uppercase;
+        }
+        .sv-p-stamp { font-size: 9px; letter-spacing: 0.14em; white-space: nowrap; }
+        .sv-p-runfoot {
+          position: absolute;
+          left: 16mm;
+          right: 16mm;
+          bottom: 10mm;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-top: 9px;
+          border-top: 1px solid rgba(123,112,178,0.18);
+        }
+        .sv-p-brandrow {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .sv-p-cover-logo { height: 24px; width: auto; }
+        .sv-p-brandrow span,
+        .sv-p-state,
+        .sv-p-rank-row .state {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          padding: 5px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(123,112,178,0.34);
+          font-size: 9px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: #9B93C4;
+          white-space: nowrap;
+          font-weight: 700;
+        }
+        .sv-p-brandrow b { color: #F4F2FA; }
+        .sv-p-hero {
+          margin-top: auto;
+          margin-bottom: auto;
+          padding: 94px 0 76px;
+        }
+        .sv-p-kicker {
+          font-size: 10px;
+          letter-spacing: 0.26em;
+          text-transform: uppercase;
+          color: #F5A623;
+          font-weight: 700;
+          display: inline-flex;
+          align-items: center;
+          gap: 9px;
+        }
+        .sv-p-kicker::before {
+          content: "";
+          width: 26px;
+          height: 1px;
+          background: linear-gradient(90deg, #F5A623, transparent);
+        }
+        .sv-p-cover h1 {
+          font-family: ${SERIF};
+          font-weight: 400;
+          font-size: 76px;
+          line-height: 0.96;
+          letter-spacing: -0.02em;
+          margin: 16px 0 0;
+        }
+        .sv-p-cover h1 em,
+        .sv-p-scene-card h3 em { color: #F5A623; font-style: italic; }
+        .sv-p-hero p {
+          font-family: ${SERIF};
+          font-style: italic;
+          font-size: 20px;
+          line-height: 1.45;
+          color: rgba(226,224,240,0.86);
+          margin: 22px 0 0;
+          max-width: 44ch;
+        }
+        .sv-p-moods {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+          margin-top: 26px;
+        }
+        .sv-p-moods span {
+          font-size: 10.5px;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          padding: 5px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(123,112,178,0.34);
+          color: #9B93C4;
+        }
+        .sv-p-moods .accent {
+          border-color: rgba(245,166,35,0.4);
+          color: #F5A623;
+          background: rgba(245,166,35,0.06);
+        }
+        .sv-p-metagrid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 1px;
+          background: rgba(123,112,178,0.18);
+          border: 1px solid rgba(123,112,178,0.18);
+          border-radius: 14px;
+          overflow: hidden;
+        }
+        .sv-p-metagrid div {
+          background: rgba(13,8,30,0.6);
+          padding: 16px;
+        }
+        .sv-p-metagrid span,
+        .sv-p-rf div,
+        .sv-p-panel-label,
+        .sv-p-lab,
+        .sv-p-tally span,
+        .sv-p-verdict div {
+          display: block;
+          font-size: 8.5px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: rgba(155,147,196,0.62);
+          font-weight: 700;
+        }
+        .sv-p-metagrid b {
+          display: block;
+          font-size: 14px;
+          color: #F4F2FA;
+          margin-top: 6px;
+          font-weight: 600;
+        }
+        .sv-p-metagrid em { font-family: ${SERIF}; color: #9B93C4; font-weight: 400; }
+        .sv-p-sec-title {
+          font-family: ${SERIF};
+          font-size: 30px;
+          line-height: 1.1;
+          letter-spacing: -0.015em;
+          margin: 4px 0 2px;
+        }
+        .sv-p-sec-sub {
+          font-size: 11px;
+          color: #9B93C4;
+          margin-bottom: 18px;
+        }
+        .sv-p-scene-card {
+          border: 1px solid rgba(123,112,178,0.18);
+          border-radius: 16px;
+          padding: 20px 22px;
+          background: rgba(13,8,30,0.5);
+          position: relative;
+          overflow: hidden;
+          margin-bottom: 22px;
+        }
+        .sv-p-scene-card::before {
+          content: "";
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 3px;
+          background: linear-gradient(180deg, #DB2777, #F5A623);
+        }
+        .sv-p-scene-card div {
+          font-size: 9.5px;
+          letter-spacing: 0.22em;
+          text-transform: uppercase;
+          color: #9B93C4;
+        }
+        .sv-p-scene-card h3 {
+          font-family: ${SERIF};
+          font-weight: 400;
+          font-size: 28px;
+          margin: 6px 0 8px;
+        }
+        .sv-p-scene-card p {
+          font-family: ${SERIF};
+          font-style: italic;
+          font-size: 14px;
+          line-height: 1.5;
+          color: rgba(226,224,240,0.82);
+          margin: 0;
+        }
+        .sv-p-rank-list { display: flex; flex-direction: column; gap: 10px; }
+        .sv-p-rank-row {
+          display: grid;
+          grid-template-columns: 30px 1fr 104px 110px 70px;
+          gap: 16px;
+          align-items: center;
+          padding: 15px 18px;
+          border: 1px solid rgba(123,112,178,0.18);
+          border-radius: 14px;
+          background: rgba(13,8,30,0.45);
+        }
+        .sv-p-rank-row.approved {
+          border-color: rgba(76,175,130,0.4);
+          background: linear-gradient(180deg, rgba(76,175,130,0.06), rgba(13,8,30,0.5));
+        }
+        .sv-p-rank-row .rk {
+          font-family: ${SERIF};
+          font-style: italic;
+          font-size: 30px;
+          color: #9B93C4;
+          line-height: 1;
+        }
+        .sv-p-rank-row.approved .rk { color: #4CAF82; }
+        .sv-p-rank-row .nm { min-width: 0; }
+        .sv-p-rank-row .nm div {
+          font-family: ${SERIF};
+          font-size: 19px;
+          line-height: 1.1;
+        }
+        .sv-p-rank-row .nm span {
+          display: block;
+          font-family: ${SERIF};
+          font-style: italic;
+          font-size: 12px;
+          color: #9B93C4;
+          margin-top: 2px;
+        }
+        .sv-p-rank-row .state.approved,
+        .sv-p-state.clear,
+        .sv-p-state.part,
+        .sv-p-state.blocked {
+          color: #4CAF82;
+          border-color: rgba(76,175,130,0.45);
+          background: rgba(76,175,130,0.12);
+        }
+        .sv-p-rank-row .state.pending,
+        .sv-p-state.part { color: #F5A623; border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.1); }
+        .sv-p-state.blocked { color: #E85A5A; border-color: rgba(232,90,90,0.4); background: rgba(232,90,90,0.1); }
+        .sv-p-rank-row .cov {
+          font-family: ${MONO};
+          font-size: 11px;
+          color: #9B93C4;
+        }
+        .sv-p-rank-row .cov b { color: #F4F2FA; }
+        .sv-p-rank-row .fit { text-align: right; }
+        .sv-p-rank-row .fit div,
+        .sv-p-tally b {
+          font-family: ${SERIF};
+          font-size: 30px;
+          line-height: 1;
+          font-weight: 400;
+        }
+        .sv-p-rank-row .fit span {
+          display: block;
+          font-size: 8px;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: rgba(155,147,196,0.62);
+          margin-top: 2px;
+        }
+        .sv-p-tally {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 14px;
+          margin-top: 22px;
+        }
+        .sv-p-tally div {
+          border: 1px solid rgba(123,112,178,0.18);
+          border-radius: 14px;
+          padding: 16px 18px;
+          background: rgba(13,8,30,0.45);
+        }
+        .sv-p-tally b { display: block; font-size: 38px; margin-bottom: 8px; }
+        .sv-p-tally .ap { color: #4CAF82; }
+        .sv-p-tally .ps { color: #9B93C4; }
+        .sv-p-tally .pe { color: #F5A623; font-style: italic; }
+        .sv-p-td-head {
+          display: flex;
+          align-items: flex-start;
+          gap: 18px;
+          margin-bottom: 18px;
+        }
+        .sv-p-td-head .sv-p-rk {
+          font-family: ${SERIF};
+          font-style: italic;
+          font-size: 56px;
+          line-height: 0.8;
+          color: #9B93C4;
+          letter-spacing: -0.03em;
+        }
+        .sv-p-td-head.is-leader .sv-p-rk {
+          background: linear-gradient(180deg, #fff, #F5A623);
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+        .sv-p-info { flex: 1; min-width: 0; }
+        .sv-p-track-name {
+          font-family: ${SERIF};
+          font-size: 32px;
+          line-height: 1.02;
+          letter-spacing: -0.015em;
+          margin-top: 8px;
+        }
+        .sv-p-meta {
+          font-size: 10.5px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: #9B93C4;
+          margin-top: 7px;
+        }
+        .sv-p-score { text-align: right; flex-shrink: 0; }
+        .sv-p-score div {
+          font-family: ${SERIF};
+          font-size: 58px;
+          line-height: 0.78;
+          font-variant-numeric: tabular-nums;
+        }
+        .sv-p-score span {
+          display: block;
+          font-size: 8.5px;
+          letter-spacing: 0.22em;
+          text-transform: uppercase;
+          color: rgba(155,147,196,0.62);
+          margin-top: 4px;
+        }
+        .sv-p-assess {
+          border-left: 2px solid #F5A623;
+          padding: 4px 0 4px 16px;
+          margin-bottom: 20px;
+        }
+        .sv-p-lab { color: #F5A623; }
+        .sv-p-lab em { color: rgba(155,147,196,0.62); font-style: normal; font-weight: 500; margin-left: 8px; letter-spacing: 0.06em; }
+        .sv-p-assess p {
+          font-family: ${SERIF};
+          font-style: italic;
+          font-size: 15px;
+          line-height: 1.5;
+          color: rgba(226,224,240,0.9);
+          margin: 8px 0 0;
+        }
+        .sv-p-panel-label { margin: 0 0 12px; color: #9B93C4; }
+        .sv-p-axes { display: flex; flex-direction: column; gap: 9px; margin-bottom: 22px; }
+        .sv-p-axis {
+          display: grid;
+          grid-template-columns: 70px 1fr 34px;
+          gap: 12px;
+          align-items: center;
+        }
+        .sv-p-axis span {
+          font-size: 9px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: #9B93C4;
+          font-weight: 700;
+        }
+        .sv-p-axis i {
+          display: block;
+          height: 9px;
+          border-radius: 5px;
+          background: rgba(167,139,250,0.14);
+          overflow: hidden;
+        }
+        .sv-p-axis b {
+          display: block;
+          height: 100%;
+          border-radius: 5px;
+          background: linear-gradient(90deg, #F5A623, #DB2777);
+        }
+        .sv-p-axis strong {
+          font-family: ${MONO};
+          font-size: 12px;
+          text-align: right;
+          color: #F5A623;
+        }
+        .sv-p-axis-cap {
+          font-size: 8.5px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(155,147,196,0.62);
+          margin: -12px 0 22px;
+        }
+        .sv-p-rights {
+          display: grid;
+          grid-template-columns: 1.45fr 1fr;
+          border: 1px solid rgba(123,112,178,0.18);
+          border-radius: 16px;
+          overflow: hidden;
+        }
+        .sv-p-rights-head {
+          grid-column: 1 / -1;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 18px;
+          border-bottom: 1px solid rgba(123,112,178,0.18);
+          background: linear-gradient(180deg, rgba(245,166,35,0.06), transparent);
+        }
+        .sv-p-rights-head span {
+          font-size: 9.5px;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: #F5A623;
+          font-weight: 700;
+        }
+        .sv-p-rights-head b {
+          font-family: ${MONO};
+          font-size: 10px;
+          letter-spacing: 0.04em;
+          padding: 4px 10px;
+          border-radius: 999px;
+          font-weight: 500;
+        }
+        .sv-p-rights-head .clear,
+        .sv-p-rf .clear { color: #4CAF82; }
+        .sv-p-rights-head .part,
+        .sv-p-rf .part { color: #FBBF24; }
+        .sv-p-rights-head .blocked,
+        .sv-p-rf .blocked { color: #E85A5A; }
+        .sv-p-rfields {
+          padding: 15px 18px;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px 18px;
+        }
+        .sv-p-rf div { color: #F5A623; font-size: 8px; letter-spacing: 0.12em; }
+        .sv-p-rf span {
+          display: block;
+          font-family: ${MONO};
+          font-size: 11px;
+          color: #F4F2FA;
+          margin-top: 2px;
+          word-break: break-word;
+        }
+        .sv-p-rf .none {
+          font-family: ${SERIF};
+          font-style: italic;
+          font-size: 12px;
+          color: rgba(107,100,144,0.85);
+        }
+        .sv-p-pipe {
+          border-left: 1px solid rgba(123,112,178,0.18);
+          padding: 15px 18px;
+          background: rgba(255,255,255,0.012);
+        }
+        .sv-p-pc {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          margin-bottom: 8px;
+        }
+        .sv-p-pc span {
+          font-size: 8px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: #9B93C4;
+          font-weight: 700;
+        }
+        .sv-p-pc b {
+          font-family: ${SERIF};
+          font-style: italic;
+          font-size: 26px;
+          color: #F5A623;
+          font-weight: 400;
+        }
+        .sv-p-stage {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          font-size: 10px;
+          color: #F4F2FA;
+          margin-top: 7px;
+          text-transform: capitalize;
+        }
+        .sv-p-stage i {
+          width: 15px;
+          height: 15px;
+          border-radius: 50%;
+          display: grid;
+          place-items: center;
+          font-size: 9px;
+          font-weight: 800;
+          font-family: ${MONO};
+          font-style: normal;
+          flex-shrink: 0;
+        }
+        .sv-p-stage.ok i { background: rgba(76,175,130,0.18); color: #4CAF82; border: 1px solid rgba(76,175,130,0.4); }
+        .sv-p-stage.no { color: rgba(155,147,196,0.62); }
+        .sv-p-stage.no i { background: rgba(123,112,178,0.1); color: #9B93C4; border: 1px solid rgba(123,112,178,0.34); }
+        .sv-p-h2h {
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          align-items: stretch;
+          border: 1px solid rgba(123,112,178,0.18);
+          border-radius: 16px;
+          overflow: hidden;
+        }
+        .sv-p-h2h > div { padding: 22px; }
+        .sv-p-h2h .leader { background: linear-gradient(180deg, rgba(245,166,35,0.06), transparent); }
+        .sv-p-h2h .leader span {
+          display: inline-flex;
+          font-size: 8.5px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          font-weight: 700;
+          padding: 4px 9px;
+          border-radius: 999px;
+          background: rgba(76,175,130,0.16);
+          border: 1px solid rgba(76,175,130,0.45);
+          color: #4CAF82;
+          margin-bottom: 8px;
+        }
+        .sv-p-h2h h3 {
+          font-family: ${SERIF};
+          font-size: 23px;
+          font-weight: 400;
+          line-height: 1.05;
+          margin: 0;
+        }
+        .sv-p-h2h p {
+          font-size: 10px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: #9B93C4;
+          margin: 5px 0 0;
+        }
+        .sv-p-h2h b {
+          display: block;
+          font-family: ${SERIF};
+          font-size: 50px;
+          line-height: 0.9;
+          margin-top: 12px;
+          font-weight: 400;
+        }
+        .sv-p-h2h em {
+          display: block;
+          font-family: ${SERIF};
+          font-style: italic;
+          font-size: 13px;
+          line-height: 1.45;
+          color: rgba(226,224,240,0.86);
+          margin-top: 14px;
+        }
+        .sv-p-h2h .gut {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          padding: 0 18px;
+          border-left: 1px solid rgba(123,112,178,0.18);
+          border-right: 1px solid rgba(123,112,178,0.18);
+        }
+        .sv-p-h2h .gut i { color: #4CAF82; font-style: normal; font-size: 16px; }
+        .sv-p-h2h .gut b { color: #4CAF82; font-size: 32px; margin: 0; font-style: italic; }
+        .sv-p-h2h .gut span {
+          font-size: 8px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: #4CAF82;
+          font-weight: 700;
+        }
+        .sv-p-verdict {
+          margin-top: 22px;
+          padding: 20px 24px;
+          border-radius: 16px;
+          border: 1px solid rgba(245,166,35,0.28);
+          background: linear-gradient(135deg, rgba(245,166,35,0.12), rgba(219,39,119,0.08));
+        }
+        .sv-p-verdict div { color: #F5A623; margin-bottom: 8px; }
+        .sv-p-verdict p {
+          font-family: ${SERIF};
+          font-size: 17px;
+          line-height: 1.45;
+          margin: 0;
+        }
+        .sv-p-verdict b { font-family: ${SANS}; }
+        .sv-p-closing {
+          margin-top: 28px;
+          padding-top: 24px;
+          border-top: 1px solid rgba(123,112,178,0.18);
+        }
+        .sv-p-closing img { height: 18px; width: auto; opacity: 0.9; }
+        .sv-p-closing p {
+          font-family: ${SERIF};
+          font-style: italic;
+          font-size: 13px;
+          color: #9B93C4;
+          margin-top: 10px;
+          max-width: 60ch;
+          line-height: 1.5;
+        }
 
         @media print {
+          @page { size: A4 portrait; margin: 0; }
           *, *::before, *::after {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             color-adjust: exact !important;
           }
           html, body { background: #0D0B1E !important; color: #F4F2FA !important; }
+          .sv-screen-share { display: none !important; }
+          .sv-print-report {
+            display: block !important;
+            background: #07041a !important;
+          }
+          .sv-p-page {
+            width: 210mm !important;
+            height: 297mm !important;
+            min-height: 297mm !important;
+            box-shadow: none !important;
+            break-after: page;
+            page-break-after: always;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .sv-p-page:last-child {
+            break-after: auto;
+            page-break-after: auto;
+          }
           .sv-share-grid   { display: block !important; }
           .sv-share-left   { display: none !important; }
           .sv-share-right  { display: none !important; }
@@ -735,7 +1625,9 @@ export default function ShareView({ packet }: ShareViewProps) {
         }
       `}</style>
 
-      <div className="sv-share-grid" style={{
+      <PrintReport packet={packet} />
+
+      <div className="sv-share-grid sv-screen-share" style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(0,260px) 1fr minmax(0,240px)',
         minHeight: '100vh',
