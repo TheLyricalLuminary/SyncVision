@@ -930,6 +930,346 @@ function PrintReport({ packet }: { packet: DecisionPacket }) {
   );
 }
 
+type DecisionState = 'approved' | 'leader' | 'passed';
+
+const WAVE_HEIGHTS = [30, 55, 40, 72, 50, 90, 60, 35, 65, 48, 78, 42, 62, 38, 55, 80, 45, 60, 30, 70, 42, 55, 36, 50, 65, 40, 58, 32, 48, 55, 38, 60, 42, 50, 30, 45, 52, 34, 66, 44, 58, 36, 49, 63, 41, 54];
+
+function CheckIcon({ size = 11 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L20 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+function XIcon({ size = 11 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>;
+}
+
+function PlayIcon({ size = 14 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 10 10"><path d="M2 1 L8 5 L2 9 Z" fill="currentColor" /></svg>;
+}
+
+function SparkIcon() {
+  return <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" fill="currentColor" /></svg>;
+}
+
+function CompareIcon({ size = 20 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M9 4 H5 a1 1 0 0 0-1 1 v14 a1 1 0 0 0 1 1 h4 M15 4 h4 a1 1 0 0 1 1 1 v14 a1 1 0 0 1-1 1 h-4 M12 3 v18" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+function prettySceneName(packet: DecisionPacket) {
+  if (packet.briefText.toLowerCase().includes('quiet surrender')) return 'The Quiet Surrender';
+  return packet.briefId
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ') || 'The Quiet Surrender';
+}
+
+function trackMeta(slot: TrackSlot) {
+  const parts = [
+    slot.artistName ? `by ${slot.artistName}` : null,
+    slot.tempo ? `${Math.round(slot.tempo)} BPM` : null,
+  ].filter(Boolean);
+  return parts.join(' - ');
+}
+
+function axisPct(value: number) {
+  return Math.round(value * 100);
+}
+
+function LiveWaveform({ slot, played = false }: { slot: TrackSlot; played?: boolean }) {
+  const duration = slot.tempo ? Math.round(Math.max(150, Math.min(220, slot.tempo * 2.35))) : 174;
+  const current = played ? Math.min(72, duration) : 0;
+  const playedBars = Math.round((current / duration) * WAVE_HEIGHTS.length);
+
+  return (
+    <div className="track-waveform">
+      <button className="play" type="button" aria-label={`Play ${slot.title}`}><PlayIcon /></button>
+      <div className="wave" aria-hidden="true">
+        {WAVE_HEIGHTS.map((height, index) => (
+          <i key={`${slot.trackId}-${index}`} className={index < playedBars ? 'played' : undefined} style={{ height: `${height}%` }} />
+        ))}
+      </div>
+      <span className="time">{formatTime(current)} / {formatTime(duration)}</span>
+    </div>
+  );
+}
+
+function LiveRightsBlock({ slot }: { slot: TrackSlot }) {
+  const clearance = clearanceLabel(slot.rightsState);
+  const completed = slot.pipeline.filter(stage => stage.completed).length;
+  const confidence = slot.pipeline.length ? Math.round((completed / slot.pipeline.length) * 100) : 0;
+  const fields = [
+    ['ISRC', slot.isrc ?? '- not entered -'],
+    ['Work ID - ISWC', fieldValue(slot, 'iswc')],
+    ['Writer', fieldValue(slot, 'writer')],
+    ['Writer split %', fieldValue(slot, 'split_pct')],
+    ['Writer IPI', fieldValue(slot, 'ipi')],
+    ['Publisher', fieldValue(slot, 'publisher')],
+    ['PRO affiliation', fieldValue(slot, 'pro_affiliation')],
+    ['Sync license', clearance.label],
+  ];
+
+  return (
+    <div className="rights-block">
+      <div className="rights-head">
+        <span className="rb-label">Rights & clearance</span>
+        <span className={`rb-status ${clearance.tone}`}>{clearance.label}</span>
+      </div>
+      <div className="rights-body">
+        <div className="rights-grid">
+          {fields.map(([label, value]) => (
+            <div className="rf" key={label}>
+              <span className="k">{label}</span>
+              <span className={`v ${String(value).startsWith('-') ? 'none' : ''}`}>{value}</span>
+            </div>
+          ))}
+        </div>
+        <div className="rights-pipeline">
+          <div className="rp-top"><span className="lbl">Rights confidence</span><span className="pct">{confidence}%</span></div>
+          {slot.pipeline.map(stage => (
+            <div className={`rp-stage ${stage.completed ? 'ok' : 'no'}`} key={stage.stage}>
+              <span className="gl">{stage.completed ? '✓' : '×'}</span>
+              {stage.stage.replace(/_/g, ' ').toLowerCase()}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LiveTrackCard({
+  slot,
+  state,
+  setState,
+  showRights,
+}: {
+  slot: TrackSlot;
+  state: DecisionState;
+  setState: (state: DecisionState) => void;
+  showRights?: boolean;
+}) {
+  const isApproved = state === 'approved';
+  const isPassed = state === 'passed';
+  const label = isApproved ? 'Approved' : isPassed ? 'Passed' : 'Awaiting decision';
+
+  return (
+    <article className="track-card" data-state={state}>
+      <div className="track-head">
+        <div className="track-rank">{slot.rank}</div>
+        <div className="track-info">
+          <span className="track-state-pill">
+            {isApproved ? <CheckIcon size={9} /> : isPassed ? <XIcon size={9} /> : <span className="dot" />}
+            {label}
+          </span>
+          <div className="track-name">{slot.title}</div>
+          <div className="track-artist">{trackMeta(slot) || 'by Artist pending'}</div>
+        </div>
+        <div className="track-score-block"><div className="n">{slot.fitIndex}</div><div className="l">Fit</div></div>
+      </div>
+
+      {!isPassed && <LiveWaveform slot={slot} played={isApproved} />}
+
+      <div className="ai-quote">
+        <div className="ai-label"><SparkIcon />Why this track</div>
+        <p>{slot.explanation}</p>
+      </div>
+
+      {showRights && <LiveRightsBlock slot={slot} />}
+
+      <div className="decision-row">
+        <button className="decision-btn approve" type="button" onClick={() => setState('approved')}>
+          <span className="ico"><CheckIcon /></span>{isApproved ? 'Approved' : 'Approve'}
+        </button>
+        <button className="decision-btn pass" type="button" onClick={() => setState('passed')}>
+          <span className="ico"><XIcon /></span>{isPassed ? 'Passed' : 'Pass'}
+        </button>
+      </div>
+
+      {!isPassed && (
+        <div className={`comment-strip ${isApproved ? 'has-note' : ''}`}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 5 H20 V17 H10 L6 21 V17 H4 Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>
+          <input className="comment-input" defaultValue={isApproved ? 'This is the one. Use full track up to the second verse.' : ''} placeholder="Leave a note for Maya..." />
+        </div>
+      )}
+    </article>
+  );
+}
+
+function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open: boolean; onClose: () => void }) {
+  const first = packet.tracks[0];
+  const second = packet.tracks[1];
+  if (!first || !second) return null;
+  const lead = Math.max(first.fitIndex - second.fitIndex, 0);
+
+  return (
+    <div className={`cmp-overlay ${open ? 'open' : ''}`} role="dialog" aria-modal="true" aria-label="Top 2 head-to-head comparison">
+      <div className="cmp-modal">
+        <div className="cmp-head">
+          <div>
+            <span className="ch-kicker"><CompareIcon size={12} />Top 2 head-to-head</span>
+            <h2>{first.title} <span>vs</span> {second.title}</h2>
+            <div className="ch-scene">Scene 14 - <em>{prettySceneName(packet)}.</em> {packet.briefText}</div>
+          </div>
+          <button className="cmp-close" type="button" onClick={onClose} aria-label="Close comparison"><XIcon size={16} /></button>
+        </div>
+
+        <div className="cmp-transport">
+          <button className="cmp-playbtn" type="button"><PlayIcon /><span>Play both</span></button>
+          <div className="cmp-seg"><button className="on" type="button">Both</button><button type="button">#1</button><button type="button">#2</button></div>
+          <button className="cmp-chip" data-on="1" type="button"><span className="dot" />Loop 30s</button>
+          <span className="cmp-tempo">Tempo <b>{first.tempo ? Math.round(first.tempo) : 68}</b> <span className="arrow">→</span> <b>{second.tempo ? Math.round(second.tempo) : 82}</b> BPM</span>
+        </div>
+        <div className="cmp-scrub-row"><div className="cmp-scrub"><div className="fill" /><div className="head" /></div><span className="cmp-time">0:00 / 0:30</span></div>
+
+        <div className="cmp-body">
+          <div className="cmp-section">
+            <div className="cmp-split cmp-identity">
+              {[first, second].map((slot, index) => (
+                <div className={`cmp-half ${index === 0 ? 'is-leader' : ''}`} key={slot.trackId}>
+                  {index === 0 && <span className="cmp-leader-badge"><CheckIcon size={9} />Clear leader</span>}
+                  <div className="cmp-trackname">{slot.title}</div>
+                  <div className="cmp-trackmeta">{[slot.tonalCharacter, slot.energyCharacter, slot.tempo ? `${Math.round(slot.tempo)} BPM` : null].filter(Boolean).join(' - ')}</div>
+                  <div className="cmp-score-row"><span className="cmp-score">{slot.fitIndex}</span><span className="cmp-score-l">Fit</span></div>
+                  <div className="cmp-mini-wave">{WAVE_HEIGHTS.map((height, i) => <i key={i} className={i < 16 ? 'played' : undefined} style={{ height: `${height}%` }} />)}</div>
+                </div>
+              ))}
+              <div className="cmp-gap"><div className="g-arrow">▲</div><div className="g-num">+{lead}</div><div className="g-lbl">Lead</div></div>
+            </div>
+          </div>
+
+          <div className="cmp-section">
+            <div className="cmp-seclabel">Why this track</div>
+            <div className="cmp-split">
+              <div className="cmp-half"><p className="cmp-why">{first.explanation}</p></div>
+              <div className="cmp-half"><p className="cmp-why">{second.explanation}</p></div>
+            </div>
+          </div>
+
+          <div className="cmp-section">
+            <div className="cmp-seclabel">SyncScore axes</div>
+            <div className="cmp-split">
+              {[first, second].map((slot, index) => (
+                <div className={`cmp-half ${index === 0 ? 'is-leader' : ''}`} key={slot.trackId}>
+                  <div className="cmp-axes">
+                    {([
+                      ['Scene', slot.vector.scene],
+                      ['Rights', slot.vector.rights],
+                      ['Lyrics', slot.vector.lyrics],
+                      ['Signal', slot.vector.signal],
+                    ] as const).map(([label, value]) => (
+                      <div className="cmp-axis" key={label}><span className="a-n">{label}</span><span className="a-t"><span className="a-f" style={{ width: `${axisPct(value)}%` }} /></span><span className="a-v">{axisPct(value)}</span></div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="cmp-section">
+            <div className="cmp-seclabel">Rights coverage</div>
+            <div className="cmp-split">
+              {[first, second].map(slot => {
+                const total = Math.max(slot.rightsAggregate.totalFields, 1);
+                const pct = Math.round((slot.rightsAggregate.confirmedFields / total) * 100);
+                const risk = pct >= 65 ? 'low' : pct >= 40 ? 'med' : 'high';
+                return (
+                  <div className="cmp-half" key={slot.trackId}>
+                    <div className="cmp-rights-cov"><span className="num">{slot.rightsAggregate.confirmedFields}</span><span className="of">of {total} cleared</span><span className="miss">{slot.rightsAggregate.missing} missing</span></div>
+                    <div className={`cmp-risk ${risk}`}><div className="r-track"><i style={{ width: `${pct}%` }} /></div><div className="r-lbl">{risk === 'low' ? '✓ Low clearance risk' : risk === 'med' ? '• Medium clearance risk' : '⚠ High clearance risk'}</div></div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="cmp-actions">
+          <div className="cmp-summary"><b>{first.title}</b> leads on intimacy and emotional fit. <b>{second.title}</b> may have cleaner rights, but pulls energy out of the scene.</div>
+          <div className="cmp-act-btns"><button className="cmp-act" type="button">Export top 2</button><button className="cmp-act" type="button">Send both to editor</button><button className="cmp-act primary" type="button">Save as new shortlist</button></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LiveShareView({ packet }: { packet: DecisionPacket }) {
+  const [decisions, setDecisions] = useState<Record<string, DecisionState>>(() => Object.fromEntries(
+    packet.tracks.map((slot, index) => [slot.trackId, index === 0 ? 'approved' : index === packet.tracks.length - 1 ? 'passed' : 'leader']),
+  ));
+  const [compareOpen, setCompareOpen] = useState(false);
+  const approved = Object.values(decisions).filter(state => state === 'approved').length;
+  const passed = Object.values(decisions).filter(state => state === 'passed').length;
+  const pending = Math.max(packet.tracks.length - approved - passed, 0);
+  const sceneName = prettySceneName(packet);
+  const moodPills = [
+    packet.sceneParams.emotionalRegister,
+    packet.sceneParams.pacing,
+    'Intimate',
+    'Bittersweet',
+  ].filter(Boolean).slice(0, 4);
+
+  return (
+    <div className="sv-live-share sv-screen-share">
+      <header className="topbar topbar-share">
+        <div className="topbar-inner">
+          <div className="brand">
+            <img className="logo" src="/logo.png" alt="SyncVision" />
+            <span className="divider" />
+            <span className="read-badge"><span className="lock">▣</span>Read-only - <b>Director View</b></span>
+          </div>
+          <div className="sender-card"><span className="avatar">MK</span><span className="who">Shared by Maya K.<span className="role">music supervisor</span></span></div>
+        </div>
+      </header>
+
+      <main className="shell">
+        <div className="hero-row">
+          <div className="titles"><span className="kicker">For your review</span><h1>{packet.tracks.length} candidates for <em>Scene 14.</em></h1></div>
+          <div className="hero-meta">Approve, pass, or leave a note. Decisions sync back to Maya.</div>
+        </div>
+
+        <section className="share-stage">
+          <aside className="brief-panel">
+            <div className="crumb">The Scene</div>
+            <h2>{sceneName.replace(/^The\s/i, 'The ')} <em>{sceneName.includes(' ') ? sceneName.split(' ').slice(-1)[0] : 'Surrender'}</em></h2>
+            <p className="brief-line">{packet.briefText || 'Two estranged brothers reconnect at a funeral. The moment before either of them speaks.'}</p>
+            <div className="brief-meta">
+              <div className="row"><span className="k">Pacing</span><span className="v">{packet.sceneParams.pacing ?? 'Slow'} - <em>restrained</em></span></div>
+              <div className="row"><span className="k">Listening for</span><span className="v"><em>{packet.sceneParams.emotionalRegister ?? 'Yearning, intimate, bittersweet emotional release.'}</em></span></div>
+            </div>
+            <div className="brief-pills">{moodPills.map(pill => <span className="pill" key={pill}>{pill}</span>)}</div>
+            <div className="decision-summary">
+              <div className="label">Your decisions</div>
+              <div className="count-row">
+                <div><div className="cnt ap">{approved}</div><div className="lbl">Approved</div></div>
+                <div><div className="cnt ps">{passed}</div><div className="lbl">Passed</div></div>
+                <div><div className="cnt left">{pending}</div><div className="lbl">Pending</div></div>
+              </div>
+              <div className="progress"><span className="ap-fill" style={{ width: `${(approved / packet.tracks.length) * 100}%` }} /><span className="ps-fill" style={{ width: `${(passed / packet.tracks.length) * 100}%` }} /></div>
+            </div>
+          </aside>
+
+          <div className="tracks-col">
+            <div className="tracks-head"><span className="label"><span className="count">{packet.tracks.length}</span> tracks - ranked by fit</span><span className="nav-helper">scroll to review</span></div>
+            {packet.tracks.map((slot, index) => (
+              <div key={slot.trackId} className="track-wrap">
+                {index === 1 && packet.tracks.length > 1 && (
+                  <button className="compare-cta" type="button" onClick={() => setCompareOpen(true)}>
+                    <span className="cc-ico"><CompareIcon /></span><span className="cc-txt"><span className="cc-title">Compare Top 2 head-to-head</span><span className="cc-sub">Hear #1 and #2 against the same scene, side by side</span></span><span className="cc-arrow">→</span>
+                  </button>
+                )}
+                <LiveTrackCard slot={slot} state={decisions[slot.trackId] ?? 'leader'} setState={state => setDecisions(current => ({ ...current, [slot.trackId]: state }))} showRights={index === 0} />
+              </div>
+            ))}
+            <div className="final-cta"><div className="copy">{pending} <em>pending</em>. When you've made all calls, Maya gets a notification.</div><button className="cta" type="button">Send decisions →</button></div>
+          </div>
+        </section>
+      </main>
+
+      <CompareModal packet={packet} open={compareOpen} onClose={() => setCompareOpen(false)} />
+    </div>
+  );
+}
+
 // ─── Main ShareView ───────────────────────────────────────────────────────────
 interface ShareViewProps {
   packet: DecisionPacket;
@@ -955,6 +1295,469 @@ export default function ShareView({ packet }: ShareViewProps) {
         .sv-pipeline-body { display: none; }
         .print-only       { display: none; }
         .sv-print-report  { display: none; }
+        .sv-legacy-share  { display: none !important; }
+
+        .sv-live-share {
+          --sv-bg0: #07041a;
+          --sv-bg1: #0D0B1E;
+          --sv-surface: rgba(25,18,48,0.78);
+          --sv-surface2: rgba(13,8,30,0.82);
+          --sv-silver: #F4F2FA;
+          --sv-lavender: #9B93C4;
+          --sv-amber: #F5A623;
+          --sv-magenta: #DB2777;
+          --sv-good: #4CAF82;
+          --sv-bad: #E85A5A;
+          --sv-hairline: rgba(123,112,178,0.18);
+          --sv-hairline-strong: rgba(123,112,178,0.34);
+          min-height: 100vh;
+          color: var(--sv-silver);
+          font-family: ${SANS};
+          background:
+            radial-gradient(760px 520px at 11% 16%, rgba(245,166,35,0.12), transparent 62%),
+            radial-gradient(700px 520px at 88% 15%, rgba(219,39,119,0.16), transparent 60%),
+            radial-gradient(840px 560px at 50% 105%, rgba(124,58,237,0.14), transparent 68%),
+            linear-gradient(180deg, var(--sv-bg0), var(--sv-bg1));
+          position: relative;
+          overflow-x: hidden;
+        }
+        .sv-live-share::before {
+          content: "";
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          opacity: 0.42;
+          mix-blend-mode: overlay;
+          background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+        }
+        .sv-live-share .topbar {
+          position: sticky;
+          top: 0;
+          z-index: 20;
+          background: linear-gradient(180deg, rgba(7,4,26,0.94), rgba(7,4,26,0.70) 72%, transparent);
+          -webkit-backdrop-filter: blur(14px);
+          backdrop-filter: blur(14px);
+          border-bottom: 1px solid var(--sv-hairline);
+        }
+        .sv-live-share .topbar-inner {
+          max-width: 1480px;
+          margin: 0 auto;
+          padding: 16px 28px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+        }
+        .sv-live-share .brand,
+        .sv-live-share .sender-card,
+        .sv-live-share .read-badge {
+          display: flex;
+          align-items: center;
+        }
+        .sv-live-share .brand { gap: 14px; }
+        .sv-live-share .brand .logo { height: 21px; width: auto; display: block; }
+        .sv-live-share .brand .divider { width: 1px; height: 18px; background: var(--sv-hairline-strong); }
+        .sv-live-share .read-badge {
+          gap: 8px;
+          padding: 5px 12px 5px 6px;
+          border-radius: 999px;
+          background: rgba(155,147,196,0.08);
+          border: 1px solid var(--sv-hairline-strong);
+          font-size: 10px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: var(--sv-lavender);
+        }
+        .sv-live-share .read-badge .lock {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: rgba(155,147,196,0.18);
+          color: var(--sv-lavender);
+          display: grid;
+          place-items: center;
+          font-size: 8px;
+        }
+        .sv-live-share .read-badge b { color: var(--sv-silver); }
+        .sv-live-share .sender-card {
+          gap: 10px;
+          padding: 6px 10px 6px 6px;
+          border-radius: 999px;
+          background: rgba(155,147,196,0.06);
+          border: 1px solid var(--sv-hairline);
+        }
+        .sv-live-share .avatar {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, var(--sv-amber), var(--sv-magenta));
+          color: white;
+          font-weight: 700;
+          font-size: 11px;
+          display: grid;
+          place-items: center;
+          flex-shrink: 0;
+        }
+        .sv-live-share .who { font-size: 12px; color: var(--sv-silver); font-weight: 700; line-height: 1.2; }
+        .sv-live-share .role { display: block; font-family: ${SERIF}; font-style: italic; color: var(--sv-lavender); font-size: 11px; font-weight: 400; }
+        .sv-live-share .shell {
+          position: relative;
+          z-index: 1;
+          max-width: 1480px;
+          margin: 0 auto;
+          padding: 36px 28px 96px;
+        }
+        .sv-live-share .hero-row {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 24px;
+          margin-bottom: 24px;
+          flex-wrap: wrap;
+        }
+        .sv-live-share .kicker {
+          font-size: 11px;
+          letter-spacing: 0.24em;
+          text-transform: uppercase;
+          color: var(--sv-amber);
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .sv-live-share .kicker::before {
+          content: "";
+          width: 28px;
+          height: 1px;
+          background: linear-gradient(90deg, var(--sv-amber), transparent);
+        }
+        .sv-live-share h1 {
+          margin: 8px 0 0;
+          font-family: ${SERIF};
+          font-weight: 400;
+          font-size: clamp(32px, 4.4vw, 56px);
+          line-height: 1.02;
+          letter-spacing: -0.02em;
+          color: var(--sv-silver);
+        }
+        .sv-live-share h1 em,
+        .sv-live-share .brief-panel h2 em { color: var(--sv-amber); font-style: italic; }
+        .sv-live-share .hero-meta {
+          font-family: ${SERIF};
+          font-style: italic;
+          font-size: clamp(14px, 1.4vw, 18px);
+          color: rgba(155,147,196,0.76);
+          max-width: 340px;
+          text-align: right;
+        }
+        .sv-live-share .share-stage {
+          display: grid;
+          grid-template-columns: minmax(320px, 1fr) minmax(0, 1.8fr);
+          gap: 44px;
+          align-items: start;
+        }
+        .sv-live-share .brief-panel {
+          position: sticky;
+          top: 96px;
+          border-radius: 22px;
+          background: linear-gradient(180deg, var(--sv-surface), var(--sv-surface2));
+          border: 1px solid var(--sv-hairline);
+          padding: 34px;
+          overflow: hidden;
+        }
+        .sv-live-share .brief-panel::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 3px;
+          background: linear-gradient(180deg, var(--sv-magenta), var(--sv-amber));
+        }
+        .sv-live-share .brief-panel .crumb,
+        .sv-live-share .tracks-head .label,
+        .sv-live-share .decision-summary .label,
+        .sv-live-share .decision-summary .lbl {
+          font-size: 10px;
+          letter-spacing: 0.22em;
+          text-transform: uppercase;
+          color: var(--sv-lavender);
+        }
+        .sv-live-share .brief-panel h2 {
+          margin: 6px 0 18px;
+          font-family: ${SERIF};
+          font-weight: 400;
+          font-size: 44px;
+          line-height: 1.05;
+          letter-spacing: -0.015em;
+        }
+        .sv-live-share .brief-line {
+          margin: 0 0 22px;
+          font-family: ${SERIF};
+          font-style: italic;
+          font-size: 21px;
+          line-height: 1.4;
+          color: rgba(226,224,240,0.86);
+          max-width: 34ch;
+        }
+        .sv-live-share .brief-meta {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          padding-top: 18px;
+          border-top: 1px solid var(--sv-hairline);
+        }
+        .sv-live-share .brief-meta .row { display: flex; align-items: baseline; gap: 14px; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; }
+        .sv-live-share .brief-meta .k { color: rgba(155,147,196,0.65); width: 72px; flex-shrink: 0; }
+        .sv-live-share .brief-meta .v { color: var(--sv-silver); font-weight: 600; text-transform: none; font-size: 15px; }
+        .sv-live-share .brief-meta .v em { font-family: ${SERIF}; font-style: italic; color: var(--sv-lavender); font-weight: 400; font-size: 16px; }
+        .sv-live-share .brief-pills { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
+        .sv-live-share .pill {
+          font-size: 12px;
+          font-weight: 600;
+          padding: 5px 12px;
+          border-radius: 999px;
+          color: var(--sv-amber);
+          border: 1px solid rgba(245,166,35,0.30);
+          background: rgba(245,166,35,0.06);
+        }
+        .sv-live-share .decision-summary {
+          margin-top: 20px;
+          padding: 16px 18px;
+          border-radius: 12px;
+          background: rgba(7,4,26,0.5);
+          border: 1px solid var(--sv-hairline);
+        }
+        .sv-live-share .count-row { display: flex; align-items: baseline; gap: 18px; font-family: ${SERIF}; margin-top: 10px; }
+        .sv-live-share .cnt { font-size: 34px; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+        .sv-live-share .cnt.ap { color: var(--sv-good); }
+        .sv-live-share .cnt.ps { color: rgba(155,147,196,0.72); }
+        .sv-live-share .cnt.left { color: var(--sv-magenta); font-style: italic; }
+        .sv-live-share .progress { margin-top: 12px; display: flex; height: 5px; border-radius: 4px; background: rgba(155,147,196,0.12); overflow: hidden; }
+        .sv-live-share .ap-fill { background: var(--sv-good); }
+        .sv-live-share .ps-fill { background: rgba(155,147,196,0.48); }
+        .sv-live-share .tracks-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+        .sv-live-share .track-wrap { display: contents; }
+        .sv-live-share .tracks-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 4px; flex-wrap: wrap; }
+        .sv-live-share .tracks-head .count { color: var(--sv-amber); font-weight: 700; margin-right: 4px; }
+        .sv-live-share .nav-helper { font-family: ${SERIF}; font-style: italic; font-size: 15px; color: rgba(155,147,196,0.72); }
+        .sv-live-share .track-card {
+          position: relative;
+          border-radius: 24px;
+          background: linear-gradient(180deg, var(--sv-surface), var(--sv-surface2));
+          border: 1px solid var(--sv-hairline);
+          padding: 30px 34px 28px;
+          transition: border-color .2s ease, transform .15s ease;
+        }
+        .sv-live-share .track-card:hover { border-color: rgba(245,166,35,0.42); box-shadow: 0 18px 40px -22px rgba(219,39,119,0.45); }
+        .sv-live-share .track-card[data-state="approved"] { border-color: rgba(76,175,130,0.56); background: linear-gradient(180deg, rgba(76,175,130,0.08), rgba(15,8,35,0.72)); }
+        .sv-live-share .track-card[data-state="passed"] { opacity: 0.55; }
+        .sv-live-share .track-card::before {
+          content: "";
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 3px;
+          border-radius: 24px 0 0 24px;
+          background: linear-gradient(180deg, var(--sv-magenta), var(--sv-amber));
+        }
+        .sv-live-share .track-card[data-state="approved"]::before { background: var(--sv-good); }
+        .sv-live-share .track-card[data-state="passed"]::before { background: rgba(155,147,196,0.42); }
+        .sv-live-share .track-head { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 16px; }
+        .sv-live-share .track-rank { font-family: ${SERIF}; font-size: 62px; line-height: 0.85; color: rgba(155,147,196,0.82); letter-spacing: -0.03em; min-width: 44px; flex-shrink: 0; }
+        .sv-live-share .track-info { flex: 1; min-width: 0; }
+        .sv-live-share .track-state-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 10px;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          padding: 4px 10px;
+          border-radius: 999px;
+          background: rgba(155,147,196,0.10);
+          border: 1px solid var(--sv-hairline);
+          color: var(--sv-lavender);
+          margin-bottom: 8px;
+        }
+        .sv-live-share .track-state-pill .dot { width: 8px; height: 8px; border-radius: 999px; background: currentColor; }
+        .sv-live-share .track-card[data-state="leader"] .track-state-pill { background: rgba(219,39,119,0.16); border-color: rgba(219,39,119,0.34); color: var(--sv-magenta); }
+        .sv-live-share .track-card[data-state="approved"] .track-state-pill { background: rgba(76,175,130,0.14); border-color: rgba(76,175,130,0.34); color: var(--sv-good); }
+        .sv-live-share .track-name { font-family: ${SERIF}; font-size: 36px; line-height: 1.05; letter-spacing: -0.015em; }
+        .sv-live-share .track-artist { font-family: ${SERIF}; font-style: italic; font-size: 17px; color: var(--sv-lavender); margin-top: 5px; }
+        .sv-live-share .track-score-block { text-align: right; flex-shrink: 0; }
+        .sv-live-share .track-score-block .n { font-family: ${SERIF}; font-size: 62px; line-height: 0.85; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+        .sv-live-share .track-score-block .l { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(155,147,196,0.62); margin-top: 4px; }
+        .sv-live-share .track-waveform {
+          margin-top: 4px;
+          display: flex;
+          align-items: center;
+          gap: 18px;
+          padding: 18px 20px;
+          border-radius: 14px;
+          background: rgba(0,0,0,0.35);
+          border: 1px solid var(--sv-hairline);
+        }
+        .sv-live-share .play {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, var(--sv-amber), var(--sv-magenta));
+          color: white;
+          display: grid;
+          place-items: center;
+          flex-shrink: 0;
+          box-shadow: 0 12px 26px -12px rgba(245,166,35,0.65);
+        }
+        .sv-live-share .wave { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; height: 48px; }
+        .sv-live-share .wave i { flex: 1; min-width: 2px; background: rgba(155,147,196,0.34); border-radius: 2px; }
+        .sv-live-share .wave i.played { background: linear-gradient(180deg, var(--sv-magenta), var(--sv-amber)); }
+        .sv-live-share .time { font-family: ${MONO}; font-size: 13px; color: var(--sv-lavender); letter-spacing: 0.04em; flex-shrink: 0; }
+        .sv-live-share .ai-quote {
+          margin-top: 18px;
+          position: relative;
+          padding: 22px 26px 22px 64px;
+          border-radius: 16px;
+          background: linear-gradient(135deg, rgba(245,166,35,0.10), rgba(221,122,58,0.04));
+          border: 1px solid rgba(155,147,196,0.24);
+        }
+        .sv-live-share .ai-quote::before {
+          content: "\\201C";
+          position: absolute;
+          left: 16px;
+          top: -10px;
+          font-family: ${SERIF};
+          font-size: 92px;
+          line-height: 1;
+          color: rgba(221,122,58,0.45);
+          font-style: italic;
+        }
+        .sv-live-share .ai-label { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--sv-magenta); display: inline-flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+        .sv-live-share .ai-quote p { margin: 0; font-family: ${SERIF}; font-style: italic; font-size: 21px; line-height: 1.4; color: var(--sv-silver); letter-spacing: -0.005em; }
+        .sv-live-share .rights-block { margin-top: 16px; border-radius: 16px; border: 1px solid var(--sv-hairline); background: rgba(0,0,0,0.22); overflow: hidden; }
+        .sv-live-share .rights-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--sv-hairline); background: linear-gradient(180deg, rgba(245,166,35,0.06), transparent); }
+        .sv-live-share .rb-label { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--sv-amber); font-weight: 700; }
+        .sv-live-share .rb-status { font-family: ${MONO}; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(245,158,11,0.35); color: #fbbf24; background: rgba(245,158,11,0.10); white-space: nowrap; }
+        .sv-live-share .rb-status.clear { color: var(--sv-good); border-color: rgba(76,175,130,0.45); background: rgba(76,175,130,0.10); }
+        .sv-live-share .rb-status.blocked { color: var(--sv-bad); border-color: rgba(232,90,90,0.42); background: rgba(232,90,90,0.10); }
+        .sv-live-share .rights-body { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(0,1fr); }
+        .sv-live-share .rights-grid { padding: 16px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; }
+        .sv-live-share .rf { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+        .sv-live-share .rf .k { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--sv-amber); font-weight: 700; }
+        .sv-live-share .rf .v { font-family: ${MONO}; font-size: 13px; color: var(--sv-silver); word-break: break-word; }
+        .sv-live-share .rf .v.none { color: rgba(107,100,144,0.85); font-style: italic; font-family: ${SERIF}; }
+        .sv-live-share .rights-pipeline { border-left: 1px solid var(--sv-hairline); padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.012); }
+        .sv-live-share .rp-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+        .sv-live-share .rp-top .lbl { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--sv-amber); font-weight: 700; }
+        .sv-live-share .rp-top .pct { font-family: ${SERIF}; font-style: italic; font-size: 26px; color: var(--sv-amber); line-height: 1; }
+        .sv-live-share .rp-stage { display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--sv-silver); text-transform: capitalize; }
+        .sv-live-share .rp-stage .gl { width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 800; font-family: ${MONO}; flex-shrink: 0; }
+        .sv-live-share .rp-stage.ok .gl { background: rgba(76,175,130,0.18); color: var(--sv-good); border: 1px solid rgba(76,175,130,0.4); }
+        .sv-live-share .rp-stage.no { color: var(--sv-lavender); }
+        .sv-live-share .rp-stage.no .gl { background: rgba(123,112,178,0.10); color: var(--sv-lavender); border: 1px solid var(--sv-hairline-strong); }
+        .sv-live-share .decision-row { margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .sv-live-share .decision-btn { padding: 16px 20px; border-radius: 14px; border: 1px solid var(--sv-hairline-strong); background: rgba(15,8,35,0.6); color: var(--sv-silver); font-size: 15px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+        .sv-live-share .decision-btn .ico { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; }
+        .sv-live-share .decision-btn.approve .ico { background: rgba(76,175,130,0.18); color: var(--sv-good); border: 1px solid rgba(76,175,130,0.4); }
+        .sv-live-share .decision-btn.pass .ico { background: rgba(155,147,196,0.12); color: var(--sv-lavender); border: 1px solid var(--sv-hairline-strong); }
+        .sv-live-share .track-card[data-state="approved"] .decision-btn.approve { background: linear-gradient(135deg, rgba(76,175,130,0.25), rgba(76,175,130,0.08)); border-color: var(--sv-good); color: var(--sv-good); }
+        .sv-live-share .track-card[data-state="passed"] .decision-btn.pass { background: rgba(155,147,196,0.14); border-color: var(--sv-lavender); color: var(--sv-lavender); }
+        .sv-live-share .comment-strip { margin-top: 12px; display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 12px; background: rgba(155,147,196,0.04); border: 1px solid var(--sv-hairline); }
+        .sv-live-share .comment-strip.has-note { background: linear-gradient(180deg, rgba(219,39,119,0.08), transparent); border-color: rgba(219,39,119,0.3); }
+        .sv-live-share .comment-input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--sv-silver); font-size: 14px; }
+        .sv-live-share .comment-input::placeholder { color: rgba(155,147,196,0.62); font-family: ${SERIF}; font-style: italic; font-size: 15px; }
+        .sv-live-share .compare-cta { width: 100%; display: flex; align-items: center; gap: 16px; padding: 16px 20px; border-radius: 16px; border: 1px solid rgba(245,166,35,0.32); background: linear-gradient(135deg, rgba(245,166,35,0.16), rgba(219,39,119,0.12)); color: var(--sv-silver); text-align: left; }
+        .sv-live-share .cc-ico { width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; display: grid; place-items: center; background: linear-gradient(135deg, var(--sv-amber), var(--sv-magenta)); color: #fff; }
+        .sv-live-share .cc-txt { flex: 1; min-width: 0; }
+        .sv-live-share .cc-title { display: block; font-weight: 700; font-size: 15px; }
+        .sv-live-share .cc-sub { display: block; font-family: ${SERIF}; font-style: italic; font-size: 13px; color: var(--sv-lavender); margin-top: 2px; }
+        .sv-live-share .cc-arrow { flex-shrink: 0; color: var(--sv-amber); font-size: 20px; }
+        .sv-live-share .final-cta { margin-top: 14px; padding: 26px 28px; border-radius: 18px; background: linear-gradient(135deg, rgba(245,166,35,0.18), rgba(221,122,58,0.10)); border: 1px solid rgba(155,147,196,0.28); display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+        .sv-live-share .final-cta .copy { font-family: ${SERIF}; font-size: 23px; line-height: 1.3; max-width: 40ch; }
+        .sv-live-share .final-cta em { color: var(--sv-lavender); }
+        .sv-live-share .cta { padding: 13px 18px; border-radius: 12px; color: #fff; font-weight: 800; background: linear-gradient(135deg, var(--sv-amber), var(--sv-magenta)); }
+        .sv-live-share .cmp-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(6,3,18,0.74); -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px); display: grid; place-items: center; padding: 28px; opacity: 0; visibility: hidden; transition: opacity .26s ease, visibility .26s; }
+        .sv-live-share .cmp-overlay.open { opacity: 1; visibility: visible; }
+        .sv-live-share .cmp-modal { width: min(1120px, 100%); max-height: calc(100vh - 56px); overflow-y: auto; background: linear-gradient(180deg, #160d31, #0c0720); border: 1px solid var(--sv-hairline-strong); border-radius: 24px; box-shadow: 0 40px 90px -30px rgba(0,0,0,0.8); }
+        .sv-live-share .cmp-head { position: sticky; top: 0; z-index: 3; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 22px 26px 18px; border-bottom: 1px solid var(--sv-hairline); background: linear-gradient(180deg, #160d31, rgba(22,13,49,0.92)); }
+        .sv-live-share .ch-kicker { font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--sv-amber); font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+        .sv-live-share .cmp-head h2 { margin: 7px 0 0; font-family: ${SERIF}; font-weight: 400; font-size: clamp(22px, 2.4vw, 30px); line-height: 1.04; letter-spacing: -0.015em; }
+        .sv-live-share .cmp-head h2 span { color: var(--sv-lavender); font-size: 0.7em; }
+        .sv-live-share .ch-scene { font-family: ${SERIF}; font-style: italic; font-size: 14px; color: var(--sv-lavender); margin-top: 5px; max-width: 56ch; }
+        .sv-live-share .cmp-close { width: 38px; height: 38px; border-radius: 11px; border: 1px solid var(--sv-hairline-strong); background: rgba(255,255,255,0.03); color: var(--sv-lavender); display: grid; place-items: center; }
+        .sv-live-share .cmp-transport { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px 26px; border-bottom: 1px solid var(--sv-hairline); background: rgba(0,0,0,0.28); }
+        .sv-live-share .cmp-playbtn { display: inline-flex; align-items: center; gap: 9px; padding: 10px 18px 10px 14px; border-radius: 12px; background: linear-gradient(135deg, var(--sv-amber), var(--sv-magenta)); color: #fff; font-weight: 700; font-size: 13px; }
+        .sv-live-share .cmp-seg { display: inline-flex; padding: 3px; border-radius: 11px; background: rgba(0,0,0,0.4); border: 1px solid var(--sv-hairline); }
+        .sv-live-share .cmp-seg button { padding: 7px 13px; border-radius: 8px; font-weight: 600; font-size: 12px; color: var(--sv-lavender); }
+        .sv-live-share .cmp-seg .on { background: rgba(245,166,35,0.16); color: var(--sv-amber); }
+        .sv-live-share .cmp-chip { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 999px; border: 1px solid rgba(245,166,35,0.45); background: rgba(245,166,35,0.08); color: var(--sv-amber); font-size: 12px; }
+        .sv-live-share .cmp-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+        .sv-live-share .cmp-tempo { margin-left: auto; font-family: ${MONO}; font-size: 12px; color: var(--sv-lavender); display: inline-flex; align-items: center; gap: 8px; }
+        .sv-live-share .cmp-tempo b { color: var(--sv-silver); font-weight: 500; }
+        .sv-live-share .cmp-scrub-row { display: flex; align-items: center; gap: 14px; padding: 14px 26px 18px; border-bottom: 1px solid var(--sv-hairline); }
+        .sv-live-share .cmp-scrub { flex: 1; min-width: 0; height: 8px; border-radius: 5px; background: rgba(155,147,196,0.14); position: relative; }
+        .sv-live-share .cmp-scrub .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; border-radius: 5px; background: linear-gradient(90deg, var(--sv-amber), var(--sv-magenta)); }
+        .sv-live-share .cmp-scrub .head { position: absolute; top: 50%; left: 0%; width: 14px; height: 14px; border-radius: 50%; background: #fff; transform: translate(-50%, -50%); }
+        .sv-live-share .cmp-time { font-family: ${MONO}; font-size: 12px; color: var(--sv-lavender); flex-shrink: 0; }
+        .sv-live-share .cmp-body { padding: 8px 26px 4px; }
+        .sv-live-share .cmp-section { padding: 18px 0; border-bottom: 1px solid var(--sv-hairline); }
+        .sv-live-share .cmp-seclabel { text-align: center; font-size: 9.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--sv-lavender); margin-bottom: 14px; }
+        .sv-live-share .cmp-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+        .sv-live-share .cmp-half { padding: 0 24px; min-width: 0; }
+        .sv-live-share .cmp-half + .cmp-half { border-left: 1px solid var(--sv-hairline); }
+        .sv-live-share .cmp-identity { grid-template-columns: 1fr auto 1fr; align-items: stretch; }
+        .sv-live-share .cmp-trackname { font-family: ${SERIF}; font-size: 25px; line-height: 1.05; letter-spacing: -0.015em; }
+        .sv-live-share .cmp-trackmeta { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sv-lavender); margin-top: 6px; }
+        .sv-live-share .cmp-leader-badge { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: rgba(76,175,130,0.16); border: 1px solid rgba(76,175,130,0.45); color: var(--sv-good); }
+        .sv-live-share .cmp-score-row { display: flex; align-items: flex-end; gap: 12px; margin-top: 14px; }
+        .sv-live-share .cmp-score { font-family: ${SERIF}; font-size: 56px; line-height: 0.8; letter-spacing: -0.02em; }
+        .sv-live-share .cmp-score-l { font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(155,147,196,0.62); padding-bottom: 8px; }
+        .sv-live-share .cmp-mini-wave { display: flex; align-items: center; gap: 1.5px; height: 30px; margin-top: 16px; }
+        .sv-live-share .cmp-mini-wave i { flex: 1; min-width: 1.5px; background: rgba(155,147,196,0.28); border-radius: 1.5px; }
+        .sv-live-share .cmp-mini-wave i.played { background: linear-gradient(180deg, var(--sv-magenta), var(--sv-amber)); }
+        .sv-live-share .cmp-gap { align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0 20px; text-align: center; border-left: 1px solid var(--sv-hairline); border-right: 1px solid var(--sv-hairline); }
+        .sv-live-share .g-arrow, .sv-live-share .g-num, .sv-live-share .g-lbl { color: var(--sv-good); }
+        .sv-live-share .g-num { font-family: ${SERIF}; font-style: italic; font-size: 30px; line-height: 1; }
+        .sv-live-share .g-lbl { font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; }
+        .sv-live-share .cmp-why { font-family: ${SERIF}; font-style: italic; font-size: 16px; line-height: 1.45; }
+        .sv-live-share .cmp-axes { display: flex; flex-direction: column; gap: 9px; }
+        .sv-live-share .cmp-axis { display: grid; grid-template-columns: 58px 1fr 30px; gap: 10px; align-items: center; }
+        .sv-live-share .cmp-axis .a-n { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sv-lavender); font-weight: 700; }
+        .sv-live-share .cmp-axis .a-t { height: 8px; border-radius: 4px; background: rgba(155,147,196,0.14); overflow: hidden; }
+        .sv-live-share .cmp-axis .a-f { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--sv-amber), var(--sv-magenta)); }
+        .sv-live-share .cmp-axis .a-v { font-family: ${MONO}; font-size: 12px; text-align: right; font-weight: 600; color: var(--sv-magenta); }
+        .sv-live-share .cmp-rights-cov { display: flex; align-items: baseline; gap: 8px; }
+        .sv-live-share .cmp-rights-cov .num { font-family: ${SERIF}; font-style: italic; font-size: 26px; line-height: 1; }
+        .sv-live-share .cmp-rights-cov .of { font-size: 12px; color: var(--sv-lavender); }
+        .sv-live-share .cmp-rights-cov .miss { font-size: 11px; color: rgba(155,147,196,0.62); margin-left: auto; }
+        .sv-live-share .cmp-risk { margin-top: 12px; }
+        .sv-live-share .r-track { height: 6px; border-radius: 4px; background: rgba(155,147,196,0.12); overflow: hidden; display: flex; }
+        .sv-live-share .r-track i { height: 100%; background: var(--sv-good); }
+        .sv-live-share .cmp-risk.high .r-track i { background: var(--sv-bad); }
+        .sv-live-share .cmp-risk.med .r-track i { background: var(--sv-amber); }
+        .sv-live-share .r-lbl { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; margin-top: 7px; color: var(--sv-good); }
+        .sv-live-share .cmp-risk.high .r-lbl { color: var(--sv-bad); }
+        .sv-live-share .cmp-risk.med .r-lbl { color: var(--sv-amber); }
+        .sv-live-share .cmp-actions { position: sticky; bottom: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 18px 26px; border-top: 1px solid var(--sv-hairline); background: linear-gradient(0deg, #160d31, rgba(22,13,49,0.92)); }
+        .sv-live-share .cmp-summary { flex: 1; min-width: 240px; font-family: ${SERIF}; font-style: italic; font-size: 14px; line-height: 1.4; color: var(--sv-lavender); }
+        .sv-live-share .cmp-summary b { color: var(--sv-silver); font-style: normal; font-family: ${SANS}; font-weight: 700; }
+        .sv-live-share .cmp-act-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+        .sv-live-share .cmp-act { padding: 11px 16px; border-radius: 12px; font-weight: 600; font-size: 13px; border: 1px solid var(--sv-hairline-strong); background: rgba(255,255,255,0.03); color: var(--sv-silver); }
+        .sv-live-share .cmp-act.primary { border-color: transparent; background: linear-gradient(135deg, var(--sv-amber), var(--sv-magenta)); color: #fff; }
+        @media (max-width: 1000px) {
+          .sv-live-share .share-stage { grid-template-columns: 1fr; }
+          .sv-live-share .brief-panel { position: relative; top: auto; }
+        }
+        @media (max-width: 720px) {
+          .sv-live-share .topbar-inner, .sv-live-share .shell { padding-left: 16px; padding-right: 16px; }
+          .sv-live-share .hero-meta, .sv-live-share .sender-card .who { display: none; }
+          .sv-live-share .track-card { padding: 22px 20px; }
+          .sv-live-share .track-rank, .sv-live-share .track-score-block .n { font-size: 42px; }
+          .sv-live-share .track-name { font-size: 28px; }
+          .sv-live-share .decision-row, .sv-live-share .rights-body, .sv-live-share .rights-grid, .sv-live-share .cmp-split, .sv-live-share .cmp-identity { grid-template-columns: 1fr; }
+          .sv-live-share .rights-pipeline, .sv-live-share .cmp-half + .cmp-half { border-left: 0; border-top: 1px solid var(--sv-hairline); }
+          .sv-live-share .cmp-gap { border: 0; padding: 14px 0; flex-direction: row; justify-content: flex-start; }
+        }
 
         .sv-p-page, .sv-p-page * { box-sizing: border-box; }
         .sv-p-page {
@@ -1626,199 +2429,7 @@ export default function ShareView({ packet }: ShareViewProps) {
       `}</style>
 
       <PrintReport packet={packet} />
-
-      <div className="sv-share-grid sv-screen-share" style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0,260px) 1fr minmax(0,240px)',
-        minHeight: '100vh',
-        maxWidth: 1200,
-        margin: '0 auto',
-      }}>
-
-        {/* ── LEFT RAIL ── */}
-        <aside className="sv-share-left" style={{
-          borderRight: `1px solid ${C.hairline}`,
-          padding: '28px 26px 22px',
-          display: 'flex', flexDirection: 'column',
-          background: 'rgba(0,0,0,0.15)',
-          position: 'sticky', top: 0, height: '100vh', overflowY: 'auto',
-        }}>
-          {/* brand */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 22, borderBottom: `1px solid ${C.hairline}` }}>
-            <img src="/logo.png" alt="SyncVision" style={{ height: 22, width: 'auto' }} />
-            <span style={{ fontSize: 9, letterSpacing: '0.28em', textTransform: 'uppercase', color: C.lavender, padding: '4px 9px', borderRadius: 999, border: `1px solid ${C.hairline}`, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: C.magenta, boxShadow: `0 0 6px ${C.magenta}` }} />
-              READ-ONLY
-            </span>
-          </div>
-
-          {/* meta */}
-          <div style={{ marginTop: 20 }}>
-            <div style={{ fontSize: 10, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender }}>THE SCENE</div>
-            <div style={{ marginTop: 10, fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: 'rgba(226,232,240,0.78)', paddingLeft: 14, borderLeft: `2px solid ${C.magenta}` }}>
-              {packet.briefText || '—'}
-            </div>
-          </div>
-
-          <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {[
-              { k: 'TRACKS',  v: String(total) },
-              { k: 'FORMAT',  v: 'SHORTLIST' },
-              { k: 'PACING',  v: sp.pacing ?? '—' },
-              { k: 'CREATED', v: formatDate(packet.createdAt) },
-            ].map(({ k, v }) => (
-              <div key={k} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(123,112,178,0.04)', border: `1px solid ${C.hairline}` }}>
-                <div style={{ fontSize: 8.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: C.lavender, marginBottom: 4 }}>{k}</div>
-                <div style={{ fontFamily: MONO, fontSize: 11, color: C.silver, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{v}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Packet-level rights aggregate */}
-          <div style={{ marginTop: 18 }}>
-            <AggregateReadout
-              confirmed={packet.totalConfirmed}
-              conflicts={packet.totalConflicts}
-              missing={packet.totalMissing}
-              total={packet.tracks.length * 7}
-            />
-          </div>
-
-          {/* Audit */}
-          <div style={{ marginTop: 14, padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.22)', border: `1px solid ${C.hairline}` }}>
-            <div style={{ fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 4 }}>PACKET HASH</div>
-            <div style={{ fontFamily: MONO, fontSize: 8, color: 'rgba(123,112,178,0.5)', wordBreak: 'break-all', lineHeight: 1.4 }}>
-              {packet.packetHash.slice(0, 32)}…
-            </div>
-            <div style={{ fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginTop: 8, marginBottom: 4 }}>SCORING</div>
-            <div style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(123,112,178,0.5)' }}>{packet.scoringVersion}</div>
-          </div>
-
-          <div style={{ marginTop: 'auto', paddingTop: 22, borderTop: `1px solid ${C.hairline}`, fontSize: 10, letterSpacing: '0.14em', color: 'rgba(123,112,178,0.6)', lineHeight: 1.6 }}>
-            Shared via <span style={{ color: C.silver, fontFamily: MONO, fontWeight: 500, fontSize: 10 }}>syncvision.app</span>
-            <br />No account needed
-          </div>
-        </aside>
-
-        {/* ── CENTER: tracks ── */}
-        <main className="sv-share-main" style={{ padding: '28px 32px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-
-          {/* Print header — only shows in PDF */}
-          <div className="print-only" style={{ marginBottom: 24, paddingBottom: 16, borderBottom: `1px solid ${C.hairline}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.28em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>
-                  SYNCVISION DECISION REPORT
-                </div>
-                <div style={{ fontFamily: SERIF, fontSize: 22, color: C.silver, lineHeight: 1.1 }}>
-                  {packet.briefText || 'Sync Brief'}
-                </div>
-                <div style={{ marginTop: 8, fontSize: 10, color: C.lavender }}>
-                  {total} track{total !== 1 ? 's' : ''} · {formatDate(packet.createdAt)} · expires {formatDate(packet.expiresAt)}
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  <AggregateReadout
-                    confirmed={packet.totalConfirmed}
-                    conflicts={packet.totalConflicts}
-                    missing={packet.totalMissing}
-                    total={packet.tracks.length * 7}
-                  />
-                </div>
-                <div style={{ marginTop: 6, fontFamily: MONO, fontSize: 8, color: 'rgba(123,112,178,0.4)' }}>
-                  packetHash: {packet.packetHash}
-                </div>
-              </div>
-              {/* QR code — scan to play audio in share view */}
-              <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <QRBlock url={shareUrl} />
-                <div style={{ fontSize: 8, fontFamily: MONO, color: 'rgba(0,0,0,0.45)', textAlign: 'center' }}>
-                  Scan for audio playback
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="no-print" style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', paddingBottom: 16, marginBottom: 22, borderBottom: `1px solid ${C.hairline}` }}>
-            <h2 style={{ margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: 24, color: C.silver, letterSpacing: '-0.01em' }}>
-              {total === 1 ? 'One track' : `${total} tracks`}{' '}
-              <em style={{ fontStyle: 'italic', color: C.lavender }}>for your call</em>
-            </h2>
-            <span style={{ fontSize: 10, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender }}>RANKED BY SYNCSCORE</span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {packet.tracks.map(slot => (
-              <TrackCard key={slot.trackId} slot={slot} packetId={packet.packetId} />
-            ))}
-          </div>
-
-          {/* Print footer */}
-          <div className="print-only" style={{ marginTop: 32, paddingTop: 16, borderTop: `1px solid ${C.hairline}`, fontSize: 9, fontFamily: MONO, color: 'rgba(123,112,178,0.4)', display: 'flex', justifyContent: 'space-between' }}>
-            <span>SyncVision · syncvision.app</span>
-            <span>scoring/{packet.scoringVersion} · v{packet.packetVersion}</span>
-          </div>
-        </main>
-
-        {/* ── RIGHT RAIL ── */}
-        <aside className="sv-share-right" style={{
-          borderLeft: `1px solid ${C.hairline}`,
-          padding: '28px 26px 22px',
-          background: 'rgba(0,0,0,0.15)',
-          display: 'flex', flexDirection: 'column', gap: 22,
-          position: 'sticky', top: 0, height: '100vh', overflowY: 'auto',
-        }}>
-          {/* Track-by-track score summary */}
-          <div>
-            <div style={{ fontSize: 10, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender, marginBottom: 12 }}>
-              RANKED SHORTLIST
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {packet.tracks.map(slot => (
-                <div key={slot.trackId} style={{
-                  padding: '10px 12px', borderRadius: 10,
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  background: 'rgba(123,112,178,0.03)', border: `1px solid ${C.hairline}`,
-                }}>
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, fontFamily: SERIF, fontSize: 13, border: '1px solid', background: 'rgba(123,112,178,0.08)', color: C.lavender, borderColor: C.hairline }}>
-                    {slot.rank}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: SERIF, fontSize: 13, color: C.silver, lineHeight: 1.1, letterSpacing: '-0.005em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {slot.title}
-                    </div>
-                    <div style={{ fontFamily: MONO, fontSize: 10, color: C.copper, marginTop: 2 }}>
-                      {slot.fitIndex} <span style={{ color: 'rgba(123,112,178,0.5)', fontSize: 8, letterSpacing: '0.1em' }}>SYNCSCORE</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Conflict summary */}
-          <div>
-            <div style={{ fontSize: 10, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender, marginBottom: 12 }}>
-              RIGHTS OVERVIEW
-            </div>
-            <AggregateReadout
-              confirmed={packet.totalConfirmed}
-              conflicts={packet.totalConflicts}
-              missing={packet.totalMissing}
-              total={packet.tracks.length * 7}
-            />
-          </div>
-
-          {/* Expiry */}
-          <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: `1px solid ${C.hairline}` }}>
-            <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 4 }}>
-              LINK EXPIRES
-            </div>
-            <div style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(226,232,240,0.5)' }}>
-              {formatDate(packet.expiresAt)}
-            </div>
-          </div>
-        </aside>
-      </div>
+      <LiveShareView packet={packet} />
     </div>
   );
 }
