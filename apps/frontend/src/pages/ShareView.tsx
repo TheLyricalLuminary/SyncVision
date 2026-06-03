@@ -1,7 +1,8 @@
 // apps/frontend/src/pages/ShareView.tsx
 // Read-only decision-packet view — share view and print/PDF surface share this file.
 // Graphs render identically in HTML and @media print via CSS only (no canvas).
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { API_BASE } from '../utils/apiClient';
 
 // ─── Exported types (consumed by App.tsx) ────────────────────────────────────
 
@@ -398,6 +399,66 @@ function axisPct(value: number) {
   return Math.round(value * 100);
 }
 
+// ── Real audio player — uses the signed share-audio token from the API ────────
+function AudioPlayer({ token, title }: { token: string; title: string }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing,  setPlaying]  = useState(false);
+  const [time,     setTime]     = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [error,    setError]    = useState(false);
+
+  const audioUrl = `${API_BASE}/api/share/audio/${token}`;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onTime     = () => setTime(audio.currentTime);
+    const onDuration = () => setDuration(audio.duration || 0);
+    const onEnded    = () => setPlaying(false);
+    const onError    = () => setError(true);
+    audio.addEventListener('timeupdate', onTime);
+    audio.addEventListener('loadedmetadata', onDuration);
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('error', onError);
+    return () => {
+      audio.removeEventListener('timeupdate', onTime);
+      audio.removeEventListener('loadedmetadata', onDuration);
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('error', onError);
+    };
+  }, []);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio || error) return;
+    if (playing) { audio.pause(); setPlaying(false); }
+    else { audio.play().then(() => setPlaying(true)).catch(() => setError(true)); }
+  };
+
+  const dur = duration || (174);
+  const pct = dur > 0 ? time / dur : 0;
+  const playedBars = Math.round(pct * WAVE_HEIGHTS.length);
+
+  return (
+    <div className="track-waveform">
+      <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      <button className="play" type="button" aria-label={playing ? `Pause ${title}` : `Play ${title}`} onClick={togglePlay}>
+        {playing
+          ? <svg width="14" height="14" viewBox="0 0 10 10"><rect x="1.5" y="1" width="2.5" height="8" fill="currentColor" rx="0.5" /><rect x="6" y="1" width="2.5" height="8" fill="currentColor" rx="0.5" /></svg>
+          : <PlayIcon />}
+      </button>
+      <div className="wave" aria-hidden="true">
+        {WAVE_HEIGHTS.map((height, index) => (
+          <i key={index} className={index < playedBars ? 'played' : undefined} style={{ height: `${height}%` }} />
+        ))}
+      </div>
+      <span className="time">{formatTime(time)} / {formatTime(dur)}</span>
+      {error && <span style={{ fontSize: 10, color: 'var(--sv-bad)', marginLeft: 6 }}>Audio unavailable</span>}
+    </div>
+  );
+}
+
+// ── Static waveform fallback when no audio token ───────────────────────────────
 function LiveWaveform({ slot, played = false }: { slot: TrackSlot; played?: boolean }) {
   const duration = slot.tempo ? Math.round(Math.max(150, Math.min(220, slot.tempo * 2.35))) : 174;
   const current = played ? Math.min(72, duration) : 0;
@@ -420,15 +481,16 @@ function LiveRightsBlock({ slot }: { slot: TrackSlot }) {
   const clearance = clearanceLabel(slot.rightsState);
   const completed = slot.pipeline.filter(stage => stage.completed).length;
   const confidence = slot.pipeline.length ? Math.round((completed / slot.pipeline.length) * 100) : 0;
-  const fields = [
-    ['ISRC', slot.isrc ?? '- not entered -'],
-    ['Work ID - ISWC', fieldValue(slot, 'iswc')],
-    ['Writer', fieldValue(slot, 'writer')],
-    ['Writer split %', fieldValue(slot, 'split_pct')],
-    ['Writer IPI', fieldValue(slot, 'ipi')],
-    ['Publisher', fieldValue(slot, 'publisher')],
-    ['PRO affiliation', fieldValue(slot, 'pro_affiliation')],
-    ['Sync license', clearance.label],
+  const splitPct = fieldValue(slot, 'split_pct');
+  const fields: { label: string; value: string; highlight?: boolean }[] = [
+    { label: 'ISRC',            value: slot.isrc ?? '- not entered -' },
+    { label: 'Work ID - ISWC',  value: fieldValue(slot, 'iswc') },
+    { label: 'Writer',          value: fieldValue(slot, 'writer') },
+    { label: 'Writer split %',  value: splitPct, highlight: !splitPct.startsWith('-') },
+    { label: 'Writer IPI',      value: fieldValue(slot, 'ipi') },
+    { label: 'Publisher',       value: fieldValue(slot, 'publisher') },
+    { label: 'PRO affiliation', value: fieldValue(slot, 'pro_affiliation') },
+    { label: 'Sync license',    value: clearance.label },
   ];
 
   return (
@@ -439,8 +501,8 @@ function LiveRightsBlock({ slot }: { slot: TrackSlot }) {
       </div>
       <div className="rights-body">
         <div className="rights-grid">
-          {fields.map(([label, value]) => (
-            <div className="rf" key={label}>
+          {fields.map(({ label, value, highlight }) => (
+            <div className={`rf ${highlight ? 'rf-highlight' : ''}`} key={label}>
               <span className="k">{label}</span>
               <span className={`v ${String(value).startsWith('-') ? 'none' : ''}`}>{value}</span>
             </div>
@@ -465,11 +527,15 @@ function LiveTrackCard({
   state,
   setState,
   showRights,
+  note,
+  onNoteChange,
 }: {
   slot: TrackSlot;
   state: DecisionState;
   setState: (state: DecisionState) => void;
   showRights?: boolean;
+  note: string;
+  onNoteChange: (note: string) => void;
 }) {
   const isApproved = state === 'approved';
   const isPassed = state === 'passed';
@@ -490,11 +556,38 @@ function LiveTrackCard({
         <div className="track-score-block"><div className="n">{slot.fitIndex}</div><div className="l">Fit</div></div>
       </div>
 
-      {!isPassed && <LiveWaveform slot={slot} played={isApproved} />}
+      {/* Audio player — real if token available, static visual fallback otherwise */}
+      {!isPassed && (
+        slot.audioToken
+          ? <AudioPlayer token={slot.audioToken} title={slot.title} />
+          : <LiveWaveform slot={slot} played={isApproved} />
+      )}
 
       <div className="ai-quote">
         <div className="ai-label"><SparkIcon />Why this track</div>
         <p>{slot.explanation}</p>
+      </div>
+
+      {/* FIT INDEX axis bars — same layout as the results/shortlist view */}
+      <div className="fit-index-block">
+        <div className="fi-label">Fit index</div>
+        <div className="fi-axes">
+          {([
+            ['Scene',  slot.vector.scene,  '#F5A623'],
+            ['Rights', slot.vector.rights, slot.vector.rights >= 0.65 ? '#4CAF82' : slot.vector.rights >= 0.35 ? '#F5B544' : '#E85A5A'],
+            ['Lyrics', slot.vector.lyrics, '#9B93C4'],
+            ['Signal', slot.vector.signal, 'rgba(155,147,196,0.55)'],
+          ] as const).map(([label, value, color]) => {
+            const pct = Math.round(value * 100);
+            return (
+              <div className="fi-axis" key={label}>
+                <span className="fi-name">{label}</span>
+                <span className="fi-bar"><span className="fi-fill" style={{ width: `${pct}%`, background: color }} /></span>
+                <span className="fi-val">{pct}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {showRights && <LiveRightsBlock slot={slot} />}
@@ -508,12 +601,25 @@ function LiveTrackCard({
         </button>
       </div>
 
-      {!isPassed && (
-        <div className={`comment-strip ${isApproved ? 'has-note' : ''}`}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 5 H20 V17 H10 L6 21 V17 H4 Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>
-          <input className="comment-input" defaultValue={isApproved ? 'This is the one. Use full track up to the second verse.' : ''} placeholder="Leave a note for Maya..." />
-        </div>
-      )}
+      {/* Notes — always visible, controlled state, persists across approve/pass actions */}
+      <div className={`comment-strip ${note.length > 0 ? 'has-note' : ''}`}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 5 H20 V17 H10 L6 21 V17 H4 Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>
+        <input
+          className="comment-input"
+          value={note}
+          onChange={e => onNoteChange(e.target.value)}
+          placeholder="Leave a note…"
+        />
+        {note.length > 0 && (
+          <button
+            className="note-send-btn"
+            type="button"
+            onClick={() => onNoteChange('')}
+            title="Clear note"
+            style={{ flexShrink: 0, background: 'none', border: 'none', color: 'rgba(155,147,196,0.6)', cursor: 'pointer', padding: '0 4px', fontSize: 12 }}
+          >✕</button>
+        )}
+      </div>
     </article>
   );
 }
@@ -636,6 +742,9 @@ function LiveShareView({ packet }: { packet: DecisionPacket }) {
   const [decisions, setDecisions] = useState<Record<string, DecisionState>>(() => Object.fromEntries(
     packet.tracks.map((slot, index) => [slot.trackId, index === 0 ? 'approved' : index === packet.tracks.length - 1 ? 'passed' : 'leader']),
   ));
+  const [notes, setNotes] = useState<Record<string, string>>(() =>
+    Object.fromEntries(packet.tracks.map(slot => [slot.trackId, ''])),
+  );
   const [compareOpen, setCompareOpen] = useState(false);
   const approved = Object.values(decisions).filter(state => state === 'approved').length;
   const passed = Object.values(decisions).filter(state => state === 'passed').length;
@@ -697,7 +806,14 @@ function LiveShareView({ packet }: { packet: DecisionPacket }) {
                     <span className="cc-ico"><CompareIcon /></span><span className="cc-txt"><span className="cc-title">Compare Top 2 head-to-head</span><span className="cc-sub">Hear #1 and #2 against the same scene, side by side</span></span><span className="cc-arrow">→</span>
                   </button>
                 )}
-                <LiveTrackCard slot={slot} state={decisions[slot.trackId] ?? 'leader'} setState={state => setDecisions(current => ({ ...current, [slot.trackId]: state }))} showRights={index === 0} />
+                <LiveTrackCard
+                  slot={slot}
+                  state={decisions[slot.trackId] ?? 'leader'}
+                  setState={state => setDecisions(current => ({ ...current, [slot.trackId]: state }))}
+                  showRights={index === 0}
+                  note={notes[slot.trackId] ?? ''}
+                  onNoteChange={text => setNotes(current => ({ ...current, [slot.trackId]: text }))}
+                />
               </div>
             ))}
             <div className="final-cta"><div className="copy">{pending} <em>pending</em>. When you've made all calls, Maya gets a notification.</div><button className="cta" type="button">Send decisions →</button></div>
@@ -1081,6 +1197,17 @@ export default function ShareView({ packet }: ShareViewProps) {
         .sv-live-share .rf .k { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--sv-amber); font-weight: 700; }
         .sv-live-share .rf .v { font-family: ${MONO}; font-size: 13px; color: var(--sv-silver); word-break: break-word; }
         .sv-live-share .rf .v.none { color: rgba(107,100,144,0.85); font-style: italic; font-family: ${SERIF}; }
+        .sv-live-share .rf.rf-highlight { background: rgba(76,175,130,0.06); border-radius: 8px; padding: 6px 10px; margin: -6px -10px; }
+        .sv-live-share .rf.rf-highlight .v { color: var(--sv-good); font-weight: 700; }
+        /* FIT INDEX axis bars — matches shortlist/results view layout */
+        .sv-live-share .fit-index-block { margin-top: 16px; padding: 14px 18px; border-radius: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--sv-hairline); }
+        .sv-live-share .fi-label { font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--sv-amber); font-weight: 700; margin-bottom: 10px; }
+        .sv-live-share .fi-axes { display: flex; flex-direction: column; gap: 7px; }
+        .sv-live-share .fi-axis { display: grid; grid-template-columns: 52px 1fr 28px; align-items: center; gap: 10px; }
+        .sv-live-share .fi-name { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sv-lavender); font-weight: 600; }
+        .sv-live-share .fi-bar { height: 5px; border-radius: 999px; background: rgba(123,112,178,0.12); overflow: hidden; }
+        .sv-live-share .fi-fill { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+        .sv-live-share .fi-val { font-size: 12px; font-weight: 700; color: var(--sv-silver); text-align: right; font-family: ${MONO}; }
         .sv-live-share .rights-pipeline { border-left: 1px solid var(--sv-hairline); padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.012); }
         .sv-live-share .rp-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
         .sv-live-share .rp-top .lbl { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--sv-amber); font-weight: 700; }
