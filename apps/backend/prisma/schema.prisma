@@ -194,6 +194,7 @@ model DecisionPacket {
   packetHash     String
   expiresAt      DateTime
   createdAt      DateTime @default(now())
+  directorDecisions Json?  @map("director_decisions")
 
   @@map("decision_packets")
   @@schema("scoring")

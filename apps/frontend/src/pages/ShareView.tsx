@@ -630,10 +630,36 @@ function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open:
   const first = packet.tracks[0];
   const second = packet.tracks[1];
   const [seg, setSeg] = useState<CmpSeg>('both');
+  const audio1Ref = React.useRef<HTMLAudioElement>(null);
+  const audio2Ref = React.useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+
   if (!first || !second) return null;
   const lead = Math.max(first.fitIndex - second.fitIndex, 0);
   const showFirst  = seg === 'both' || seg === 'first';
   const showSecond = seg === 'both' || seg === 'second';
+
+  const togglePlay = () => {
+    const a1 = audio1Ref.current;
+    const a2 = audio2Ref.current;
+    if (playing) {
+      a1?.pause();
+      a2?.pause();
+      setPlaying(false);
+    } else {
+      if (showFirst  && first.audioToken  && a1) void a1.play().catch(() => {});
+      if (showSecond && second.audioToken && a2) void a2.play().catch(() => {});
+      setPlaying(true);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!open) {
+      audio1Ref.current?.pause();
+      audio2Ref.current?.pause();
+      setPlaying(false);
+    }
+  }, [open]);
 
   return (
     <div className={`cmp-overlay ${open ? 'open' : ''}`} role="dialog" aria-modal="true" aria-label="Top 2 head-to-head comparison">
@@ -647,8 +673,16 @@ function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open:
           <button className="cmp-close" type="button" onClick={onClose} aria-label="Close comparison"><XIcon size={16} /></button>
         </div>
 
+        {first.audioToken  && <audio ref={audio1Ref} src={`${API_BASE}/api/share/audio/${first.audioToken}`}  preload="metadata" crossOrigin="anonymous" onEnded={() => setPlaying(false)} />}
+        {second.audioToken && <audio ref={audio2Ref} src={`${API_BASE}/api/share/audio/${second.audioToken}`} preload="metadata" crossOrigin="anonymous" onEnded={() => setPlaying(false)} />}
+
         <div className="cmp-transport">
-          <button className="cmp-playbtn" type="button"><PlayIcon /><span>Play {seg === 'both' ? 'both' : seg === 'first' ? '#1' : '#2'}</span></button>
+          <button className="cmp-playbtn" type="button" onClick={togglePlay}>
+            {playing
+              ? <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+              : <PlayIcon />}
+            <span>{playing ? 'Pause' : `Play ${seg === 'both' ? 'both' : seg === 'first' ? '#1' : '#2'}`}</span>
+          </button>
           <div className="cmp-seg">
             <button className={seg === 'both'   ? 'on' : undefined} type="button" onClick={() => setSeg('both')}>Both</button>
             <button className={seg === 'first'  ? 'on' : undefined} type="button" onClick={() => setSeg('first')}>#1</button>
@@ -746,6 +780,21 @@ function LiveShareView({ packet }: { packet: DecisionPacket }) {
     Object.fromEntries(packet.tracks.map(slot => [slot.trackId, ''])),
   );
   const [compareOpen, setCompareOpen] = useState(false);
+  const [sendState, setSendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+
+  const sendDecisions = async () => {
+    setSendState('sending');
+    try {
+      const res = await fetch(`${API_BASE}/api/share/${packet.packetId}/decisions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decisions, notes }),
+      });
+      setSendState(res.ok ? 'sent' : 'error');
+    } catch {
+      setSendState('error');
+    }
+  };
   const approved = Object.values(decisions).filter(state => state === 'approved').length;
   const passed = Object.values(decisions).filter(state => state === 'passed').length;
   const pending = Math.max(packet.tracks.length - approved - passed, 0);
@@ -810,13 +859,29 @@ function LiveShareView({ packet }: { packet: DecisionPacket }) {
                   slot={slot}
                   state={decisions[slot.trackId] ?? 'leader'}
                   setState={state => setDecisions(current => ({ ...current, [slot.trackId]: state }))}
-                  showRights={index === 0}
+                  showRights
                   note={notes[slot.trackId] ?? ''}
                   onNoteChange={text => setNotes(current => ({ ...current, [slot.trackId]: text }))}
                 />
               </div>
             ))}
-            <div className="final-cta"><div className="copy">{pending} <em>pending</em>. When you've made all calls, Maya gets a notification.</div><button className="cta" type="button">Send decisions →</button></div>
+            <div className="final-cta">
+              <div className="copy">
+                {sendState === 'sent'
+                  ? <><CheckIcon size={14} /> <em>Decisions sent.</em> Maya has been notified.</>
+                  : sendState === 'error'
+                  ? <><em style={{ color: 'var(--sv-bad)' }}>Something went wrong.</em> Try again.</>
+                  : <>{pending} <em>pending</em>. When you've made all calls, Maya gets a notification.</>}
+              </div>
+              <button
+                className={`cta ${sendState === 'sent' ? 'sent' : ''}`}
+                type="button"
+                disabled={sendState === 'sending' || sendState === 'sent'}
+                onClick={sendDecisions}
+              >
+                {sendState === 'sending' ? 'Sending…' : sendState === 'sent' ? 'Sent ✓' : 'Send decisions →'}
+              </button>
+            </div>
           </div>
         </section>
       </main>
@@ -1237,7 +1302,9 @@ export default function ShareView({ packet }: ShareViewProps) {
         .sv-live-share .final-cta { margin-top: 14px; padding: 26px 28px; border-radius: 18px; background: linear-gradient(135deg, rgba(245,166,35,0.18), rgba(221,122,58,0.10)); border: 1px solid rgba(155,147,196,0.28); display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
         .sv-live-share .final-cta .copy { font-family: ${SERIF}; font-size: 23px; line-height: 1.3; max-width: 40ch; }
         .sv-live-share .final-cta em { color: var(--sv-lavender); }
-        .sv-live-share .cta { padding: 13px 18px; border-radius: 12px; color: #fff; font-weight: 800; background: linear-gradient(135deg, var(--sv-amber), var(--sv-magenta)); }
+        .sv-live-share .cta { padding: 13px 18px; border-radius: 12px; color: #fff; font-weight: 800; background: linear-gradient(135deg, var(--sv-amber), var(--sv-magenta)); cursor: pointer; }
+        .sv-live-share .cta:disabled { opacity: 0.6; cursor: default; }
+        .sv-live-share .cta.sent { background: var(--sv-good); }
         .sv-live-share .cmp-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(6,3,18,0.74); -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px); display: grid; place-items: center; padding: 28px; opacity: 0; visibility: hidden; transition: opacity .26s ease, visibility .26s; }
         .sv-live-share .cmp-overlay.open { opacity: 1; visibility: visible; }
         .sv-live-share .cmp-modal { width: min(1120px, 100%); max-height: calc(100vh - 56px); overflow-y: auto; background: linear-gradient(180deg, #160d31, #0c0720); border: 1px solid var(--sv-hairline-strong); border-radius: 24px; box-shadow: 0 40px 90px -30px rgba(0,0,0,0.8); }

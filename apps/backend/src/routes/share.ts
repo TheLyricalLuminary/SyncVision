@@ -564,6 +564,46 @@ router.get('/share/audio/:token', async (req: Request, res: Response) => {
   }
 });
 
+// ── PATCH /api/share/:packetId/decisions ─────────────────────────────────────
+// Body: { decisions: Record<trackId, 'approved'|'passed'|'leader'>, notes: Record<trackId, string> }
+
+router.patch('/share/:packetId/decisions', async (req: Request, res: Response) => {
+  if (!checkLimit('decisions', ip(req), 30)) {
+    res.status(429).json({ error: 'rate_limited' });
+    return;
+  }
+
+  const packetId = req.params.packetId as string;
+  const { decisions, notes } = req.body as {
+    decisions: Record<string, string>;
+    notes: Record<string, string>;
+  };
+
+  if (!decisions || typeof decisions !== 'object') {
+    res.status(400).json({ error: 'invalid_body' });
+    return;
+  }
+
+  try {
+    const row = await prisma.decisionPacket.findUnique({ where: { id: packetId } });
+    if (!row) { res.status(404).json({ error: 'not_found' }); return; }
+    if (new Date(row.expiresAt) < new Date()) {
+      res.status(410).json({ error: 'expired' });
+      return;
+    }
+
+    await prisma.decisionPacket.update({
+      where: { id: packetId },
+      data: { directorDecisions: { decisions, notes: notes ?? {}, submittedAt: new Date().toISOString() } },
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('share decisions:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
 // ── GET /api/share/:packetId ──────────────────────────────────────────────────
 
 router.get('/share/:packetId', async (req: Request, res: Response) => {
