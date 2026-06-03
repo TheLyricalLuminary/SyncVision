@@ -630,8 +630,8 @@ function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open:
   const first = packet.tracks[0];
   const second = packet.tracks[1];
   const [seg, setSeg] = useState<CmpSeg>('both');
-  const audio1Ref = React.useRef<HTMLAudioElement>(null);
-  const audio2Ref = React.useRef<HTMLAudioElement>(null);
+  const audio1Ref = useRef<HTMLAudioElement>(null);
+  const audio2Ref = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
 
   if (!first || !second) return null;
@@ -653,7 +653,7 @@ function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open:
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!open) {
       audio1Ref.current?.pause();
       audio2Ref.current?.pause();
