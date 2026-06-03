@@ -887,6 +887,309 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
   );
 }
 
+// ── CompareModal ──────────────────────────────────────────────
+function CompareModal({
+  results,
+  open,
+  onClose,
+}: {
+  results: AnalysisResult[];
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [leftIdx,  setLeftIdx]  = useState(0);
+  const [rightIdx, setRightIdx] = useState(Math.min(1, results.length - 1));
+
+  if (!open || results.length < 2) return null;
+
+  const left  = results[leftIdx];
+  const right = results[rightIdx];
+  const leftScore  = left.confidenceScore.score;
+  const rightScore = right.confidenceScore.score;
+  const lead = leftIdx < rightIdx ? leftScore - rightScore : rightScore - leftScore;
+
+  const AXES = ['scene', 'rights', 'lyrics', 'signal'] as const;
+  const AXIS_COLORS = {
+    scene:  '#F5A623',
+    rights: (v: number) => v >= 0.65 ? '#4CAF82' : v >= 0.35 ? '#F5B544' : '#E85A5A',
+    lyrics: '#9B93C4',
+    signal: 'rgba(155,147,196,0.55)',
+  } as const;
+
+  const axisColor = (key: typeof AXES[number], value: number) =>
+    key === 'rights' ? (AXIS_COLORS.rights as (v: number) => string)(value) : AXIS_COLORS[key] as string;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Side-by-side comparison"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: 'rgba(7,4,26,0.82)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        padding: '32px 16px 40px', overflowY: 'auto',
+      }}
+    >
+      <div style={{
+        width: '100%', maxWidth: 960,
+        background: 'linear-gradient(180deg,#0e0820,#0D0B1E)',
+        border: '1px solid rgba(123,112,178,0.22)',
+        borderRadius: 24, overflow: 'hidden',
+        boxShadow: '0 40px 80px -20px rgba(0,0,0,0.8)',
+      }}>
+        {/* header */}
+        <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid rgba(123,112,178,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 4 }}>Side-by-side comparison</div>
+            <div style={{ fontFamily: SERIF, fontSize: 20, color: C.silver }}>
+              {cleanTrackTitle(left.track.title)} <span style={{ color: C.lavender, fontStyle: 'italic' }}>vs</span> {cleanTrackTitle(right.track.title)}
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close"
+            style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(123,112,178,0.12)', border: '1px solid rgba(123,112,178,0.22)', color: C.lavender, cursor: 'pointer', display: 'grid', placeItems: 'center', flexShrink: 0, fontSize: 18, lineHeight: 1 }}>
+            ×
+          </button>
+        </div>
+
+        {/* track selectors — lets you swap which tracks you compare */}
+        {results.length > 2 && (
+          <div style={{ padding: '14px 28px', borderBottom: '1px solid rgba(123,112,178,0.10)', display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'center' }}>
+            <select
+              value={leftIdx}
+              onChange={e => setLeftIdx(Number(e.target.value))}
+              style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(123,112,178,0.3)', borderRadius: 10, padding: '7px 10px', color: C.silver, fontFamily: SANS, fontSize: 12, cursor: 'pointer' }}
+            >
+              {results.map((r, i) => <option key={r.track.id} value={i} disabled={i === rightIdx}>#{i + 1} {cleanTrackTitle(r.track.title)}</option>)}
+            </select>
+            <span style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.lavender }}>vs</span>
+            <select
+              value={rightIdx}
+              onChange={e => setRightIdx(Number(e.target.value))}
+              style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(123,112,178,0.3)', borderRadius: 10, padding: '7px 10px', color: C.silver, fontFamily: SANS, fontSize: 12, cursor: 'pointer' }}
+            >
+              {results.map((r, i) => <option key={r.track.id} value={i} disabled={i === leftIdx}>#{i + 1} {cleanTrackTitle(r.track.title)}</option>)}
+            </select>
+          </div>
+        )}
+
+        {/* two-column body */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr' }}>
+          {([left, right] as const).map((result, col) => {
+            const isLeader = col === 0 ? leftScore >= rightScore : rightScore > leftScore;
+            const vec = result.confidenceScore.vector ?? {
+              scene:  result.confidenceScore.sceneFitBreakdown  / 100,
+              rights: result.confidenceScore.rightsBreakdown    / 100,
+              lyrics: result.confidenceScore.lyricsBreakdown    / 100,
+              signal: result.confidenceScore.signalBreakdown    / 100,
+            };
+            const score = result.confidenceScore.score;
+            const audioPath = resolveAudioUrl(result.track.audioFilePath);
+
+            return col === 0 ? (
+              <CompareHalf
+                key={result.track.id}
+                result={result}
+                score={score}
+                vec={vec}
+                audioPath={audioPath}
+                isLeader={isLeader}
+                lead={lead}
+                axisColor={axisColor}
+                axes={AXES}
+              />
+            ) : (
+              <>
+                {/* divider */}
+                <div key="div" style={{ background: 'rgba(123,112,178,0.12)', margin: '24px 0' }} />
+                <CompareHalf
+                  key={result.track.id}
+                  result={result}
+                  score={score}
+                  vec={vec}
+                  audioPath={audioPath}
+                  isLeader={isLeader}
+                  lead={lead}
+                  axisColor={axisColor}
+                  axes={AXES}
+                />
+              </>
+            );
+          })}
+        </div>
+
+        {/* footer verdict */}
+        <div style={{ padding: '20px 28px', borderTop: '1px solid rgba(123,112,178,0.12)', background: 'rgba(0,0,0,0.18)' }}>
+          <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Verdict</div>
+          <p style={{ margin: 0, fontSize: 13, color: C.silver, lineHeight: 1.6 }}>
+            <strong style={{ color: C.amber }}>{cleanTrackTitle(results[leftScore >= rightScore ? leftIdx : rightIdx].track.title)}</strong>
+            {' '}leads by <strong>{Math.abs(lead)}</strong> points.{' '}
+            {left.confidenceScore.vector && right.confidenceScore.vector && (() => {
+              const leftRights  = Math.round((left.confidenceScore.vector?.rights  ?? 0) * 100);
+              const rightRights = Math.round((right.confidenceScore.vector?.rights ?? 0) * 100);
+              const cleanerRights = leftRights >= rightRights ? cleanTrackTitle(left.track.title) : cleanTrackTitle(right.track.title);
+              return `${cleanerRights} has the cleaner rights profile. Use the rights detail on each card to confirm clearance before placement.`;
+            })()}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompareHalf({
+  result, score, vec, audioPath, isLeader, lead, axisColor, axes,
+}: {
+  result:    AnalysisResult;
+  score:     number;
+  vec:       { scene: number; rights: number; lyrics: number; signal: number };
+  audioPath: string | null;
+  isLeader:  boolean;
+  lead:      number;
+  axisColor: (key: 'scene' | 'rights' | 'lyrics' | 'signal', value: number) => string;
+  axes:      readonly ('scene' | 'rights' | 'lyrics' | 'signal')[];
+}) {
+  const [playing,  setPlaying]  = useState(false);
+  const [time,     setTime]     = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onTime  = () => setTime(audio.currentTime);
+    const onMeta  = () => setDuration(audio.duration);
+    const onPlay  = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    const onEnded = () => setPlaying(false);
+    audio.addEventListener('timeupdate', onTime);
+    audio.addEventListener('loadedmetadata', onMeta);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('ended', onEnded);
+    return () => {
+      audio.removeEventListener('timeupdate', onTime);
+      audio.removeEventListener('loadedmetadata', onMeta);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('ended', onEnded);
+      audio.pause();
+    };
+  }, [audioPath]);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio || !audioPath) return;
+    if (!audio.paused) { audio.pause(); return; }
+    if (currentAudio.el && currentAudio.el !== audio) currentAudio.el.pause();
+    currentAudio.el = audio;
+    void audio.play().catch(() => setPlaying(false));
+  };
+
+  const WAVE = [30,55,40,72,50,90,60,35,65,48,78,42,62,38,55,80,45,60,30,70,42,55,36,50,65];
+  const playedBars = duration > 0 ? Math.round((time / duration) * WAVE.length) : 0;
+
+  return (
+    <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* identity */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {isLeader && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#4CAF82', fontWeight: 700, marginBottom: 6, padding: '3px 8px', background: 'rgba(76,175,130,0.12)', borderRadius: 999, border: '1px solid rgba(76,175,130,0.3)' }}>
+              ✓ {lead > 0 ? `+${lead} pts lead` : 'Tied'}
+            </div>
+          )}
+          <div style={{ fontFamily: SERIF, fontSize: 18, color: C.amber, lineHeight: 1.2, fontWeight: 400 }}>
+            {cleanTrackTitle(result.track.title)}
+          </div>
+          {result.track.artistName && (
+            <div style={{ fontSize: 12, color: C.lavender, marginTop: 3 }}>{result.track.artistName}</div>
+          )}
+          <div style={{ marginTop: 6, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+            {result.track.tempo != null && <Chip variant="bpm">{result.track.tempo} BPM</Chip>}
+            {result.track.tonalCharacter && <Chip>{result.track.tonalCharacter}</Chip>}
+            {result.track.energyCharacter && <Chip>{result.track.energyCharacter}</Chip>}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 36, lineHeight: 1, color: score >= 70 ? '#4CAF82' : score >= 55 ? C.amber : C.magenta }}>
+            {score}
+          </div>
+          <div style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.lavender, marginTop: 2 }}>Fit index</div>
+        </div>
+      </div>
+
+      {/* axis bars */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.lavender, marginBottom: 2 }}>SyncScore axes</div>
+        {axes.map(key => {
+          const value = vec[key];
+          const pct   = Math.round(value * 100);
+          const color = axisColor(key, value);
+          return (
+            <div key={key} style={{ display: 'grid', gridTemplateColumns: '48px 1fr 26px', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.lavender, fontWeight: 700 }}>{key}</span>
+              <div style={{ height: 5, background: 'rgba(123,112,178,0.12)', borderRadius: 999, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 999, transition: 'width 0.4s ease' }} />
+              </div>
+              <span style={{ fontSize: 12, fontFamily: 'monospace', color: C.silver, textAlign: 'right', fontWeight: 700 }}>{pct}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* narrative */}
+      <div style={{ padding: '12px 14px', borderRadius: 12, background: 'linear-gradient(180deg,rgba(219,39,119,0.06),transparent)', border: '1px solid rgba(219,39,119,0.18)' }}>
+        <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.magenta, fontWeight: 700, marginBottom: 6 }}>
+          ✦ Why this track
+        </div>
+        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.65, color: '#E2E8F0' }}>
+          {result.confidenceScore.explanation}
+        </p>
+      </div>
+
+      {/* audio mini-player */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 11, background: 'rgba(0,0,0,0.28)', border: `1px solid ${C.hairline}` }}>
+        <button
+          type="button"
+          onClick={togglePlay}
+          disabled={!audioPath}
+          aria-label={playing ? 'Pause' : 'Play'}
+          style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', background: audioPath ? `linear-gradient(135deg,${C.purple},${C.magenta})` : 'rgba(123,112,178,0.15)', color: audioPath ? '#fff' : C.lavender, border: 'none', cursor: audioPath ? 'pointer' : 'not-allowed', boxShadow: audioPath ? `0 4px 12px -4px rgba(219,39,119,0.5)` : 'none' }}
+        >
+          {playing
+            ? <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><rect x="1.5" y="1" width="2.5" height="8" /><rect x="6" y="1" width="2.5" height="8" /></svg>
+            : <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1 L8 5 L2 9 Z" /></svg>}
+        </button>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1.5, height: 24, overflow: 'hidden' }}>
+          {WAVE.map((h, i) => (
+            <span key={i} style={{ display: 'block', width: 2, flexShrink: 0, height: `${h}%`, borderRadius: 2, background: i < playedBars ? `linear-gradient(180deg,${C.purple},${C.magenta})` : 'rgba(123,112,178,0.25)' }} />
+          ))}
+        </div>
+        <span style={{ fontFamily: 'monospace', fontSize: 10, color: C.lavender, flexShrink: 0 }}>
+          {audioPath ? `${formatTime(time)} / ${formatTime(duration || 0)}` : 'No audio'}
+        </span>
+        {audioPath && <audio ref={audioRef} src={audioPath} preload="metadata" />}
+      </div>
+
+      {/* rights status */}
+      {result.rightsProfile && (
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          {(result.rightsProfile.blockers ?? []).map(code => (
+            <Chip key={code} variant="warn">{BLOCKER_LABELS[code] ?? code.replace(/_/g, ' ').toLowerCase()}</Chip>
+          ))}
+          {(result.rightsProfile.blockers ?? []).length === 0 && (
+            <Chip>✓ Rights clear</Chip>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── ResultsScreen ─────────────────────────────────────────────
 type ResultsScreenProps = {
   briefText: string;
@@ -898,7 +1201,8 @@ type ResultsScreenProps = {
 };
 
 export function ResultsScreen({ briefText, briefId, sceneParams, results, readOnly, onBack }: ResultsScreenProps) {
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast,        setToast]        = useState<string | null>(null);
+  const [compareOpen,  setCompareOpen]  = useState(false);
 
   const onExportPdf = () => {
     try { window.print(); } catch (e) { setToast(e instanceof Error ? e.message : 'Print failed.'); }
@@ -1014,6 +1318,11 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
             )}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
+            {results.length >= 2 && (
+              <button type="button" onClick={() => setCompareOpen(true)} className="no-print" style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.silver, padding: '6px 14px', minHeight: 32, borderRadius: 999, background: `linear-gradient(135deg, rgba(245,166,35,0.28), rgba(219,39,119,0.22))`, border: `1px solid rgba(245,166,35,0.4)`, cursor: 'pointer', fontFamily: SANS, fontWeight: 700 }}>
+                Compare ⇄
+              </button>
+            )}
             <button type="button" onClick={onExportPdf} className="no-print" style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.lavender, padding: '6px 12px', minHeight: 32, borderRadius: 999, background: C.chipBg, border: `1px solid ${C.hairline}`, cursor: 'pointer', fontFamily: SANS }}>
               Export PDF
             </button>
@@ -1071,7 +1380,32 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
             {/* Main column */}
             <div className="sv-rs-main-cards">
               {results.map((r, i) => (
-                <TrackCard key={r.track.id} result={r} briefId={briefId} topScore={topScore} isFirst={i === 0} />
+                <div key={r.track.id}>
+                  <TrackCard result={r} briefId={briefId} topScore={topScore} isFirst={i === 0} />
+                  {i === 0 && results.length >= 2 && (
+                    <button
+                      type="button"
+                      className="no-print"
+                      onClick={() => setCompareOpen(true)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 14, width: '100%',
+                        padding: '14px 20px', margin: '4px 0 10px', borderRadius: 14,
+                        border: '1px solid rgba(245,166,35,0.32)',
+                        background: 'linear-gradient(135deg,rgba(245,166,35,0.14),rgba(219,39,119,0.10))',
+                        color: C.silver, cursor: 'pointer', textAlign: 'left',
+                      }}
+                    >
+                      <span style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, display: 'grid', placeItems: 'center', background: `linear-gradient(135deg,${C.purple},${C.magenta})`, color: '#fff', fontSize: 17 }}>⇄</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontWeight: 700, fontSize: 14 }}>Compare top 2 side-by-side</span>
+                        <span style={{ display: 'block', fontSize: 12, color: C.lavender, marginTop: 2, fontFamily: SERIF, fontStyle: 'italic' }}>
+                          Axis scores, narrative, and audio — {cleanTrackTitle(results[0].track.title)} vs {cleanTrackTitle(results[1].track.title)}
+                        </span>
+                      </span>
+                      <span style={{ color: C.amber, fontSize: 18, flexShrink: 0 }}>→</span>
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
             {/* Sidebar — only rendered when there are 2+ results */}
@@ -1116,6 +1450,8 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
           {toast}
         </div>
       )}
+
+      <CompareModal results={results} open={compareOpen} onClose={() => setCompareOpen(false)} />
     </div>
   );
 }
