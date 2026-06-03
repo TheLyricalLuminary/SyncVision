@@ -518,11 +518,16 @@ function LiveTrackCard({
   );
 }
 
+type CmpSeg = 'both' | 'first' | 'second';
+
 function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open: boolean; onClose: () => void }) {
   const first = packet.tracks[0];
   const second = packet.tracks[1];
+  const [seg, setSeg] = useState<CmpSeg>('both');
   if (!first || !second) return null;
   const lead = Math.max(first.fitIndex - second.fitIndex, 0);
+  const showFirst  = seg === 'both' || seg === 'first';
+  const showSecond = seg === 'both' || seg === 'second';
 
   return (
     <div className={`cmp-overlay ${open ? 'open' : ''}`} role="dialog" aria-modal="true" aria-label="Top 2 head-to-head comparison">
@@ -537,8 +542,12 @@ function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open:
         </div>
 
         <div className="cmp-transport">
-          <button className="cmp-playbtn" type="button"><PlayIcon /><span>Play both</span></button>
-          <div className="cmp-seg"><button className="on" type="button">Both</button><button type="button">#1</button><button type="button">#2</button></div>
+          <button className="cmp-playbtn" type="button"><PlayIcon /><span>Play {seg === 'both' ? 'both' : seg === 'first' ? '#1' : '#2'}</span></button>
+          <div className="cmp-seg">
+            <button className={seg === 'both'   ? 'on' : undefined} type="button" onClick={() => setSeg('both')}>Both</button>
+            <button className={seg === 'first'  ? 'on' : undefined} type="button" onClick={() => setSeg('first')}>#1</button>
+            <button className={seg === 'second' ? 'on' : undefined} type="button" onClick={() => setSeg('second')}>#2</button>
+          </div>
           <button className="cmp-chip" data-on="1" type="button"><span className="dot" />Loop 30s</button>
           <span className="cmp-tempo">Tempo <b>{first.tempo ? Math.round(first.tempo) : 68}</b> <span className="arrow">→</span> <b>{second.tempo ? Math.round(second.tempo) : 82}</b> BPM</span>
         </div>
@@ -547,32 +556,40 @@ function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open:
         <div className="cmp-body">
           <div className="cmp-section">
             <div className="cmp-split cmp-identity">
-              {[first, second].map((slot, index) => (
-                <div className={`cmp-half ${index === 0 ? 'is-leader' : ''}`} key={slot.trackId}>
-                  {index === 0 && <span className="cmp-leader-badge"><CheckIcon size={9} />Clear leader</span>}
-                  <div className="cmp-trackname">{slot.title}</div>
-                  <div className="cmp-trackmeta">{[slot.tonalCharacter, slot.energyCharacter, slot.tempo ? `${Math.round(slot.tempo)} BPM` : null].filter(Boolean).join(' - ')}</div>
-                  <div className="cmp-score-row"><span className="cmp-score">{slot.fitIndex}</span><span className="cmp-score-l">Fit</span></div>
+              {showFirst && (
+                <div className="cmp-half is-leader" key={first.trackId}>
+                  <span className="cmp-leader-badge"><CheckIcon size={9} />Clear leader</span>
+                  <div className="cmp-trackname">{first.title}</div>
+                  <div className="cmp-trackmeta">{[first.tonalCharacter, first.energyCharacter, first.tempo ? `${Math.round(first.tempo)} BPM` : null].filter(Boolean).join(' - ')}</div>
+                  <div className="cmp-score-row"><span className="cmp-score">{first.fitIndex}</span><span className="cmp-score-l">Fit</span></div>
                   <div className="cmp-mini-wave">{WAVE_HEIGHTS.map((height, i) => <i key={i} className={i < 16 ? 'played' : undefined} style={{ height: `${height}%` }} />)}</div>
                 </div>
-              ))}
-              <div className="cmp-gap"><div className="g-arrow">▲</div><div className="g-num">+{lead}</div><div className="g-lbl">Lead</div></div>
+              )}
+              {seg === 'both' && <div className="cmp-gap"><div className="g-arrow">▲</div><div className="g-num">+{lead}</div><div className="g-lbl">Lead</div></div>}
+              {showSecond && (
+                <div className="cmp-half" key={second.trackId}>
+                  <div className="cmp-trackname">{second.title}</div>
+                  <div className="cmp-trackmeta">{[second.tonalCharacter, second.energyCharacter, second.tempo ? `${Math.round(second.tempo)} BPM` : null].filter(Boolean).join(' - ')}</div>
+                  <div className="cmp-score-row"><span className="cmp-score">{second.fitIndex}</span><span className="cmp-score-l">Fit</span></div>
+                  <div className="cmp-mini-wave">{WAVE_HEIGHTS.map((height, i) => <i key={i} className={i < 16 ? 'played' : undefined} style={{ height: `${height}%` }} />)}</div>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="cmp-section">
             <div className="cmp-seclabel">Why this track</div>
             <div className="cmp-split">
-              <div className="cmp-half"><p className="cmp-why">{first.explanation}</p></div>
-              <div className="cmp-half"><p className="cmp-why">{second.explanation}</p></div>
+              {showFirst  && <div className="cmp-half"><p className="cmp-why">{first.explanation}</p></div>}
+              {showSecond && <div className="cmp-half"><p className="cmp-why">{second.explanation}</p></div>}
             </div>
           </div>
 
           <div className="cmp-section">
             <div className="cmp-seclabel">SyncScore axes</div>
             <div className="cmp-split">
-              {[first, second].map((slot, index) => (
-                <div className={`cmp-half ${index === 0 ? 'is-leader' : ''}`} key={slot.trackId}>
+              {[first, second].filter((_, i) => i === 0 ? showFirst : showSecond).map((slot, index) => (
+                <div className={`cmp-half ${index === 0 && showFirst ? 'is-leader' : ''}`} key={slot.trackId}>
                   <div className="cmp-axes">
                     {([
                       ['Scene', slot.vector.scene],
@@ -591,7 +608,7 @@ function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open:
           <div className="cmp-section">
             <div className="cmp-seclabel">Rights coverage</div>
             <div className="cmp-split">
-              {[first, second].map(slot => {
+              {[first, second].filter((_, i) => i === 0 ? showFirst : showSecond).map(slot => {
                 const total = Math.max(slot.rightsAggregate.totalFields, 1);
                 const pct = Math.round((slot.rightsAggregate.confirmedFields / total) * 100);
                 const risk = pct >= 65 ? 'low' : pct >= 40 ? 'med' : 'high';
