@@ -1374,10 +1374,10 @@ export function selectNarrativeWithLane(
 
   // Compute scene-fit score to determine tier
   const sceneFit = (
-    vector.scene  * WEIGHTS.scene  +
-    vector.rights * WEIGHTS.rights +
-    vector.lyrics * WEIGHTS.lyrics +
-    vector.signal * WEIGHTS.signal
+    vector.scene       * WEIGHTS.scene       +
+    vector.rights      * WEIGHTS.rights      +
+    vector.lyrics      * WEIGHTS.lyrics      +
+    vector.audioSignal * WEIGHTS.audioSignal
   ) * 100;
 
   const tier = tierFromScore(sceneFit);

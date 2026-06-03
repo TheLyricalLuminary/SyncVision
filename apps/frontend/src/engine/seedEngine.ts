@@ -97,7 +97,7 @@ function mapResponse(resp: DemoCheckResponse): AnalysisResult[] {
         rightsBreakdown:   score,
         lyricsBreakdown:   50,
         signalBreakdown:   Math.round(score * 0.6),
-        vector: { scene: score / 100, rights: score / 100, lyrics: 0.5, signal: (score / 100) * 0.6 },
+        vector: { scene: score / 100, rights: score / 100, lyrics: 0.5, audioSignal: (score / 100) * 0.6 },
         inputHash: '',
       },
       rightsProfile: {

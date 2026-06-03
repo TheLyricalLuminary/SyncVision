@@ -76,6 +76,14 @@ function meanPAD(timeline: unknown): PADMeans | null {
   return { valence: v / n, arousal: a / n, dominance: d / n };
 }
 
+function meanTimelineCol(timeline: unknown, col: number): number | null {
+  const rows = timeline as number[][] | null;
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  let sum = 0;
+  for (const row of rows) sum += row[col] ?? 0;
+  return sum / rows.length;
+}
+
 function calculateSceneFit(timeline: unknown, brief: PADRange): number {
   const m = meanPAD(timeline);
   if (!m) return 0;
@@ -259,20 +267,10 @@ router.post("/demo/check", async (req: Request, res: Response) => {
           acoustidScore:  (track as any).acoustidScore as number | null ?? null,
         },
         lyrics: null,
-        lyricsProxy: {
-          padValence: padValues.valence,
-          hasTitle:   Boolean(track!.title),
-          titleHash:  track!.title
-            ? Array.from(track!.title).reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) & 0xff, 0)
-            : 128,
-        },
-        signal: {
-          hasAudio:  Boolean((track as any).audioFilePath),
-          hasLyrics: false,
-          hasTitle:  Boolean(track!.title),
-          hasTempo:  track!.tempo !== null,
-          hasTonal:  Boolean((track as any).tonalCharacter),
-          hasArtist: Boolean(track!.artistName),
+        audioSignal: {
+          tensionMean:  meanTimelineCol(track!.timeline, 2),
+          intimacyMean: meanTimelineCol(track!.timeline, 4),
+          briefId,
         },
       });
       const narrative = selectNarrativeWithLane(track!.id, briefId, vector, {

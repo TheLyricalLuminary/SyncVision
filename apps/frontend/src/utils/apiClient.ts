@@ -21,7 +21,7 @@ export type AnalysisResult = {
     rightsBreakdown: number;
     lyricsBreakdown: number;
     signalBreakdown: number;
-    vector: { scene: number; rights: number; lyrics: number; signal: number };
+    vector: { scene: number; rights: number; lyrics: number; audioSignal: number };
     inputHash: string;
   };
   rightsProfile: {

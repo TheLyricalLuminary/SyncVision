@@ -582,18 +582,18 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
   const [showPipeline, setShowPipeline]         = useState(false);
   const [playbackMsg, setPlaybackMsg]           = useState(false);
   const [localRightsProfile, setLocalRightsProfile] = useState(result.rightsProfile);
-  const [localVector, setLocalVector]               = useState(result.confidenceScore.vector ?? { scene: result.confidenceScore.sceneFitBreakdown / 100, rights: result.confidenceScore.rightsBreakdown / 100, lyrics: result.confidenceScore.lyricsBreakdown / 100, signal: result.confidenceScore.signalBreakdown / 100 });
+  const [localVector, setLocalVector]               = useState(result.confidenceScore.vector ?? { scene: result.confidenceScore.sceneFitBreakdown / 100, rights: result.confidenceScore.rightsBreakdown / 100, lyrics: result.confidenceScore.lyricsBreakdown / 100, audioSignal: result.confidenceScore.signalBreakdown / 100 });
   const [pendingAutoFill, setPendingAutoFill]        = useState<AutoFill | undefined>(undefined);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Mirror of backend scoreTrack() — same WEIGHTS, same dot product.
   // Recomputed locally whenever rights data saves so the card updates immediately.
-  const WEIGHTS = { scene: 0.45, rights: 0.25, lyrics: 0.25, signal: 0.05 };
+  const WEIGHTS = { scene: 0.40, rights: 0.25, lyrics: 0.20, audioSignal: 0.15 };
   const liveScore = Math.round(
-    (localVector.scene  * WEIGHTS.scene  +
-     localVector.rights * WEIGHTS.rights +
-     localVector.lyrics * WEIGHTS.lyrics +
-     localVector.signal * WEIGHTS.signal) * 100
+    (localVector.scene       * WEIGHTS.scene       +
+     localVector.rights      * WEIGHTS.rights      +
+     localVector.lyrics      * WEIGHTS.lyrics      +
+     localVector.audioSignal * WEIGHTS.audioSignal) * 100
   );
 
   // Recomputes rights axis from blocker list — mirrors buildRightsAxis() in trackVector.ts.
@@ -722,10 +722,10 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
         {/* weighted axis bars — container width ∝ weight, fill ∝ axis value */}
         <div style={{ display: 'flex', gap: 2, width: '100%' }}>
           {([
-            { key: 'scene',  label: 'Scene',  sub: 'fit',     weight: 0.45, value: localVector.scene,  actionable: false },
+            { key: 'scene',  label: 'Scene',  sub: 'fit',      weight: 0.40, value: localVector.scene,  actionable: false },
             { key: 'rights', label: 'Rights', sub: 'exposure', weight: 0.25, value: localVector.rights, actionable: true  },
-            { key: 'lyrics', label: 'Lyrics', sub: 'fit',     weight: 0.25, value: localVector.lyrics, actionable: false, pending: !localRightsProfile },
-            { key: 'signal', label: 'Signal', sub: 'quality', weight: 0.05, value: localVector.signal, actionable: false },
+            { key: 'lyrics', label: 'Lyrics', sub: 'fit',      weight: 0.20, value: localVector.lyrics, actionable: false, pending: !localRightsProfile },
+            { key: 'audioSignal', label: 'Signal', sub: 'mix fit', weight: 0.15, value: localVector.audioSignal, actionable: false },
           ] as { key: string; label: string; sub: string; weight: number; value: number; actionable: boolean; pending?: boolean }[]).map((axis, _i, arr) => {
             const pct   = Math.round(axis.value * 100);
             const isLow = axis.value < 0.4;
@@ -908,12 +908,12 @@ function CompareModal({
   const rightScore = right.confidenceScore.score;
   const lead = leftIdx < rightIdx ? leftScore - rightScore : rightScore - leftScore;
 
-  const AXES = ['scene', 'rights', 'lyrics', 'signal'] as const;
+  const AXES = ['scene', 'rights', 'lyrics', 'audioSignal'] as const;
   const AXIS_COLORS = {
-    scene:  '#F5A623',
-    rights: (v: number) => v >= 0.65 ? '#4CAF82' : v >= 0.35 ? '#F5B544' : '#E85A5A',
-    lyrics: '#9B93C4',
-    signal: 'rgba(155,147,196,0.55)',
+    scene:       '#F5A623',
+    rights:      (v: number) => v >= 0.65 ? '#4CAF82' : v >= 0.35 ? '#F5B544' : '#E85A5A',
+    lyrics:      '#9B93C4',
+    audioSignal: 'rgba(155,147,196,0.55)',
   } as const;
 
   const axisColor = (key: typeof AXES[number], value: number) =>
@@ -981,10 +981,10 @@ function CompareModal({
           {([left, right] as const).map((result, col) => {
             const isLeader = col === 0 ? leftScore >= rightScore : rightScore > leftScore;
             const vec = result.confidenceScore.vector ?? {
-              scene:  result.confidenceScore.sceneFitBreakdown  / 100,
-              rights: result.confidenceScore.rightsBreakdown    / 100,
-              lyrics: result.confidenceScore.lyricsBreakdown    / 100,
-              signal: result.confidenceScore.signalBreakdown    / 100,
+              scene:       result.confidenceScore.sceneFitBreakdown / 100,
+              rights:      result.confidenceScore.rightsBreakdown   / 100,
+              lyrics:      result.confidenceScore.lyricsBreakdown   / 100,
+              audioSignal: result.confidenceScore.signalBreakdown   / 100,
             };
             const score = result.confidenceScore.score;
             const audioPath = resolveAudioUrl(result.track.audioFilePath);
@@ -1045,12 +1045,12 @@ function CompareHalf({
 }: {
   result:    AnalysisResult;
   score:     number;
-  vec:       { scene: number; rights: number; lyrics: number; signal: number };
+  vec:       { scene: number; rights: number; lyrics: number; audioSignal: number };
   audioPath: string | null;
   isLeader:  boolean;
   lead:      number;
-  axisColor: (key: 'scene' | 'rights' | 'lyrics' | 'signal', value: number) => string;
-  axes:      readonly ('scene' | 'rights' | 'lyrics' | 'signal')[];
+  axisColor: (key: 'scene' | 'rights' | 'lyrics' | 'audioSignal', value: number) => string;
+  axes:      readonly ('scene' | 'rights' | 'lyrics' | 'audioSignal')[];
 }) {
   const [playing,  setPlaying]  = useState(false);
   const [time,     setTime]     = useState(0);

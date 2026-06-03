@@ -238,7 +238,7 @@ interface AnalysisResult {
     lyricsBreakdown: number;
     signalBreakdown: number;
     // raw 0–1 vector for audit/downstream use
-    vector: { scene: number; rights: number; lyrics: number; signal: number };
+    vector: { scene: number; rights: number; lyrics: number; audioSignal: number };
     inputHash: string;
   };
   rightsProfile: {
@@ -360,22 +360,11 @@ async function processJob(jobId: string): Promise<void> {
           hasIsrc:        Boolean(track.isrc),
           acoustidScore:  (track as Record<string, unknown>).acoustidScore as number | null ?? null,
         },
-        lyrics: null,  // no real lyrics data yet
-        lyricsProxy: {
-          padValence: padValues.valence,
-          hasTitle:   Boolean(track.title),
-          // Deterministic per-track jitter from title (0..255)
-          titleHash:  track.title
-            ? Array.from(track.title).reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) & 0xff, 0)
-            : 128,
-        },
-        signal: {
-          hasAudio:  Boolean(track.audioFilePath),
-          hasLyrics: false,
-          hasTitle:  Boolean(track.title),
-          hasTempo:  track.tempo !== null,
-          hasTonal:  Boolean(track.tonalCharacter),
-          hasArtist: Boolean(track.artistName),
+        lyrics: null,
+        audioSignal: {
+          tensionMean:  worker.tensionMean,
+          intimacyMean: worker.intimacyMean,
+          briefId:      job.briefId,
         },
       });
 
@@ -403,10 +392,10 @@ async function processJob(jobId: string): Promise<void> {
           score,
           confidenceLabel: confidenceLabelFor(score),
           explanation,
-          sceneFitBreakdown: Math.round(vector.scene  * 100),
-          rightsBreakdown:   Math.round(vector.rights * 100),
-          lyricsBreakdown:   Math.round(vector.lyrics * 100),
-          signalBreakdown:   Math.round(vector.signal * 100),
+          sceneFitBreakdown: Math.round(vector.scene       * 100),
+          rightsBreakdown:   Math.round(vector.rights      * 100),
+          lyricsBreakdown:   Math.round(vector.lyrics      * 100),
+          signalBreakdown:   Math.round(vector.audioSignal * 100),
           vector,
           inputHash: ranked.inputHash,
         },

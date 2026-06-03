@@ -860,28 +860,181 @@ export function verdictFor(sceneFit: number): Verdict {
   return "FAIL_HARD";
 }
 
+// ---------------------------------------------------------------------------
+// Axis-derived narrative construction — PASS/MAYBE tiers only.
+//
+// The three real axes the engine measures:
+//   scene    — PAD-based scene fit (weight varies per brief, typically 0.45–0.60)
+//   rights   — clearance confidence: master + publishing + PRO registration
+//   metadata — cataloguing completeness: ISRC, tempo, character tags, audio file
+//
+// For each PASS/MAYBE track the narrative is built from:
+//   LEAD    — the axis with the highest weighted contribution (axisValue × weight)
+//   CAVEAT  — the axis with the lowest raw score (the editorial concern)
+//   FRAMING — tier register: affirming / positive-with-note / conditional / cautious
+//
+// Same inputs → identical output. No randomness. Two tracks with nearly identical
+// vectors getting nearly identical phrases is the CORRECT, honest behaviour.
+// ---------------------------------------------------------------------------
+
+export interface TrackAxisScores {
+  sceneFit:     number;   // 0–100
+  rightsClarity: number;  // 0–100
+  metadata:      number;  // 0–100
+  weights: {
+    sceneFit:     number;  // brief-specific weight, e.g. 0.50
+    rightsClarity: number;
+    metadata:      number;
+  };
+}
+
+type AxisKey = "sceneFit" | "rightsClarity" | "metadata";
+
+// Per-brief fragment sets. Each set provides:
+//   lead.scene / lead.rights / lead.metadata  — opening clause for each dominant axis
+//   caveat.scene / caveat.rights / caveat.metadata — concern clause for each weakest axis
+//
+// Fragments must be brief-specific, not generic. "Scene fit is strong" is rejected.
+// ---------------------------------------------------------------------------
+
+interface BriefFragments {
+  lead: Record<AxisKey, string>;
+  caveat: Record<AxisKey, string>;
+}
+
+// Gap threshold: if (dominant weighted contribution) − (weakest raw / 100) > this,
+// the caveat is foregrounded ("the open question is…" vs "worth confirming…").
+const SHARP_CAVEAT_GAP = 0.25;
+
+const BRIEF_FRAGMENTS: Partial<Record<string, BriefFragments>> = {
+  "chase-tension": {
+    lead: {
+      sceneFit:      "Drives the pursuit energy the cut needs",
+      rightsClarity: "Clearance path is clean enough to anchor an action sequence",
+      metadata:      "Catalogued with the detail that keeps this usable under pressure in post",
+    },
+    // Caveat is a complete clause — used as the tail of a sentence.
+    // Designed to follow "—" cleanly at every tier.
+    // rightsClarity measures DATA PRESENCE (fields entered), not actual clearance status.
+    // Caveat language must reflect missing catalog data, not elevated clearance risk.
+    caveat: {
+      sceneFit:      "the scene fit score doesn't fully commit to the threat register the brief demands",
+      rightsClarity: "publisher and master data hasn't been entered yet — rights fields need to be filled before this can move toward clearance",
+      metadata:      "metadata gaps could slow clearance if the placement moves on a compressed timeline",
+    },
+  },
+};
+
+// Framing: each template ends the sentence with a period.
+// caveat is a full clause; sharp = true when the gap between dominant and weakest is large.
+const TIER_FRAMING: Record<Verdict, (caveat: string, sharp: boolean) => string> = {
+  PASS_STRONG: (caveat, sharp) =>
+    sharp
+      ? `Clears for the chase brief — ${caveat}.`
+      : `Strong placement for a pursuit sequence.`,
+  PASS_SOFT:   (caveat, _sharp) =>
+    `Viable for a chase cut — ${caveat}.`,
+  MAYBE_HIGH:  (caveat, _sharp) =>
+    `In range for chase use, though ${caveat}.`,
+  MAYBE_LOW:   (caveat, _sharp) =>
+    `Marginal for a pursuit placement — ${caveat}.`,
+  // FAIL tiers bypass the constructor entirely; these entries are unreachable.
+  FAIL_CLOSE:  (_c, _s) => "",
+  FAIL_HARD:   (_c, _s) => "",
+};
+
 /**
- * Deterministically select a narrative phrase for (trackId, briefId, sceneFit)
- * and append a parenthetical audio-feature suffix with the track's actual
- * tonal character, energy character, and BPM.
+ * Pure function: same (briefId, verdict, axes) always returns the same string.
+ * Returns null when no fragments exist for the brief (caller falls back to pool).
+ */
+export function constructPassMaybeNarrative(
+  briefId: string,
+  verdict: Verdict,
+  axes: TrackAxisScores,
+): string | null {
+  const frags = BRIEF_FRAGMENTS[briefId];
+  if (!frags) return null;
+
+  // Weighted contributions — the "amount each axis added to the score"
+  const contrib: Record<AxisKey, number> = {
+    sceneFit:      (axes.sceneFit      / 100) * axes.weights.sceneFit,
+    rightsClarity: (axes.rightsClarity / 100) * axes.weights.rightsClarity,
+    metadata:      (axes.metadata      / 100) * axes.weights.metadata,
+  };
+
+  // Dominant axis: highest weighted contribution
+  const dominant = (Object.keys(contrib) as AxisKey[])
+    .reduce((a, b) => contrib[a] >= contrib[b] ? a : b);
+
+  // Weakest axis: lowest raw value
+  const rawValues: Record<AxisKey, number> = {
+    sceneFit:      axes.sceneFit,
+    rightsClarity: axes.rightsClarity,
+    metadata:      axes.metadata,
+  };
+  const weakest = (Object.keys(rawValues) as AxisKey[])
+    .reduce((a, b) => rawValues[a] <= rawValues[b] ? a : b);
+
+  const lead   = frags.lead[dominant];
+  const caveat = frags.caveat[weakest];
+
+  // Gap between dominant contribution and weakest normalised raw score
+  const gap = contrib[dominant] - (rawValues[weakest] / 100);
+  const sharp = gap > SHARP_CAVEAT_GAP;
+
+  const framing = TIER_FRAMING[verdict](caveat, sharp);
+  return `${lead} — ${framing}`;
+}
+
+/**
+ * Deterministically select a narrative phrase for (trackId, briefId, sceneFit).
  *
- * Hash key: sha256(`${trackId}:${briefId}:${verdict}`) so the same
- * track+brief+tier always yields the same phrase.
+ * PASS/MAYBE tiers: if axis scores are supplied and a fragment set exists for the
+ * brief, the phrase is constructed from the vector (pure function, no randomness).
+ * Otherwise falls back to the authored pool with a SHA-256 hash selector.
+ *
+ * FAIL tiers: always use the authored pools unchanged.
+ *
+ * Appends a parenthetical audio-feature suffix with tonal character, energy
+ * character, and BPM when those fields are present.
  */
 export function buildBriefNarrative(
   trackId: string,
   briefId: string,
   sceneFit: number,
   track: { tempo: number | null; tonalCharacter: string | null; energyCharacter: string | null },
+  axes?: TrackAxisScores,
 ): string {
   const brief = NARRATIVE_DICTIONARY[briefId];
   if (!brief) {
     return `sceneFit=${sceneFit} — brief narrative unavailable for "${briefId}"`;
   }
   const verdict = verdictFor(sceneFit);
-  const pool = brief[verdict];
-  const h = createHash("sha256").update(`${trackId}:${briefId}:${verdict}`).digest("hex");
-  const phrase = pool[parseInt(h.slice(0, 8), 16) % pool.length];
+
+  let phrase: string;
+
+  const isPassMaybe =
+    verdict === "PASS_STRONG" ||
+    verdict === "PASS_SOFT"   ||
+    verdict === "MAYBE_HIGH"  ||
+    verdict === "MAYBE_LOW";
+
+  if (isPassMaybe && axes) {
+    const constructed = constructPassMaybeNarrative(briefId, verdict, axes);
+    if (constructed !== null) {
+      phrase = constructed;
+    } else {
+      // No fragments yet for this brief — hash-select from pool as before
+      const pool = brief[verdict];
+      const h = createHash("sha256").update(`${trackId}:${briefId}:${verdict}`).digest("hex");
+      phrase = pool[parseInt(h.slice(0, 8), 16) % pool.length];
+    }
+  } else {
+    // FAIL tiers or no axes supplied — authored pool, hash selection
+    const pool = brief[verdict];
+    const h = createHash("sha256").update(`${trackId}:${briefId}:${verdict}`).digest("hex");
+    phrase = pool[parseInt(h.slice(0, 8), 16) % pool.length];
+  }
 
   const parts = [
     track.tonalCharacter ?? "",

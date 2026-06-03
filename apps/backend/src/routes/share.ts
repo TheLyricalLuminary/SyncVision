@@ -58,8 +58,8 @@ export interface TrackSlot {
   artistName:   string | null;
   rank:         number;
   fitIndex:     number; // 0–100, 1 decimal
-  vector:       { scene: number; rights: number; lyrics: number; signal: number }; // 4 decimals each
-  axisWeights:  { scene: number; rights: number; lyrics: number; signal: number }; // static WEIGHTS
+  vector:       { scene: number; rights: number; lyrics: number; audioSignal: number }; // 4 decimals each
+  axisWeights:  { scene: number; rights: number; lyrics: number; audioSignal: number }; // static WEIGHTS
   explanation:  string;
   tempo:        number | null;
   tonalCharacter:  string | null;
@@ -212,10 +212,10 @@ function buildHashable(packet: DecisionPacket): Record<string, unknown> {
 // ── Zod schema for POST body ──────────────────────────────────────────────────
 
 const VectorSchema = z.object({
-  scene:  z.number(),
-  rights: z.number(),
-  lyrics: z.number(),
-  signal: z.number(),
+  scene:       z.number(),
+  rights:      z.number(),
+  lyrics:      z.number(),
+  audioSignal: z.number(),
 });
 
 const TrackResultSchema = z.object({
@@ -381,16 +381,16 @@ router.post('/share', async (req: Request, res: Response) => {
       rank:            r.rank,
       fitIndex:        fixedNum(r.confidenceScore.score, 1),
       vector: {
-        scene:  fixedNum(r.confidenceScore.vector.scene,  4),
-        rights: fixedNum(r.confidenceScore.vector.rights, 4),
-        lyrics: fixedNum(r.confidenceScore.vector.lyrics, 4),
-        signal: fixedNum(r.confidenceScore.vector.signal, 4),
+        scene:       fixedNum(r.confidenceScore.vector.scene,       4),
+        rights:      fixedNum(r.confidenceScore.vector.rights,      4),
+        lyrics:      fixedNum(r.confidenceScore.vector.lyrics,      4),
+        audioSignal: fixedNum(r.confidenceScore.vector.audioSignal, 4),
       },
       axisWeights: {
-        scene:  fixedNum(WEIGHTS.scene,  4),
-        rights: fixedNum(WEIGHTS.rights, 4),
-        lyrics: fixedNum(WEIGHTS.lyrics, 4),
-        signal: fixedNum(WEIGHTS.signal, 4),
+        scene:       fixedNum(WEIGHTS.scene,       4),
+        rights:      fixedNum(WEIGHTS.rights,      4),
+        lyrics:      fixedNum(WEIGHTS.lyrics,      4),
+        audioSignal: fixedNum(WEIGHTS.audioSignal, 4),
       },
       explanation:     r.confidenceScore.explanation,
       tempo:           r.tempo,

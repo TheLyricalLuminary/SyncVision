@@ -35,8 +35,8 @@ export interface TrackSlot {
   artistName:   string | null;
   rank:         number;
   fitIndex:     number;
-  vector:       { scene: number; rights: number; lyrics: number; signal: number };
-  axisWeights:  { scene: number; rights: number; lyrics: number; signal: number };
+  vector:       { scene: number; rights: number; lyrics: number; audioSignal: number };
+  axisWeights:  { scene: number; rights: number; lyrics: number; audioSignal: number };
   explanation:  string;
   tempo:        number | null;
   tonalCharacter:  string | null;
@@ -193,7 +193,7 @@ function PrintTrackPage({ slot, index, total, pages }: { slot: TrackSlot; index:
           ['Scene', slot.vector.scene],
           ['Rights', slot.vector.rights],
           ['Lyrics', slot.vector.lyrics],
-          ['Signal', slot.vector.signal],
+          ['Signal', slot.vector.audioSignal],
         ] as const).map(([label, value]) => {
           const pct = Math.round(value * 100);
           return (
@@ -576,7 +576,7 @@ function LiveTrackCard({
             ['Scene',  slot.vector.scene,  '#F5A623'],
             ['Rights', slot.vector.rights, slot.vector.rights >= 0.65 ? '#4CAF82' : slot.vector.rights >= 0.35 ? '#F5B544' : '#E85A5A'],
             ['Lyrics', slot.vector.lyrics, '#9B93C4'],
-            ['Signal', slot.vector.signal, 'rgba(155,147,196,0.55)'],
+            ['Signal', slot.vector.audioSignal, 'rgba(155,147,196,0.55)'],
           ] as const).map(([label, value, color]) => {
             const pct = Math.round(value * 100);
             return (
@@ -735,7 +735,7 @@ function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open:
                       ['Scene', slot.vector.scene],
                       ['Rights', slot.vector.rights],
                       ['Lyrics', slot.vector.lyrics],
-                      ['Signal', slot.vector.signal],
+                      ['Signal', slot.vector.audioSignal],
                     ] as const).map(([label, value]) => (
                       <div className="cmp-axis" key={label}><span className="a-n">{label}</span><span className="a-t"><span className="a-f" style={{ width: `${axisPct(value)}%` }} /></span><span className="a-v">{axisPct(value)}</span></div>
                     ))}

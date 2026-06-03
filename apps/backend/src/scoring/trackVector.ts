@@ -11,14 +11,14 @@ import { createHash } from "crypto";
 // ─── Weights (stable, fixed priors) ──────────────────────────────────────────
 
 export const WEIGHTS = {
-  scene:  0.45,  // audio + scene alignment
-  rights: 0.25,  // clearance probability / risk inversion
-  lyrics: 0.25,  // semantic + explicit + density fit
-  signal: 0.05,  // metadata confidence / completeness
+  scene:       0.40,  // PAD scene fit (emotional-spatial alignment)
+  rights:      0.25,  // clearance data completeness / risk inversion
+  lyrics:      0.20,  // LYRICS_AXIS_STUB — real implementation pending Genius NLP integration
+  audioSignal: 0.15,  // spectral tension + intimacy fit to brief (replaces old metadata signal)
 } as const;
 
 // Sum guard — caught at import time, not at runtime.
-const _sum = WEIGHTS.scene + WEIGHTS.rights + WEIGHTS.lyrics + WEIGHTS.signal;
+const _sum = WEIGHTS.scene + WEIGHTS.rights + WEIGHTS.lyrics + WEIGHTS.audioSignal;
 if (Math.abs(_sum - 1.0) > 1e-9) {
   throw new Error(`WEIGHTS must sum to 1.0, got ${_sum}`);
 }
@@ -26,10 +26,10 @@ if (Math.abs(_sum - 1.0) > 1e-9) {
 // ─── Canonical vector ─────────────────────────────────────────────────────────
 
 export interface TrackVector {
-  scene:  number;  // 0–1
-  rights: number;  // 0–1
-  lyrics: number;  // 0–1
-  signal: number;  // 0–1
+  scene:       number;  // 0–1
+  rights:      number;  // 0–1
+  lyrics:      number;  // 0–1
+  audioSignal: number;  // 0–1
 }
 
 export interface RankedTrack {
@@ -43,10 +43,10 @@ export interface RankedTrack {
 
 export function scoreTrack(v: TrackVector): number {
   return clamp(
-    v.scene  * WEIGHTS.scene  +
-    v.rights * WEIGHTS.rights +
-    v.lyrics * WEIGHTS.lyrics +
-    v.signal * WEIGHTS.signal,
+    v.scene       * WEIGHTS.scene       +
+    v.rights      * WEIGHTS.rights      +
+    v.lyrics      * WEIGHTS.lyrics      +
+    v.audioSignal * WEIGHTS.audioSignal,
     0, 1,
   );
 }
@@ -56,6 +56,12 @@ export function scoreTrack(v: TrackVector): number {
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
+}
+
+function distFromRange(value: number, lo: number, hi: number): number {
+  if (value < lo) return lo - value;
+  if (value > hi) return value - hi;
+  return 0;
 }
 
 // Scene axis:
@@ -107,12 +113,12 @@ export function buildRightsAxis(inputs: RightsInputs): number {
 }
 
 // Lyrics axis:
-//   When real lyrics data is present, returns a weighted composite.
-//   When lyrics data is absent, derives a per-track proxy from the PAD
-//   valence (lyric tone is correlated with melodic valence in pop music)
-//   instead of returning a flat 0.5. This eliminates the "every track
-//   shows 50" demo-killer while staying honest — the value is clearly
-//   a proxy until real lyric ingestion lands.
+//   LYRICS_AXIS_STUB — real implementation pending Genius NLP integration.
+//   Returns a fixed neutral 0.50 for all tracks. The proxy that derived
+//   a value from PAD valence + title hash has been removed because it
+//   was correlated with the scene axis and carried no independent signal.
+//   No PASS/MAYBE narrative phrase references lyric content while this
+//   axis is a stub.
 export interface LyricsInputs {
   thematicScore:  number;  // 0–1: semantic alignment to scene brief
   explicitScore:  number;  // 0–1: explicit/profanity density
@@ -120,62 +126,76 @@ export interface LyricsInputs {
   densityFit:     number;  // 0–1: word density vs instrumental appropriateness
 }
 
-export interface LyricsProxyInputs {
-  padValence: number | null;  // 0–1, from track PAD analysis
-  hasTitle:   boolean;
-  titleHash:  number;          // 0..255, deterministic per-track variance
-}
-
 export function buildLyricsAxis(
-  inputs: LyricsInputs | null,
-  proxy?: LyricsProxyInputs,
+  _inputs: LyricsInputs | null,
+  _proxy?: unknown,
 ): number {
-  if (inputs) {
-    return clamp(
-      0.6 * inputs.thematicScore +
-      0.2 * (1 - inputs.explicitScore) +
-      0.1 * (1 - inputs.entityNoise) +
-      0.1 * inputs.densityFit,
-      0, 1,
-    );
-  }
-  if (proxy && (proxy.padValence !== null || proxy.hasTitle)) {
-    // Center on 0.5 with ±0.18 variance from valence + title-hash jitter
-    const valenceComponent = proxy.padValence !== null
-      ? (proxy.padValence - 0.5) * 0.30  // ±0.15
-      : 0;
-    const jitter = (proxy.titleHash / 255 - 0.5) * 0.10; // ±0.05
-    return clamp(0.5 + valenceComponent + jitter, 0.32, 0.68);
-  }
-  return 0.5;
+  // LYRICS_AXIS_STUB — returns neutral 0.50 until NLP integration lands.
+  return 0.50;
 }
 
-// Signal axis:
-//   System trust. Prevents garbage-in ranking bias.
-//   Tracks with complete metadata rank above identical-scoring sparse tracks.
-export interface SignalInputs {
-  hasAudio:    boolean;
-  hasLyrics:   boolean;
-  hasTitle:    boolean;
-  hasTempo:    boolean;
-  hasTonal:    boolean;
-  hasArtist:   boolean;
+// AudioSignal axis:
+//   Measures how well the track's spectral character fits the brief's
+//   mix profile using two dimensions:
+//     tension  = spectral contrast mean (assertiveness of the spectral
+//                envelope; high = cutting, crunchy; low = smooth, glassy)
+//     intimacy = 1 − spectral bandwidth mean (narrowness of spectral
+//                spread; high = focused, close-mic; low = wide, diffuse)
+//
+//   Target ranges per brief define the "ideal zone" in [tension, intimacy]
+//   space. Score = inverse Euclidean distance from track to that zone,
+//   normalised by sqrt(2) (the diagonal of the unit 2D square), scaled 0–100.
+//
+//   Falls back to 0.50 (neutral) when tensionMean or intimacyMean is null.
+
+type Range = [number, number];
+
+interface AudioSignalTarget {
+  tension:  Range;
+  intimacy: Range;
 }
 
-export function buildSignalAxis(inputs: SignalInputs): number {
-  const metadataCompleteness = (
-    (inputs.hasTitle  ? 1 : 0) +
-    (inputs.hasTempo  ? 1 : 0) +
-    (inputs.hasTonal  ? 1 : 0) +
-    (inputs.hasArtist ? 1 : 0)
-  ) / 4;
+// Brief targets in [tension, intimacy] space. Both dimensions are 0–1.
+// Tension: spectral contrast mean. High = assertive/cutting; low = smooth.
+// Intimacy: 1 − spectral bandwidth mean. High = focused; low = wide/diffuse.
+const AUDIO_SIGNAL_TARGETS: Record<string, AudioSignalTarget> = {
+  "chase-tension":            { tension: [0.65, 1.00], intimacy: [0.00, 0.45] },
+  "action-combat":            { tension: [0.75, 1.00], intimacy: [0.00, 0.40] },
+  "triumph-victory":          { tension: [0.55, 0.85], intimacy: [0.20, 0.55] },
+  "euphoria-celebration":     { tension: [0.50, 0.80], intimacy: [0.25, 0.60] },
+  "suspense-dread":           { tension: [0.40, 0.70], intimacy: [0.40, 0.75] },
+  "horror-psychological":     { tension: [0.30, 0.65], intimacy: [0.45, 0.80] },
+  "drama-confrontation":      { tension: [0.50, 0.80], intimacy: [0.30, 0.65] },
+  "urban-gritty":             { tension: [0.60, 0.90], intimacy: [0.15, 0.50] },
+  "romance-intimacy":         { tension: [0.10, 0.45], intimacy: [0.65, 1.00] },
+  "heartbreak-separation":    { tension: [0.20, 0.55], intimacy: [0.55, 0.90] },
+  "grief-loss":               { tension: [0.20, 0.55], intimacy: [0.55, 1.00] },
+  "contemplative-reflective": { tension: [0.25, 0.60], intimacy: [0.45, 0.80] },
+  "emotional-resolution":     { tension: [0.35, 0.65], intimacy: [0.40, 0.75] },
+  "comedy-light":             { tension: [0.45, 0.75], intimacy: [0.30, 0.65] },
+  "quirky-offbeat":           { tension: [0.40, 0.75], intimacy: [0.30, 0.65] },
+  "montage-transition":       { tension: [0.35, 0.70], intimacy: [0.30, 0.65] },
+  "opening-closing-title":    { tension: [0.45, 0.75], intimacy: [0.30, 0.65] },
+  "cinematic-epic":           { tension: [0.55, 0.85], intimacy: [0.20, 0.55] },
+  "corporate-aspirational":   { tension: [0.40, 0.70], intimacy: [0.30, 0.65] },
+  "nature-pastoral":          { tension: [0.10, 0.45], intimacy: [0.55, 0.90] },
+};
 
-  return clamp(
-    (inputs.hasAudio  ? 0.4 : 0) +
-    (inputs.hasLyrics ? 0.3 : 0) +
-    metadataCompleteness * 0.3,
-    0, 1,
-  );
+const MAX_AUDIO_SIGNAL_DIST = Math.SQRT2; // diagonal of the unit 2D square
+
+export function buildAudioSignalAxis(
+  tensionMean:  number | null,
+  intimacyMean: number | null,
+  briefId: string,
+): number {
+  if (tensionMean === null || intimacyMean === null) return 0.50;
+  const target = AUDIO_SIGNAL_TARGETS[briefId];
+  if (!target) return 0.50;
+
+  const dT = distFromRange(tensionMean,  target.tension[0],  target.tension[1]);
+  const dI = distFromRange(intimacyMean, target.intimacy[0], target.intimacy[1]);
+  const dist = Math.sqrt(dT * dT + dI * dI);
+  return clamp((1 - dist / MAX_AUDIO_SIGNAL_DIST), 0, 1);
 }
 
 // ─── Full vector builder ──────────────────────────────────────────────────────
@@ -185,8 +205,11 @@ export interface VectorInputs {
   dspMatchScore:  number;
   rights:         RightsInputs;
   lyrics:         LyricsInputs | null;
-  lyricsProxy?:   LyricsProxyInputs;  // used when `lyrics` is null
-  signal:         SignalInputs;
+  audioSignal: {
+    tensionMean:  number | null;
+    intimacyMean: number | null;
+    briefId:      string;
+  };
 }
 
 function sortedJson(value: unknown): string {
@@ -208,10 +231,14 @@ export function buildVector(inputs: VectorInputs): {
   ranked: Omit<RankedTrack, "trackId">;
 } {
   const vector: TrackVector = {
-    scene:  buildSceneAxis(inputs.padSceneFit, inputs.dspMatchScore),
-    rights: buildRightsAxis(inputs.rights),
-    lyrics: buildLyricsAxis(inputs.lyrics, inputs.lyricsProxy),
-    signal: buildSignalAxis(inputs.signal),
+    scene:       buildSceneAxis(inputs.padSceneFit, inputs.dspMatchScore),
+    rights:      buildRightsAxis(inputs.rights),
+    lyrics:      buildLyricsAxis(inputs.lyrics),
+    audioSignal: buildAudioSignalAxis(
+      inputs.audioSignal.tensionMean,
+      inputs.audioSignal.intimacyMean,
+      inputs.audioSignal.briefId,
+    ),
   };
 
   const score = scoreTrack(vector);
