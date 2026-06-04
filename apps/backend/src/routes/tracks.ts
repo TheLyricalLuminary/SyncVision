@@ -457,6 +457,7 @@ router.patch("/tracks/:id/rights", async (req: Request, res: Response) => {
       syncLicensedBy?: string;
       lyricLicenseStatus?: string;
       lyricLicensedBy?: string;
+      splitPct?: number;
     };
 
     // Update Track ISRC if provided
@@ -482,6 +483,7 @@ router.patch("/tracks/:id/rights", async (req: Request, res: Response) => {
       syncLicensedBy:     body.syncLicensedBy      ?? undefined,
       lyricLicenseStatus: body.lyricLicenseStatus  ?? undefined,
       lyricLicensedBy:    body.lyricLicensedBy     ?? undefined,
+      splitPct:           body.splitPct != null ? body.splitPct : undefined,
       rightsLastCheckedAt: new Date(),
     };
 
@@ -554,6 +556,7 @@ router.patch("/tracks/:id/rights", async (req: Request, res: Response) => {
       syncLicensedBy:     rp.syncLicensedBy,
       lyricLicenseStatus: rp.lyricLicenseStatus,
       lyricLicensedBy:    rp.lyricLicensedBy,
+      splitPct:           rp.splitPct != null ? Number(rp.splitPct) : null,
     });
   } catch (err) {
     console.error(err);

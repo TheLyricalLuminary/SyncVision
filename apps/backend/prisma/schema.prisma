@@ -86,6 +86,7 @@ model RightsProfile {
   trackId               String    @unique
   ascapWorkId           String?
   masterOwnershipPct    Decimal?
+  splitPct              Decimal?
   isOneStop             Boolean?
   writerName            String?
   writerIpi             String?

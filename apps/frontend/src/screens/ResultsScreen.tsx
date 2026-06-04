@@ -405,6 +405,7 @@ type RightsSaveResult = {
   syncLicensedBy: string | null;
   lyricLicenseStatus: string | null;
   lyricLicensedBy: string | null;
+  splitPct: number | null;
 };
 
 function RightsPanel({
@@ -424,6 +425,7 @@ function RightsPanel({
   const [pro, setPro]                 = useState(autoFill?.proAffiliation ?? existing?.proAffiliation ?? '');
   const [workId, setWorkId]           = useState(autoFill?.iswc ?? existing?.workId ?? '');
   const [ipi, setIpi]                 = useState(autoFill?.writerIpi ?? existing?.writerIpi ?? '');
+  const [splitPct, setSplitPct]       = useState(existing?.splitPct != null ? String(existing.splitPct) : '');
   const [oneStop, setOneStop]         = useState(existing?.isOneStop ?? false);
   const [syncLicense, setSyncLicense] = useState(existing?.syncLicenseStatus ?? '');
   const [syncBy, setSyncBy]           = useState(existing?.syncLicensedBy ?? '');
@@ -454,6 +456,10 @@ function RightsPanel({
       if (pro.trim())         body.proAffiliation = pro.trim();
       if (workId.trim())      body.ascapWorkId = workId.trim();
       if (ipi.trim())         body.writerIpi   = ipi.trim();
+      if (splitPct.trim()) {
+        const n = parseFloat(splitPct.trim());
+        if (!isNaN(n)) body.splitPct = Math.min(100, Math.max(0, n));
+      }
       body.isOneStop = oneStop;
       if (syncLicense.trim()) body.syncLicenseStatus = syncLicense.trim();
       if (syncBy.trim())      body.syncLicensedBy = syncBy.trim();
@@ -512,6 +518,19 @@ function RightsPanel({
         <div>
           <label style={labelStyle}>Writer IPI</label>
           <input style={inputStyle} value={ipi} onChange={e => setIpi(e.target.value)} placeholder="e.g. 00508530861" />
+        </div>
+        <div>
+          <label style={labelStyle}>Writer Split %</label>
+          <input
+            style={inputStyle}
+            type="number"
+            min={0}
+            max={100}
+            step={0.01}
+            value={splitPct}
+            onChange={e => setSplitPct(e.target.value)}
+            placeholder="e.g. 50"
+          />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <label style={{ ...labelStyle, marginBottom: 10 }}>One-Stop License</label>
@@ -847,6 +866,7 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
               syncLicensedBy: saved.syncLicensedBy,
               lyricLicenseStatus: saved.lyricLicenseStatus,
               lyricLicensedBy: saved.lyricLicensedBy,
+              splitPct: saved.splitPct,
             };
             setLocalRightsProfile(newRp);
             onRightsSaved?.(result.track.id, newRp);
@@ -1249,6 +1269,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
               writerName:        rp.writerName ?? null,
               rightsState:       rp.rightsState ?? null,
               enrichmentSources: rp.enrichmentSources ?? [],
+              splitPct:          rp.splitPct ?? null,
             } : null,
           };
         }),

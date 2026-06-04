@@ -242,6 +242,7 @@ const TrackResultSchema = z.object({
     writerName:      z.string().nullable(),
     rightsState:     z.string().nullable(),
     enrichmentSources: z.array(z.string()).optional(),
+    splitPct:        z.number().nullable().optional(),
   }).nullable(),
 });
 
@@ -307,16 +308,16 @@ router.post('/share', async (req: Request, res: Response) => {
     // stores every source's value independently. When present, we build multi-entry
     // ledger fields so CONFLICT is surfaced honestly. Falls back to working values
     // for tracks enriched before rightsFieldSources was introduced.
-    const masterPct = dbRp?.['masterOwnershipPct'] != null
-      ? parseFloat(String(dbRp['masterOwnershipPct']))
-      : null;
+    const splitPct = dbRp?.['splitPct'] != null
+      ? parseFloat(String(dbRp['splitPct']))
+      : (r.rightsProfile?.splitPct ?? null);
 
     type RfsEntry = { value: string | number | null; source: string };
     const rfs = dbRp?.['rightsFieldSources'] as Record<string, RfsEntry[]> | null | undefined;
 
     const ledger: RightsFieldLedger[] = [
       buildLedgerField('writer',          rp?.['writerName']     as string | null, src1, rfs?.['writerName']),
-      buildLedgerField('split_pct',       masterPct,                               src1),
+      buildLedgerField('split_pct',       splitPct,                                src1),
       buildLedgerField('publisher',       rp?.['publisherName']  as string | null, src1, rfs?.['publisherName']),
       buildLedgerField('isrc',            isrc,                                    'registry'),
       buildLedgerField('iswc',            dbRp?.['iswc']         as string | null, src1, rfs?.['iswc']),

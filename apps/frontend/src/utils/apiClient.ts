@@ -33,6 +33,7 @@ export type AnalysisResult = {
     publisherName: string | null;
     writerName: string | null;
     writerIpi?: string | null;
+    splitPct?: number | null;
     blockers?: string[];
     rightsState?: string;
     syncLicenseStatus?: string | null;
