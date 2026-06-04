@@ -913,15 +913,103 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
   );
 }
 
+// ── Verdict builder ───────────────────────────────────────────
+function buildVerdict(
+  winner: AnalysisResult,
+  loser:  AnalysisResult,
+  briefId: BriefId,
+  sceneParams: SceneParams,
+): string {
+  const wVec = winner.confidenceScore.vector ?? {
+    scene:       winner.confidenceScore.sceneFitBreakdown / 100,
+    rights:      winner.confidenceScore.rightsBreakdown   / 100,
+    lyrics:      winner.confidenceScore.lyricsBreakdown   / 100,
+    audioSignal: winner.confidenceScore.signalBreakdown   / 100,
+  };
+  const lVec = loser.confidenceScore.vector ?? {
+    scene:       loser.confidenceScore.sceneFitBreakdown / 100,
+    rights:      loser.confidenceScore.rightsBreakdown   / 100,
+    lyrics:      loser.confidenceScore.lyricsBreakdown   / 100,
+    audioSignal: loser.confidenceScore.signalBreakdown   / 100,
+  };
+
+  const gaps: { axis: string; gap: number }[] = [
+    { axis: 'audioSignal', gap: wVec.audioSignal - lVec.audioSignal },
+    { axis: 'scene',       gap: wVec.scene       - lVec.scene       },
+    { axis: 'lyrics',      gap: wVec.lyrics       - lVec.lyrics      },
+    { axis: 'rights',      gap: wVec.rights       - lVec.rights      },
+  ];
+  const dominant = gaps.reduce((a, b) => Math.abs(a.gap) > Math.abs(b.gap) ? a : b);
+
+  const wName = cleanTrackTitle(winner.track.title);
+  const lName = cleanTrackTitle(loser.track.title);
+  const brief = BRIEF_LABELS[briefId] ?? briefId;
+  const register = sceneParams.emotionalRegister ?? brief;
+  const pacing = sceneParams.pacing;
+
+  // ── axis-specific editorial sentences ──
+  let axisSentence = '';
+  let editorialSentence = '';
+
+  if (dominant.axis === 'audioSignal') {
+    const isWinnerHigher = dominant.gap > 0;
+    axisSentence = `${wName} leads on mix profile.`;
+    if (['grief-loss','heartbreak-separation','contemplative-reflective','romance-intimacy'].includes(briefId)) {
+      editorialSentence = isWinnerHigher
+        ? `Its more restrained signal sits inside the ${register.toLowerCase()} register without competing with dialogue or foley.`
+        : `Its wider spectral presence gives the scene more tonal weight, anchoring the ${register.toLowerCase()} moment.`;
+    } else if (['chase-tension','action-combat','suspense-dread','horror-psychological'].includes(briefId)) {
+      editorialSentence = isWinnerHigher
+        ? `A denser mix profile sustains the kinetic pressure this ${brief.toLowerCase()} cue demands without thinning at low levels.`
+        : `The tighter mix leaves more headroom for sound design and dialogue cut through in a busy ${brief.toLowerCase()} mix.`;
+    } else if (['euphoria-celebration','triumph-victory','sports-highlight'].includes(briefId)) {
+      editorialSentence = `The mix density matches the energy ceiling a ${brief.toLowerCase()} sequence needs without early compression artefacts.`;
+    } else if (pacing === 'driving') {
+      editorialSentence = `The signal profile holds together at the pacing this brief requires — important when the mix engineer has little room to rebalance.`;
+    } else {
+      editorialSentence = `${lName}'s ${isWinnerHigher ? 'wider' : 'narrower'} spectral spread gives the music editor less room to work at low levels.`;
+    }
+  } else if (dominant.axis === 'scene') {
+    axisSentence = `${wName} leads on scene fit.`;
+    editorialSentence = `Its tonal and structural profile is a closer match for the ${register.toLowerCase()} brief — the gap is likely audible to a picture editor on first pass.`;
+  } else if (dominant.axis === 'lyrics') {
+    axisSentence = `${wName} leads on lyric fit.`;
+    editorialSentence = `The lyric content aligns more directly with the ${register.toLowerCase()} subject matter, reducing the risk of a clearance-level semantic mismatch.`;
+  } else {
+    // rights is dominant differentiator
+    axisSentence = `${wName} leads on rights clarity.`;
+    editorialSentence = `Its rights profile has fewer unresolved fields, which reduces clearance risk when the picture editor needs a quick decision.`;
+  }
+
+  // ── rights closing sentence ──
+  const wR = Math.round((wVec.rights ?? 0) * 100);
+  const lR = Math.round((lVec.rights ?? 0) * 100);
+  const rightsDiff = wR - lR;
+  let rightsSentence: string;
+  if (Math.abs(rightsDiff) <= 5) {
+    rightsSentence = 'Confirm rights clearance on both before placement.';
+  } else if (rightsDiff > 0) {
+    rightsSentence = `${wName} also carries less rights exposure — prioritise it if the timeline is short.`;
+  } else {
+    rightsSentence = `${lName} has the cleaner rights position; factor that in if the decision is close.`;
+  }
+
+  return `${axisSentence} ${editorialSentence} ${rightsSentence}`;
+}
+
 // ── CompareModal ──────────────────────────────────────────────
 function CompareModal({
   results,
   open,
   onClose,
+  briefId,
+  sceneParams,
 }: {
   results: AnalysisResult[];
   open: boolean;
   onClose: () => void;
+  briefId: BriefId;
+  sceneParams: SceneParams;
 }) {
   const [leftIdx,  setLeftIdx]  = useState(0);
   const [rightIdx, setRightIdx] = useState(Math.min(1, results.length - 1));
@@ -1053,12 +1141,12 @@ function CompareModal({
           <p style={{ margin: 0, fontSize: 13, color: C.silver, lineHeight: 1.6 }}>
             <strong style={{ color: C.amber }}>{cleanTrackTitle(results[leftScore >= rightScore ? leftIdx : rightIdx].track.title)}</strong>
             {' '}leads by <strong>{Math.abs(lead)}</strong> points.{' '}
-            {left.confidenceScore.vector && right.confidenceScore.vector && (() => {
-              const leftRights  = Math.round((left.confidenceScore.vector?.rights  ?? 0) * 100);
-              const rightRights = Math.round((right.confidenceScore.vector?.rights ?? 0) * 100);
-              const cleanerRights = leftRights >= rightRights ? cleanTrackTitle(left.track.title) : cleanTrackTitle(right.track.title);
-              return `${cleanerRights} has the cleaner rights profile. Use the rights detail on each card to confirm clearance before placement.`;
-            })()}
+            {buildVerdict(
+              leftScore >= rightScore ? left : right,
+              leftScore >= rightScore ? right : left,
+              briefId,
+              sceneParams,
+            )}
           </p>
         </div>
       </div>
@@ -1483,7 +1571,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
         </div>
       )}
 
-      <CompareModal results={results} open={compareOpen} onClose={() => setCompareOpen(false)} />
+      <CompareModal results={results} open={compareOpen} onClose={() => setCompareOpen(false)} briefId={briefId} sceneParams={sceneParams} />
     </div>
   );
 }
