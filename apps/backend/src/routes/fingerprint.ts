@@ -11,7 +11,6 @@ import fs from "fs";
 import prisma from "../lib/prisma";
 import { enrichFromMusicBrainz } from "../lib/musicbrainz";
 import { enrichFromCreditsFm } from "../lib/creditsfm";
-import { enrichFromMusixmatch } from "../lib/musixmatch";
 import { enrichFromMlc } from "../lib/mlc";
 
 const router = Router();
@@ -235,20 +234,6 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
       console.error(`[enrichment:mlc] trackId=${id as string} timeout=${isTimeout} error="${msg}"`);
     }
 
-    // ── Musixmatch lyrics linkage ─────────────────────────────────
-    let lyricsData = null;
-    try {
-      lyricsData = await enrichFromMusixmatch({
-        isrc:   resolvedIsrc,
-        artist: resolvedArtist,
-        title:  resolvedTitle,
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      const isTimeout = msg.includes("Timeout") || msg.includes("timeout");
-      console.error(`[enrichment:musixmatch] trackId=${id as string} timeout=${isTimeout} error="${msg}"`);
-    }
-
     // ── Persist identity + rights sourced data ────────────────────
     try {
       await prisma.track.update({
@@ -374,7 +359,6 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
     if (mbEnrichment?.writerName || mbEnrichment?.publisherName || mbEnrichment?.isrc) enrichmentSources.push("MusicBrainz");
     if (creditsEnrichment?.writerName || creditsEnrichment?.publisherName) enrichmentSources.push("Credits.fm");
     if (mlcEnrichment?.writerName || mlcEnrichment?.iswc) enrichmentSources.push("MLC");
-    if (lyricsData?.hasLyrics) enrichmentSources.push("Musixmatch");
 
     // Per-field sourced ledger — one entry per source per field so the
     // intake form can surface conflicts rather than silently merging them.
@@ -434,13 +418,6 @@ router.post("/tracks/:id/fingerprint", async (req: Request, res: Response) => {
         publisher: creditsEnrichment?.publisherName ? "credits.fm" : mbEnrichment?.publisherName ? "musicbrainz" : mlcEnrichment?.publisherName ? "mlc" : auddLabel ? "audd" : null,
         pro:       creditsEnrichment?.proAffiliation ? "credits.fm" : null,
       },
-      lyricsLinkage: lyricsData ? {
-        hasLyrics: lyricsData.hasLyrics,
-        explicit:  lyricsData.explicit,
-        url:       lyricsData.url,
-        isrc:      lyricsData.isrc,
-        source:    "musixmatch",
-      } : null,
     };
 
     res.json({

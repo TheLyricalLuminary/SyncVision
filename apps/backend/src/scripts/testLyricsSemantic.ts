@@ -35,6 +35,7 @@ interface ResultEntry {
   track:        string;
   artist:       string;
   lyricsState:  string;
+  lyricsSource: string | null;  // lrclib | lyrics_ovh | null
   charCount:    number | null;  // length of fetched text; null when no lyrics
   lyricsScore:  number;         // 0–100 vocabulary-overlap score
   axisValue:    number;         // lyricsScore / 100; neutral states = 0.50
@@ -55,7 +56,7 @@ async function main() {
       if (row) {
         await prisma.track.update({
           where: { id: row.id },
-          data:  { lyricsText: lyrics.text, lyricsState: lyrics.state },
+          data:  { lyricsText: lyrics.text, lyricsState: lyrics.state, lyricsSource: lyrics.source },
         });
       }
     } catch {
@@ -71,6 +72,7 @@ async function main() {
       track:        title,
       artist,
       lyricsState:  result.state,
+      lyricsSource: lyrics.source,
       charCount:    lyrics.text !== null ? lyrics.text.length : null,
       lyricsScore:  result.score,
       axisValue:    result.axisValue,
