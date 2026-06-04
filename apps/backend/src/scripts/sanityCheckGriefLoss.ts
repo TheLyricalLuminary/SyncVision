@@ -24,6 +24,7 @@ import "dotenv/config";
 import { writeFileSync } from "fs";
 import { fetchLyrics } from "../lib/lrclib";
 import { buildLyricsAxis, WEIGHTS } from "../scoring/trackVector";
+import { scoreLyricsSemantic } from "../scoring/lyricsSemantic";
 
 const BRIEF_ID = "grief-loss";
 const OUT_PATH = "/tmp/grief_sanity.json";
@@ -44,6 +45,8 @@ interface SanityEntry {
   rank:           number;
   track:          string;
   lyricsState:    string;
+  lyricsSource:   string | null;
+  lyricsScore:    number;   // 0–100 vocabulary-overlap score
   lyricsAxis:     number;   // 0.00–1.00; neutral states = 0.50
   fitIndex_old:   number;   // stub: all 0.50 → FitIndex was identical
   fitIndex_new:   number;   // real lyrics axis wired in
@@ -75,12 +78,15 @@ async function main() {
       briefId:     BRIEF_ID,
     });
 
+    const semantic    = scoreLyricsSemantic(lyrics.text, lyrics.state, BRIEF_ID);
     const fitIndex_new = computeFitIndex(lyricsAxis);
 
     entries.push({
       rank:          0,                // filled after sort
       track:         title,
       lyricsState:   lyrics.state,
+      lyricsSource:  lyrics.source,
+      lyricsScore:   semantic.score,
       lyricsAxis:    parseFloat(lyricsAxis.toFixed(4)),
       fitIndex_old:  STUB_FIT_INDEX,
       fitIndex_new,
