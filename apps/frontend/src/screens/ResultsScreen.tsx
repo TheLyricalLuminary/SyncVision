@@ -392,6 +392,7 @@ const BLOCKER_LABELS: Record<string, string> = {
 type RightsSaveResult = {
   rightsState: string;
   blockers: string[];
+  isrc: string | null;
   isOneStop: boolean | null;
   proAffiliation: string | null;
   masterVerifiedAt: string | null;
@@ -416,7 +417,8 @@ function RightsPanel({
   onSaved: (r: RightsSaveResult) => void;
   onClose: () => void;
 }) {
-  const [isrc, setIsrc]               = useState(autoFill?.isrc ?? ((!initialIsrc || initialIsrc.startsWith('PILOT-')) ? '' : initialIsrc) ?? '');
+  const savedIsrc = existing?.isrc ?? null;
+  const [isrc, setIsrc]               = useState(autoFill?.isrc ?? (savedIsrc && !savedIsrc.startsWith('PILOT-') ? savedIsrc : null) ?? ((!initialIsrc || initialIsrc.startsWith('PILOT-')) ? '' : initialIsrc) ?? '');
   const [writer, setWriter]           = useState(autoFill?.writerName ?? existing?.writerName ?? '');
   const [publisher, setPublisher]     = useState(autoFill?.publisherName ?? existing?.publisherName ?? '');
   const [pro, setPro]                 = useState(autoFill?.proAffiliation ?? existing?.proAffiliation ?? '');
@@ -573,7 +575,9 @@ function RightsPanel({
 }
 
 // ── TrackCard (inlined for full visual control) ────────────────
-function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisResult; briefId: BriefId; topScore: number; isFirst: boolean }) {
+type LocalRightsOverride = NonNullable<AnalysisResult['rightsProfile']> & { blockers?: string[] };
+
+function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { result: AnalysisResult; briefId: BriefId; topScore: number; isFirst: boolean; onRightsSaved?: (trackId: string, override: LocalRightsOverride) => void }) {
   const [isPlaying, setIsPlaying]               = useState(false);
   const [currentTime, setCurrentTime]           = useState(0);
   const [duration, setDuration]                 = useState(0);
@@ -824,11 +828,12 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
       {rightsPanel && (
         <RightsPanel
           trackId={result.track.id}
-          isrc={result.track.isrc}
+          isrc={localRightsProfile?.isrc ?? result.track.isrc}
           existing={localRightsProfile}
           autoFill={pendingAutoFill}
           onSaved={(saved) => {
             const newRp = {
+              isrc: saved.isrc,
               isOneStop: saved.isOneStop,
               proAffiliation: saved.proAffiliation,
               masterVerifiedAt: saved.masterVerifiedAt,
@@ -844,8 +849,9 @@ function TrackCard({ result, briefId, topScore, isFirst }: { result: AnalysisRes
               lyricLicensedBy: saved.lyricLicensedBy,
             };
             setLocalRightsProfile(newRp);
+            onRightsSaved?.(result.track.id, newRp);
             // Recompute rights axis → live score update
-            const newRightsAxis = rightsAxisFromBlockers(saved.blockers, Boolean(result.track.isrc));
+            const newRightsAxis = rightsAxisFromBlockers(saved.blockers, Boolean(saved.isrc ?? result.track.isrc));
             setLocalVector(v => ({ ...v, rights: newRightsAxis }));
             setRightsPanel(false);
             setShowPipeline(true);
@@ -1203,6 +1209,7 @@ type ResultsScreenProps = {
 export function ResultsScreen({ briefText, briefId, sceneParams, results, readOnly, onBack }: ResultsScreenProps) {
   const [toast,        setToast]        = useState<string | null>(null);
   const [compareOpen,  setCompareOpen]  = useState(false);
+  const [localRightsOverrides, setLocalRightsOverrides] = useState<Record<string, LocalRightsOverride>>({});
 
   const onExportPdf = () => {
     try { window.print(); } catch (e) { setToast(e instanceof Error ? e.message : 'Print failed.'); }
@@ -1215,32 +1222,36 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
         briefText,
         briefId,
         sceneParams,
-        results: results.map(r => ({
-          trackId:         r.track.id,
-          title:           r.track.title,
-          artistName:      r.track.artistName,
-          isrc:            r.track.isrc,
-          rank:            r.rank,
-          tempo:           r.track.tempo,
-          tonalCharacter:  r.track.tonalCharacter,
-          energyCharacter: r.track.energyCharacter,
-          hasAudio:        r.track.audioFilePath !== null,
-          confidenceScore: {
-            score:       r.confidenceScore.score,
-            vector:      r.confidenceScore.vector,
-            inputHash:   r.confidenceScore.inputHash,
-            explanation: r.confidenceScore.explanation,
-          },
-          rightsProfile: r.rightsProfile ? {
-            isOneStop:         r.rightsProfile.isOneStop ?? null,
-            proAffiliation:    r.rightsProfile.proAffiliation ?? null,
-            masterOwnedBy:     r.rightsProfile.masterOwnedBy ?? null,
-            publisherName:     r.rightsProfile.publisherName ?? null,
-            writerName:        r.rightsProfile.writerName ?? null,
-            rightsState:       r.rightsProfile.rightsState ?? null,
-            enrichmentSources: r.rightsProfile.enrichmentSources ?? [],
-          } : null,
-        })),
+        results: results.map(r => {
+          const override = localRightsOverrides[r.track.id];
+          const rp = override ?? r.rightsProfile;
+          return {
+            trackId:         r.track.id,
+            title:           r.track.title,
+            artistName:      r.track.artistName,
+            isrc:            override?.isrc ?? r.track.isrc,
+            rank:            r.rank,
+            tempo:           r.track.tempo,
+            tonalCharacter:  r.track.tonalCharacter,
+            energyCharacter: r.track.energyCharacter,
+            hasAudio:        r.track.audioFilePath !== null,
+            confidenceScore: {
+              score:       r.confidenceScore.score,
+              vector:      r.confidenceScore.vector,
+              inputHash:   r.confidenceScore.inputHash,
+              explanation: r.confidenceScore.explanation,
+            },
+            rightsProfile: rp ? {
+              isOneStop:         rp.isOneStop ?? null,
+              proAffiliation:    rp.proAffiliation ?? null,
+              masterOwnedBy:     rp.masterOwnedBy ?? null,
+              publisherName:     rp.publisherName ?? null,
+              writerName:        rp.writerName ?? null,
+              rightsState:       rp.rightsState ?? null,
+              enrichmentSources: rp.enrichmentSources ?? [],
+            } : null,
+          };
+        }),
       };
 
       const resp = await fetch(`${API_BASE}/api/share`, {
@@ -1381,7 +1392,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
             <div className="sv-rs-main-cards">
               {results.map((r, i) => (
                 <div key={r.track.id}>
-                  <TrackCard result={r} briefId={briefId} topScore={topScore} isFirst={i === 0} />
+                  <TrackCard result={r} briefId={briefId} topScore={topScore} isFirst={i === 0} onRightsSaved={(id, ov) => setLocalRightsOverrides(m => ({ ...m, [id]: ov }))} />
                   {i === 0 && results.length >= 2 && (
                     <button
                       type="button"

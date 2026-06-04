@@ -542,6 +542,7 @@ router.patch("/tracks/:id/rights", async (req: Request, res: Response) => {
     res.json({
       rightsState,
       blockers,
+      isrc:               resolvedIsrc,
       isOneStop:          rp.isOneStop,
       proAffiliation:     rp.proAffiliation,
       masterVerifiedAt:   rp.masterVerifiedAt?.toISOString() ?? null,

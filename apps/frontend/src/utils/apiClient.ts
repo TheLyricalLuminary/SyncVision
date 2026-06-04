@@ -25,6 +25,7 @@ export type AnalysisResult = {
     inputHash: string;
   };
   rightsProfile: {
+    isrc?: string | null;
     isOneStop: boolean | null;
     proAffiliation: string | null;
     masterVerifiedAt: string | null;
