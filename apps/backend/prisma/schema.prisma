@@ -70,6 +70,8 @@ model Track {
   rmsEnergy        Float?
   spectralCentroid Float?
   zeroCrossingRate Float?
+  lyricsText       String?
+  lyricsState      String?   // FULL | INSTRUMENTAL | UNAVAILABLE
   confidenceScore  ConfidenceScore?
   rightsProfile    RightsProfile?
   catalog          Catalog?         @relation(fields: [catalogId], references: [id])
