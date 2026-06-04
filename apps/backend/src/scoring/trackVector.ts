@@ -159,7 +159,7 @@ interface AudioSignalTarget {
 // Tension: spectral contrast mean. High = assertive/cutting; low = smooth.
 // Intimacy: 1 − spectral bandwidth mean. High = focused; low = wide/diffuse.
 const AUDIO_SIGNAL_TARGETS: Record<string, AudioSignalTarget> = {
-  "chase-tension":            { tension: [0.65, 1.00], intimacy: [0.00, 0.45] },
+  "chase-tension":            { tension: [0.72, 1.00], intimacy: [0.00, 0.45] },
   "action-combat":            { tension: [0.75, 1.00], intimacy: [0.00, 0.40] },
   "triumph-victory":          { tension: [0.55, 0.85], intimacy: [0.20, 0.55] },
   "euphoria-celebration":     { tension: [0.50, 0.80], intimacy: [0.25, 0.60] },
@@ -167,7 +167,7 @@ const AUDIO_SIGNAL_TARGETS: Record<string, AudioSignalTarget> = {
   "horror-psychological":     { tension: [0.30, 0.65], intimacy: [0.45, 0.80] },
   "drama-confrontation":      { tension: [0.50, 0.80], intimacy: [0.30, 0.65] },
   "urban-gritty":             { tension: [0.60, 0.90], intimacy: [0.15, 0.50] },
-  "romance-intimacy":         { tension: [0.10, 0.45], intimacy: [0.65, 1.00] },
+  "romance-intimacy":         { tension: [0.10, 0.45], intimacy: [0.55, 1.00] },
   "heartbreak-separation":    { tension: [0.20, 0.55], intimacy: [0.55, 0.90] },
   "grief-loss":               { tension: [0.20, 0.55], intimacy: [0.55, 1.00] },
   "contemplative-reflective": { tension: [0.25, 0.60], intimacy: [0.45, 0.80] },
