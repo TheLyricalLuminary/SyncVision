@@ -44,6 +44,7 @@ def sanitize_mp3(path):
         and (
             not tags[k].text
             or not any(str(t).strip() for t in tags[k].text)
+            or not str(getattr(tags[k], "desc", "") or "").strip()
         )
     ]
     if not bad_keys:
@@ -87,9 +88,45 @@ def analyze(path):
         # dtype=np.float32 is required for determinism — float64 accumulates more
         # ULP variance through the spectral pipeline.
         y, sr = librosa.load(load_path, sr=22050, mono=True, dtype=np.float32)
-    finally:
+    except Exception as load_err:
+        # libmpg123 can still reject a tag that mutagen didn't flag (e.g. a
+        # COMM frame with a valid description but empty body, or other malformed
+        # frames).  Retry with all ID3 tags stripped so the audio data — which
+        # is fine — can be decoded.
         if is_tmp:
-            os.unlink(load_path)
+            try:
+                os.unlink(load_path)
+            except OSError:
+                pass
+            is_tmp = False
+
+        print(
+            f"[analyze] WARNING: librosa.load failed ({load_err}); "
+            "stripping all ID3 tags and retrying.",
+            file=sys.stderr,
+        )
+        strip_tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+        strip_tmp.close()
+        shutil.copy2(path, strip_tmp.name)
+        try:
+            try:
+                all_tags = ID3(strip_tmp.name)
+                all_tags.delete()
+                all_tags.save(strip_tmp.name)
+            except ID3NoHeaderError:
+                pass  # no tags at all — nothing to strip
+            y, sr = librosa.load(strip_tmp.name, sr=22050, mono=True, dtype=np.float32)
+        finally:
+            try:
+                os.unlink(strip_tmp.name)
+            except OSError:
+                pass
+    else:
+        if is_tmp:
+            try:
+                os.unlink(load_path)
+            except OSError:
+                pass
 
     centroid = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
     rms = librosa.feature.rms(y=y)[0]
