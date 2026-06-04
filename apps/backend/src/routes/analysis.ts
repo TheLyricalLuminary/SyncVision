@@ -360,7 +360,13 @@ async function processJob(jobId: string): Promise<void> {
           hasIsrc:        Boolean(track.isrc),
           acoustidScore:  (track as Record<string, unknown>).acoustidScore as number | null ?? null,
         },
-        lyrics: null,
+        // Pass cached lyrics from the DB. If lyricsText/lyricsState are null
+        // (not yet fetched for this track), buildLyricsAxis returns neutral 0.50.
+        lyrics: {
+          lyricsText:  track.lyricsText  ?? null,
+          lyricsState: track.lyricsState ?? null,
+          briefId:     job.briefId,
+        },
         audioSignal: {
           tensionMean:  worker.tensionMean,
           intimacyMean: worker.intimacyMean,

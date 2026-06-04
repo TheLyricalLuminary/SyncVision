@@ -7,14 +7,16 @@
 //   Do NOT adjust WEIGHTS. The weight system stays stable.
 
 import { createHash } from "crypto";
+import { scoreLyricsSemantic, lyricsSemanticToAxisValue } from "./lyricsSemantic";
+import type { LyricsState } from "../lib/lrclib";
 
 // ─── Weights (stable, fixed priors) ──────────────────────────────────────────
 
 export const WEIGHTS = {
   scene:       0.40,  // PAD scene fit (emotional-spatial alignment)
   rights:      0.25,  // clearance data completeness / risk inversion
-  lyrics:      0.20,  // LYRICS_AXIS_STUB — real implementation pending Genius NLP integration
-  audioSignal: 0.15,  // spectral tension + intimacy fit to brief (replaces old metadata signal)
+  lyrics:      0.20,  // lyricsSemantic — keyword-lexicon vocabulary overlap vs brief
+  audioSignal: 0.15,  // spectral tension + intimacy fit to brief
 } as const;
 
 // Sum guard — caught at import time, not at runtime.
@@ -112,26 +114,42 @@ export function buildRightsAxis(inputs: RightsInputs): number {
   );
 }
 
-// Lyrics axis:
-//   LYRICS_AXIS_STUB — real implementation pending Genius NLP integration.
-//   Returns a fixed neutral 0.50 for all tracks. The proxy that derived
-//   a value from PAD valence + title hash has been removed because it
-//   was correlated with the scene axis and carried no independent signal.
-//   No PASS/MAYBE narrative phrase references lyric content while this
-//   axis is a stub.
-export interface LyricsInputs {
-  thematicScore:  number;  // 0–1: semantic alignment to scene brief
-  explicitScore:  number;  // 0–1: explicit/profanity density
-  entityNoise:    number;  // 0–1: brand names, geo-restrictions, noise
-  densityFit:     number;  // 0–1: word density vs instrumental appropriateness
+// Lyrics axis — lyricsSemantic keyword-lexicon scoring.
+//
+// Measures vocabulary overlap between lyric text and the brief's thematic
+// keyword set. Deterministic: same lyricsText + same briefId → same axis
+// value always. No LLM, no randomness.
+//
+// Neutral-state contract (INSTRUMENTAL and UNAVAILABLE):
+//   Both states return axisValue = 0.50, contributing exactly 0.50 × 0.20
+//   = 0.10 to the total FitIndex. This is identical to the old stub value,
+//   so tracks without usable lyrics are neither rewarded nor penalised by
+//   this axis. Ranking among neutral-lyric tracks is determined entirely by
+//   scene, rights, and audioSignal. The 0.10 flat contribution must NOT be
+//   read as semantic evidence of lyric alignment — it is a "no data" anchor
+//   that keeps the four-axis weight structure stable.
+//
+//   INSTRUMENTAL = confirmed no lyrics (track is instrumental).
+//   UNAVAILABLE  = LRCLib has no record for this track.
+//   null inputs  = lyrics have not been fetched yet → treated as UNAVAILABLE.
+export interface LyricsSemanticInputs {
+  lyricsText:  string | null;  // cached plaintext from LRCLib; null if not fetched
+  lyricsState: string | null;  // "FULL" | "INSTRUMENTAL" | "UNAVAILABLE" | null
+  briefId:     string;
 }
 
-export function buildLyricsAxis(
-  _inputs: LyricsInputs | null,
-  _proxy?: unknown,
-): number {
-  // LYRICS_AXIS_STUB — returns neutral 0.50 until NLP integration lands.
-  return 0.50;
+export function buildLyricsAxis(inputs: LyricsSemanticInputs | null): number {
+  if (inputs === null || inputs.lyricsState === null) return 0.50;
+
+  // Validate the stored state string against the known LyricsState values.
+  // An unrecognised value (e.g. DB corruption) is treated as UNAVAILABLE.
+  const VALID: LyricsState[] = ["FULL", "INSTRUMENTAL", "UNAVAILABLE"];
+  const state: LyricsState = VALID.includes(inputs.lyricsState as LyricsState)
+    ? (inputs.lyricsState as LyricsState)
+    : "UNAVAILABLE";
+
+  const result = scoreLyricsSemantic(inputs.lyricsText, state, inputs.briefId);
+  return lyricsSemanticToAxisValue(result);
 }
 
 // AudioSignal axis:
@@ -204,7 +222,8 @@ export interface VectorInputs {
   padSceneFit:    number;
   dspMatchScore:  number;
   rights:         RightsInputs;
-  lyrics:         LyricsInputs | null;
+  /** null = lyrics not yet fetched for this track → axis returns neutral 0.50 */
+  lyrics:         LyricsSemanticInputs | null;
   audioSignal: {
     tensionMean:  number | null;
     intimacyMean: number | null;
