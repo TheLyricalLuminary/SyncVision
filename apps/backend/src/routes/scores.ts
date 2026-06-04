@@ -9,7 +9,7 @@ import { calculateConfidenceScore } from "../scoring/confidenceScore";
 import { computeRightsState, logRightsDisagreement } from "../scoring/rightsStateMachine";
 import { BRIEF_WEIGHTS, validateWeights } from "../scoring/briefWeights";
 import { computeSyncVisionScoreV2 } from "../scoring/scoringV2";
-import { NARRATIVE_DICTIONARY, type Verdict } from "../scoring/narratives";
+import { NARRATIVE_DICTIONARY, verdictFor, buildBriefNarrative, type Verdict } from "../scoring/narratives";
 import { requirePlan } from "../middleware/auth";
 
 const SCENE_MAX_SCENES = 5;
@@ -212,42 +212,9 @@ function computeMetadataCompleteness(track: TrackForMeta): number {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Narrative — 6-verdict system backed by NARRATIVE_DICTIONARY (narratives.ts)
-//
-// Verdict thresholds (sceneFit, 0–100):
-//   PASS_STRONG ≥ 80 | PASS_SOFT 70–79 | MAYBE_HIGH 60–69
-//   MAYBE_LOW   50–59 | FAIL_CLOSE 40–49 | FAIL_HARD < 40
-//
-// Selection is deterministic: SHA-256(trackId + briefId) mod 3.
+// Narrative — 6-verdict system backed by NARRATIVE_DICTIONARY (narratives.ts).
+// verdictFor and buildBriefNarrative are imported from narratives.ts above.
 // ─────────────────────────────────────────────────────────────────────────────
-
-function verdictFor(sceneFit: number): Verdict {
-  if (sceneFit >= 80) return "PASS_STRONG";
-  if (sceneFit >= 70) return "PASS_SOFT";
-  if (sceneFit >= 60) return "MAYBE_HIGH";
-  if (sceneFit >= 50) return "MAYBE_LOW";
-  if (sceneFit >= 40) return "FAIL_CLOSE";
-  return "FAIL_HARD";
-}
-
-function buildBriefNarrative(
-  trackId: string,
-  briefId: string,
-  sceneFit: number,
-  _track: { tempo: number | null; tonalCharacter: string | null; energyCharacter: string | null }
-): string {
-  const brief = NARRATIVE_DICTIONARY[briefId];
-  if (!brief) {
-    // Should never happen — all 20 briefs are in the dictionary
-    return `sceneFit=${sceneFit} — brief narrative unavailable for "${briefId}"`;
-  }
-  const verdict = verdictFor(sceneFit);
-  const pool = brief[verdict];
-  const h = createHash("sha256").update(`${trackId}:${briefId}:${verdict}`).digest("hex");
-  const phrase = pool[parseInt(h.slice(0, 8), 16) % pool.length];
-
-  return phrase;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // /api/scores — brief-agnostic ranking (rights + metadata clarity)
@@ -450,6 +417,8 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
         tempo: track.tempo ?? null,
         tonalCharacter: track.tonalCharacter ?? null,
         energyCharacter: track.energyCharacter ?? null,
+        rights: rightsClarity / 100,
+        signal: metaComplete / 100,
       });
 
       matches.push({
@@ -493,13 +462,10 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
       return (a.trackId as string).localeCompare(b.trackId as string);
     });
 
-    // ── Narrative deduplication ───────────────────────────────────────────────
-    // Assign phrases in rank order (matches is already sorted), walking forward
-    // through the pool when the hash-derived slot is already taken by a
-    // higher-ranked track.  Guarantees uniqueness within each brief+verdict
-    // bucket up to pool.length tracks; after that slots cycle gracefully.
-    // The base slot is still hash-derived, so assignments are deterministic and
-    // only change when the ranked result set itself changes.
+    // ── Narrative assignment ──────────────────────────────────────────────────
+    // PASS/MAYBE: template is axis-driven, unique per track by construction.
+    // FAIL: pool-walk in rank order to guarantee uniqueness within each
+    // brief+verdict bucket (up to pool.length tracks; slots cycle after that).
     {
       const usedSlots = new Map<string, Set<number>>();
 
@@ -515,26 +481,35 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
           continue;
         }
 
-        const pool = briefEntry[verdict];
-        const key  = `${sceneId}:${verdict}`;
-        const h    = createHash("sha256")
-          .update(`${mTrackId}:${sceneId}:${verdict}`)
-          .digest("hex");
-        const baseSlot = parseInt(h.slice(0, 8), 16) % pool.length;
+        if (verdict === "FAIL_CLOSE" || verdict === "FAIL_HARD") {
+          // Pool-walking for FAIL tiers ensures uniqueness in ranked lists
+          const pool = briefEntry[verdict];
+          const key  = `${sceneId}:${verdict}`;
+          const h    = createHash("sha256")
+            .update(`${mTrackId}:${sceneId}:${verdict}`)
+            .digest("hex");
+          const baseSlot = parseInt(h.slice(0, 8), 16) % pool.length;
 
-        if (!usedSlots.has(key)) usedSlots.set(key, new Set());
-        const taken = usedSlots.get(key)!;
+          if (!usedSlots.has(key)) usedSlots.set(key, new Set());
+          const taken = usedSlots.get(key)!;
 
-        // Walk forward from the hash-derived slot until a free one is found.
-        let slot = baseSlot;
-        for (let attempt = 1; attempt < pool.length; attempt++) {
-          if (!taken.has(slot)) break;
-          slot = (slot + 1) % pool.length;
+          let slot = baseSlot;
+          for (let attempt = 1; attempt < pool.length; attempt++) {
+            if (!taken.has(slot)) break;
+            slot = (slot + 1) % pool.length;
+          }
+          taken.add(slot);
+          match.sonicNarrative = pool[slot];
+        } else {
+          // PASS/MAYBE: template is axis-driven and unique per track
+          match.sonicNarrative = buildBriefNarrative(mTrackId, sceneId, mSceneFit, {
+            tempo: match.tempo as number | null,
+            tonalCharacter: match.tonalCharacter as string | null,
+            energyCharacter: match.energyCharacter as string | null,
+            rights: (match.rightsClarity as number) / 100,
+            signal: (match.metadataCompleteness as number) / 100,
+          });
         }
-        taken.add(slot);
-
-        const phrase = pool[slot];
-        match.sonicNarrative = phrase;
       }
     }
 
