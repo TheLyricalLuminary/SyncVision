@@ -17,7 +17,7 @@ import { enrichRightsProfile } from "../services/rightsEnrichment";
 import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
 import { buildVector, computeClearanceComplexity, computeDataConfidence } from "../scoring/trackVector";
 import { selectNarrativeWithLane, type PADValues } from "../scoring/narrativeDictionary";
-import { fetchLyrics } from "../lib/lrclib";
+import { fetchLyrics, cleanTitle, cleanArtist } from "../lib/lrclib";
 
 const router = Router();
 
@@ -345,14 +345,27 @@ async function processJob(jobId: string): Promise<void> {
         if (refreshed) track = refreshed;
       }
 
-      // Fetch and cache lyrics if not yet populated — lyricsState null means never attempted
-      if (track.lyricsState === null && track.artistName) {
-        const lyrics = await fetchLyrics(track.title, track.artistName)
+      // Fetch and cache lyrics if not yet populated — lyricsState null means never attempted.
+      // When artistName is absent, try to parse "Artist - Title" from the title string;
+      // if not parseable, fall through to a title-only LRCLib search.
+      if (track.lyricsState === null) {
+        const ARTIST_TITLE_RE = /^(.{2,}?)\s+[-–]\s+(.+)$/;
+        let lyricsTitle: string;
+        let lyricsArtist: string;
+        if (track.artistName) {
+          lyricsTitle  = cleanTitle(track.title);
+          lyricsArtist = cleanArtist(track.artistName);
+        } else {
+          const m = ARTIST_TITLE_RE.exec(track.title.trim());
+          lyricsTitle  = m ? cleanTitle(m[2].trim())  : cleanTitle(track.title);
+          lyricsArtist = m ? cleanArtist(m[1].trim()) : "";
+        }
+        const lyrics = await fetchLyrics(lyricsTitle, lyricsArtist)
           .catch(err => { console.warn('[lyrics] fetch failed:', err); return null; });
         if (lyrics) {
           await prisma.track.update({
             where: { id: track.id },
-            data: { lyricsText: lyrics.text, lyricsState: lyrics.state },
+            data: { lyricsText: lyrics.text, lyricsState: lyrics.state, lyricsSource: lyrics.source },
           }).catch(err => console.warn('[lyrics] DB write failed:', err));
           (track as any).lyricsText  = lyrics.text;
           (track as any).lyricsState = lyrics.state;
