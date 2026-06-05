@@ -179,7 +179,7 @@ function PrintTrackPage({ slot, index, total, pages }: { slot: TrackSlot; index:
   ];
 
   return (
-    <section className="sv-p-page">
+    <section className="sv-p-page sv-p-trackpage" data-index={index}>
       <div className="sv-p-noise" />
       <PrintRunHead stamp={`Candidate ${index + 1} of ${total} - Fit ${slot.fitIndex}`} />
 
@@ -306,7 +306,7 @@ function PrintReport({ packet }: { packet: DecisionPacket }) {
         <PrintRunFoot page={1} pages={pages} />
       </section>
 
-      <section className="sv-p-page">
+      <section className="sv-p-page sv-p-ranklist-page">
         <div className="sv-p-noise" />
         <PrintRunHead stamp="Ranked candidates" />
         <span className="sv-p-kicker">The shortlist</span>
@@ -658,7 +658,7 @@ function LiveTrackCard({
 
 type CmpSeg = 'both' | 'first' | 'second';
 
-function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open: boolean; onClose: () => void }) {
+function CompareModal({ packet, open, onClose, onToast }: { packet: DecisionPacket; open: boolean; onClose: () => void; onToast: (msg: string) => void }) {
   const first = packet.tracks[0];
   const second = packet.tracks[1];
   const [seg, setSeg] = useState<CmpSeg>('both');
@@ -670,6 +670,35 @@ function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open:
   const lead = Math.max(first.fitIndex - second.fitIndex, 0);
   const showFirst  = seg === 'both' || seg === 'first';
   const showSecond = seg === 'both' || seg === 'second';
+
+  function handleExportTop2() {
+    document.body.classList.add('sv-print-top2');
+    window.print();
+    document.body.classList.remove('sv-print-top2');
+  }
+
+  function handleSendToEditor() {
+    const sceneName = prettySceneName(packet);
+    const subject = `SyncVision Shortlist — ${sceneName}`;
+    const body = [
+      `Here are the top 2 candidates for ${sceneName}:`,
+      '',
+      `1. ${first.title}${first.artistName ? ` - ${first.artistName}` : ''} (${first.fitIndex}/100)`,
+      `2. ${second.title}${second.artistName ? ` - ${second.artistName}` : ''} (${second.fitIndex}/100)`,
+      '',
+      'Full shortlist with audio and rights detail:',
+      window.location.href,
+    ].join('\n');
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+
+  function handleSaveAsShortlist() {
+    void navigator.clipboard.writeText(window.location.href).then(() => {
+      onToast('Share link copied — send this to your editor');
+    }).catch(() => {
+      onToast('Share link copied — send this to your editor');
+    });
+  }
 
   const togglePlay = () => {
     const a1 = audio1Ref.current;
@@ -797,7 +826,7 @@ function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open:
 
         <div className="cmp-actions">
           <div className="cmp-summary"><b>{first.title}</b> leads on intimacy and emotional fit. <b>{second.title}</b> may have cleaner rights, but pulls energy out of the scene.</div>
-          <div className="cmp-act-btns"><button className="cmp-act" type="button">Export top 2</button><button className="cmp-act" type="button">Send both to editor</button><button className="cmp-act primary" type="button">Save as new shortlist</button></div>
+          <div className="cmp-act-btns"><button className="cmp-act" type="button" onClick={handleExportTop2}>Export top 2</button><button className="cmp-act" type="button" onClick={handleSendToEditor}>Send both to editor</button><button className="cmp-act primary" type="button" onClick={handleSaveAsShortlist}>Save as new shortlist</button></div>
         </div>
       </div>
     </div>
@@ -813,6 +842,12 @@ function LiveShareView({ packet }: { packet: DecisionPacket }) {
   );
   const [compareOpen, setCompareOpen] = useState(false);
   const [sendState, setSendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [toast, setToast] = useState<string | null>(null);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3500);
+  }
 
   const sendDecisions = async () => {
     setSendState('sending');
@@ -918,7 +953,19 @@ function LiveShareView({ packet }: { packet: DecisionPacket }) {
         </section>
       </main>
 
-      <CompareModal packet={packet} open={compareOpen} onClose={() => setCompareOpen(false)} />
+      <CompareModal packet={packet} open={compareOpen} onClose={() => setCompareOpen(false)} onToast={showToast} />
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(26,18,51,0.96)', border: '1px solid rgba(123,112,178,0.34)',
+          backdropFilter: 'blur(16px)', borderRadius: 12, padding: '12px 20px',
+          color: '#F4F2FA', fontSize: 13, fontWeight: 600, zIndex: 9999,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)', whiteSpace: 'nowrap',
+          animation: 'svFadeUp 0.25s ease both',
+        }}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
@@ -2084,6 +2131,9 @@ export default function ShareView({ packet }: ShareViewProps) {
           .print-only { display: block !important; }
           /* Hide interactive-only elements */
           .no-print   { display: none !important; }
+          /* Top-2-only print mode: hide ranklist summary and any track page beyond index 1 */
+          body.sv-print-top2 .sv-p-ranklist-page { display: none !important; }
+          body.sv-print-top2 .sv-p-trackpage[data-index]:not([data-index="0"]):not([data-index="1"]) { display: none !important; }
           /* Break each track card onto its own page */
           .sv-track-card { page-break-inside: avoid; break-inside: avoid; margin-bottom: 24px; }
         }
