@@ -315,7 +315,7 @@ export function LockScreen({ onUnlock }: Props) {
                 <path d="M8 10.5 V7.2 a4 4 0 0 1 8 0 V10.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
               </svg>
             </span>
-            Encrypted link &middot; private preview
+            Encrypted link &middot; expires Jul 1
           </div>
         </main>
 
