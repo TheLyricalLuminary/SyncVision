@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#100A28"/>
+      <stop offset="100%" stop-color="#08051A"/>
+    </linearGradient>
+    <!-- Aurora blobs -->
+    <radialGradient id="blobAmber" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#F5A623" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#F5A623" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blobMagenta" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#DB2777" stop-opacity="0.60"/>
+      <stop offset="100%" stop-color="#DB2777" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blobViolet" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#7C3AED" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Waveform gradient -->
+    <linearGradient id="waveGrad" x1="0" y1="0" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F5A623"/>
+      <stop offset="50%" stop-color="#DB2777"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <!-- Card gradient -->
+    <linearGradient id="cardGrad" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%" stop-color="#1A1233" stop-opacity="0.88"/>
+      <stop offset="100%" stop-color="#100A28" stop-opacity="0.92"/>
+    </linearGradient>
+    <!-- Card hairline gradient -->
+    <linearGradient id="hairlineGrad" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%" stop-color="#F5A623" stop-opacity="0.55"/>
+      <stop offset="45%" stop-color="#DB2777" stop-opacity="0.50"/>
+      <stop offset="70%" stop-color="#DB2777" stop-opacity="0"/>
+    </linearGradient>
+    <!-- Button gradient -->
+    <linearGradient id="btnGrad" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
+      <stop offset="0%" stop-color="#FBBF24"/>
+      <stop offset="45%" stop-color="#F5A623"/>
+      <stop offset="100%" stop-color="#DB2777"/>
+    </linearGradient>
+    <!-- Logo gradient -->
+    <linearGradient id="logoGrad" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%" stop-color="#C084FC"/>
+      <stop offset="100%" stop-color="#863BFF"/>
+    </linearGradient>
+    <!-- Blur filter for blobs -->
+    <filter id="blurAmber" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="70"/>
+    </filter>
+    <filter id="blurMagenta" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="75"/>
+    </filter>
+    <filter id="blurViolet" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="80"/>
+    </filter>
+    <!-- Card drop shadow -->
+    <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="30" stdDeviation="40" flood-color="#000000" flood-opacity="0.7"/>
+    </filter>
+    <!-- Grain -->
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.04 0"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGrad)"/>
+
+  <!-- Aurora blobs -->
+  <ellipse cx="160" cy="80" rx="380" ry="320" fill="url(#blobAmber)" filter="url(#blurAmber)" style="mix-blend-mode:screen" opacity="0.5"/>
+  <ellipse cx="1060" cy="100" rx="400" ry="340" fill="url(#blobMagenta)" filter="url(#blurMagenta)" style="mix-blend-mode:screen" opacity="0.5"/>
+  <ellipse cx="600" cy="720" rx="500" ry="360" fill="url(#blobViolet)" filter="url(#blurViolet)" style="mix-blend-mode:screen" opacity="0.5"/>
+
+  <!-- Film grain overlay -->
+  <rect width="1200" height="630" filter="url(#grain)" opacity="0.35" style="mix-blend-mode:overlay"/>
+
+  <!-- Waveform -->
+  <path d="M0,315 C100,315 115,315 165,315 C200,315 207,252 233,252 C250,252 254,378 266,378 C277,378 281,210 292,210 C305,210 309,399 320,399 C333,399 338,273 350,273 C367,273 383,315 433,315 C633,315 633,315 750,315 C783,315 791,264 816,264 C833,264 837,358 849,358 C860,358 864,236 875,236 C888,236 892,385 903,385 C916,385 920,278 933,278 C950,278 966,315 1033,315 C1133,315 1150,315 1200,315"
+    fill="none" stroke="url(#waveGrad)" stroke-width="2.5" stroke-linecap="round" opacity="0.12"/>
+
+  <!-- Card -->
+  <g filter="url(#cardShadow)">
+    <rect x="390" y="115" width="420" height="400" rx="24" fill="url(#cardGrad)" stroke="rgba(123,112,178,0.34)" stroke-width="1"/>
+    <!-- Gradient hairline top-left corner effect -->
+    <rect x="390" y="115" width="420" height="400" rx="24" fill="none" stroke="url(#hairlineGrad)" stroke-width="1.5" opacity="0.9"/>
+  </g>
+
+  <!-- Logo mark (SyncVision bolt) centered in card -->
+  <g transform="translate(578, 163) scale(0.92)">
+    <path fill="url(#logoGrad)"
+      d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"
+      filter="drop-shadow(0 4px 16px rgba(219,39,119,0.4))"/>
+  </g>
+
+  <!-- Eyebrow -->
+  <text x="600" y="235" text-anchor="middle"
+    font-family="'Manrope', system-ui, sans-serif" font-size="11" font-weight="600"
+    letter-spacing="4" fill="#9B93C4" text-transform="uppercase">
+    PRIVATE PREVIEW
+  </text>
+
+  <!-- Title -->
+  <text x="600" y="272" text-anchor="middle"
+    font-family="Georgia, 'Times New Roman', serif" font-size="30" font-weight="400"
+    fill="#F4F2FA" letter-spacing="-0.3">
+    The room is
+  </text>
+  <text x="600" y="308" text-anchor="middle"
+    font-family="Georgia, 'Times New Roman', serif" font-size="30" font-style="italic"
+    fill="#F5A623" letter-spacing="-0.3">
+    locked.
+  </text>
+
+  <!-- Subtitle -->
+  <text x="600" y="340" text-anchor="middle"
+    font-family="Georgia, 'Times New Roman', serif" font-size="14" font-style="italic"
+    fill="rgba(155,147,196,0.65)">
+    Enter the access key to open the shortlist.
+  </text>
+
+  <!-- Input field mock -->
+  <rect x="430" y="362" width="340" height="52" rx="13"
+    fill="rgba(8,5,22,0.75)" stroke="rgba(123,112,178,0.34)" stroke-width="1"/>
+  <!-- Lock icon in input -->
+  <g transform="translate(452, 380)" opacity="0.55">
+    <rect x="0" y="5" width="11" height="7" rx="1.6" fill="none" stroke="#9B93C4" stroke-width="1.4"/>
+    <path d="M2.5 5 V4.2 a3 3 0 0 1 6 0 V5" fill="none" stroke="#9B93C4" stroke-width="1.4" stroke-linecap="round"/>
+  </g>
+  <text x="473" y="393" font-family="'Manrope', system-ui, sans-serif" font-size="14"
+    fill="rgba(155,147,196,0.45)" letter-spacing="0.5">Enter password</text>
+
+  <!-- Button -->
+  <rect x="430" y="428" width="340" height="50" rx="13" fill="url(#btnGrad)"
+    filter="drop-shadow(0 10px 20px rgba(245,166,35,0.4))"/>
+  <text x="600" y="459" text-anchor="middle"
+    font-family="'Manrope', system-ui, sans-serif" font-size="14" font-weight="700"
+    fill="#1a0d02" letter-spacing="1">Enter</text>
+
+  <!-- Footer lock + text -->
+  <g transform="translate(559, 488)" opacity="0.55">
+    <rect x="0" y="2" width="8" height="6" rx="1.4" fill="none" stroke="#9B93C4" stroke-width="1.2"/>
+    <path d="M2 2 V1.5 a2.2 2.2 0 0 1 4.4 0 V2" fill="none" stroke="#9B93C4" stroke-width="1.2" stroke-linecap="round"/>
+  </g>
+  <text x="600" y="494" text-anchor="middle"
+    font-family="'Manrope', system-ui, sans-serif" font-size="11"
+    fill="rgba(155,147,196,0.55)">
+    Encrypted link · private preview
+  </text>
+
+  <!-- Bottom version chip -->
+  <text x="600" y="610" text-anchor="middle"
+    font-family="'Courier New', monospace" font-size="9" letter-spacing="2.5"
+    fill="rgba(155,147,196,0.35)">
+    SYNCVISION · DETERMINISTIC SYNC INTELLIGENCE
+  </text>
+</svg>
