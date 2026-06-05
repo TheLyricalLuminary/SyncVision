@@ -17,6 +17,7 @@ import { enrichRightsProfile } from "../services/rightsEnrichment";
 import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
 import { buildVector, computeClearanceComplexity, computeDataConfidence } from "../scoring/trackVector";
 import { selectNarrativeWithLane, type PADValues } from "../scoring/narrativeDictionary";
+import { fetchLyrics } from "../lib/lrclib";
 
 const router = Router();
 
@@ -342,6 +343,20 @@ async function processJob(jobId: string): Promise<void> {
           include: { rightsProfile: true },
         });
         if (refreshed) track = refreshed;
+      }
+
+      // Fetch and cache lyrics if not yet populated — lyricsState null means never attempted
+      if (track.lyricsState === null && track.artistName) {
+        const lyrics = await fetchLyrics(track.title, track.artistName)
+          .catch(err => { console.warn('[lyrics] fetch failed:', err); return null; });
+        if (lyrics) {
+          await prisma.track.update({
+            where: { id: track.id },
+            data: { lyricsText: lyrics.text, lyricsState: lyrics.state },
+          }).catch(err => console.warn('[lyrics] DB write failed:', err));
+          (track as any).lyricsText  = lyrics.text;
+          (track as any).lyricsState = lyrics.state;
+        }
       }
 
       const padValues: PADValues = {
