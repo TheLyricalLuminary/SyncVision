@@ -303,7 +303,7 @@ async function processJob(jobId: string): Promise<void> {
       const audioFilePath = `/audio/${filename}`;
 
       let track = await prisma.track.findFirst({
-        where: { audioFilePath },
+        where: { audioFilePath, isArchived: false },
         include: { rightsProfile: true },
       });
 
@@ -400,6 +400,7 @@ async function processJob(jobId: string): Promise<void> {
         tempo: track.tempo,
         tonalCharacter: track.tonalCharacter,
         energyCharacter: track.energyCharacter,
+        artistName: track.artistName,
       });
 
       results.push({

@@ -73,6 +73,7 @@ model Track {
   lyricsText       String?
   lyricsState      String?   // FULL | INSTRUMENTAL | UNAVAILABLE
   lyricsSource     String?   // lrclib | lyrics_ovh
+  isArchived       Boolean   @default(false)
   confidenceScore  ConfidenceScore?
   rightsProfile    RightsProfile?
   catalog          Catalog?         @relation(fields: [catalogId], references: [id])

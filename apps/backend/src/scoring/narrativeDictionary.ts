@@ -67,6 +67,7 @@ export interface TrackMeta {
   tempo?: number | null;
   tonalCharacter?: string | null;
   energyCharacter?: string | null;
+  artistName?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -963,9 +964,12 @@ function tierFromScore(sceneFitScore: number): Tier {
 // ---------------------------------------------------------------------------
 
 /**
- * Deterministically derive a phrase-pool index from (trackId, briefId).
- * Uses sha256(trackId + briefId), takes the first 8 hex characters,
+ * Deterministically derive a phrase-pool index from (trackId, briefId, artistName).
+ * Uses sha256(trackId + briefId + artistName), takes the first 8 hex characters,
  * parses them as an unsigned 32-bit integer, and returns modulo poolSize.
+ *
+ * artistName is included so tracks by different artists on the same brief cannot
+ * collide even with a small pool.
  *
  * No randomness, no time-based input — same inputs always produce the same index.
  */
@@ -973,6 +977,7 @@ function deterministicIndex(
   trackId: string,
   briefId: string,
   poolSize: number,
+  artistName?: string | null,
 ): number {
   if (poolSize <= 0) {
     throw new Error(
@@ -980,7 +985,7 @@ function deterministicIndex(
     );
   }
   const digest = createHash('sha256')
-    .update(trackId + briefId)
+    .update(trackId + briefId + (artistName ?? ''))
     .digest('hex');
   const slice = digest.slice(0, 8);
   const value = parseInt(slice, 16);
@@ -1047,7 +1052,7 @@ export function selectNarrative(
       const msg = `No phrases for brief "${briefId}" / tier FAIL.`;
       return format === 'short' ? `FAIL — ${msg}` : msg;
     }
-    const idx = deterministicIndex(trackId, briefId, failPhrases.length);
+    const idx = deterministicIndex(trackId, briefId, failPhrases.length, meta?.artistName);
     phrase = failPhrases[idx].text;
   } else {
     const phrases = pool[tier];
@@ -1055,7 +1060,7 @@ export function selectNarrative(
       const msg = `No phrases for brief "${briefId}" / tier "${tier}".`;
       return format === 'short' ? `${tier} — ${msg}` : msg;
     }
-    const idx = deterministicIndex(trackId, briefId, phrases.length);
+    const idx = deterministicIndex(trackId, briefId, phrases.length, meta?.artistName);
     phrase = phrases[idx];
   }
 
@@ -1392,16 +1397,15 @@ export function selectNarrativeWithLane(
     const lanePool = pool.FAIL.filter(fp => fp.lane === lane);
 
     const source = lanePool.length > 0 ? lanePool : pool.FAIL;
-    const h   = createHash('sha256').update(trackId + briefId).digest('hex');
-    const idx = parseInt(h.slice(0, 8), 16) % source.length;
+    const idx = deterministicIndex(trackId, briefId, source.length, meta?.artistName);
     phrase = source[idx].text;
   } else if (tier === 'PASS') {
     const phrases = pool.PASS;
-    const idx = deterministicIndex(trackId, briefId, phrases.length);
+    const idx = deterministicIndex(trackId, briefId, phrases.length, meta?.artistName);
     phrase = phrases[idx];
   } else {
     const phrases = pool.MAYBE;
-    const idx = deterministicIndex(trackId, briefId, phrases.length);
+    const idx = deterministicIndex(trackId, briefId, phrases.length, meta?.artistName);
     phrase = phrases[idx];
   }
 

@@ -218,14 +218,14 @@ router.post("/demo/check", async (req: Request, res: Response) => {
 
     if (typeof isrc === "string" && isrc.length > 0) {
       track = await prisma.track.findFirst({
-        where: { isrc },
+        where: { isrc, isArchived: false },
         include: { rightsProfile: true, confidenceScore: true },
       });
     }
 
     if (!track) {
       track = await prisma.track.findFirst({
-        where: { trackStatus: "analyzed" },
+        where: { trackStatus: "analyzed", isArchived: false },
         include: { rightsProfile: true, confidenceScore: true },
       });
     }
@@ -281,6 +281,7 @@ router.post("/demo/check", async (req: Request, res: Response) => {
         tempo: track?.tempo ?? null,
         tonalCharacter: (track as any).tonalCharacter ?? null,
         energyCharacter: (track as any).energyCharacter ?? null,
+        artistName: (track as any).artistName ?? null,
       });
       const verdict = verdictFor(sceneFit);
 
