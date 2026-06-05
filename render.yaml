@@ -1,5 +1,18 @@
 services:
   - type: web
+    name: syncvision-frontend
+    runtime: static
+    buildCommand: cd apps/frontend && npm install && npm run build
+    staticPublishPath: apps/frontend/dist
+    envVars:
+      - key: VITE_APP_PASSWORD
+        value: Unity
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: web
     name: syncvision-backend
     runtime: node
     buildCommand: >-

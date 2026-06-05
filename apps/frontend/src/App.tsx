@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { LockScreen, isAuthenticated } from './components/LockScreen';
 import { BriefScreen } from './screens/BriefScreen';
 import { IngestScreen } from './screens/IngestScreen';
 import { AnalyzingScreen } from './screens/AnalyzingScreen';
@@ -35,8 +36,18 @@ const DEFAULT_SCENE_PARAMS: SceneParams = {
   sceneLengthSec: null,
 };
 
+const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD as string | undefined;
+
+// Share links bypass the lock screen — supervisors receive them without accounts.
+function isShareRoute(): boolean {
+  return /^#share=/.test(window.location.hash);
+}
+
 function App() {
   const [shareRoute, setShareRoute] = useState<ShareRoute>({ type: 'none' });
+  const [unlocked, setUnlocked] = useState<boolean>(
+    !APP_PASSWORD || isShareRoute() || isAuthenticated(),
+  );
 
   const [view, setView] = useState<View>('brief');
   const [briefText, setBriefText] = useState('');
@@ -76,6 +87,10 @@ function App() {
   useEffect(() => {
     if (job.phase === 'complete') setView('results');
   }, [job.phase]);
+
+  if (!unlocked) {
+    return <LockScreen onUnlock={() => setUnlocked(true)} />;
+  }
 
   if (shareRoute.type === 'loading') {
     return (
