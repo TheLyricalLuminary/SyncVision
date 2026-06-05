@@ -157,7 +157,7 @@ export function LockScreen({ onUnlock }: Props) {
         }
         .sv-logo-wrap img {
           height: 46px; width: auto;
-          filter: drop-shadow(0 6px 24px rgba(219,39,119,0.35));
+          filter: drop-shadow(0 0 12px rgba(255,255,255,0.18)) drop-shadow(0 6px 24px rgba(219,39,119,0.35)) brightness(1.15);
         }
 
         /* eyebrow */
