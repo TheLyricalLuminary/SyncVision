@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import logo from '../assets/syncvision-logo-dark.png';
 
 const STORAGE_KEY = 'sv_auth';
 
@@ -26,10 +27,10 @@ export function LockScreen({ onUnlock }: Props) {
       setPassword('');
       const el = shellRef.current;
       if (el) {
-        el.classList.remove('sv-err');
+        el.classList.remove('sv-shell-err');
         void el.offsetWidth;
-        el.classList.add('sv-err');
-        el.addEventListener('animationend', () => el.classList.remove('sv-err'), { once: true });
+        el.classList.add('sv-shell-err');
+        el.addEventListener('animationend', () => el.classList.remove('sv-shell-err'), { once: true });
       }
     }
   }
@@ -37,7 +38,7 @@ export function LockScreen({ onUnlock }: Props) {
   function handleInput(v: string) {
     setPassword(v);
     setError(false);
-    shellRef.current?.classList.remove('sv-err');
+    shellRef.current?.classList.remove('sv-shell-err');
   }
 
   return (
@@ -52,8 +53,10 @@ export function LockScreen({ onUnlock }: Props) {
           --lavender: #9B93C4;
           --amber: #F5A623;
           --magenta: #DB2777;
+          --violet: #7C3AED;
           --good: #4CAF82;
           --bad: #E85A5A;
+          --hairline: rgba(123,112,178,0.18);
           --hairline-strong: rgba(123,112,178,0.34);
           --ink-dim: rgba(155,147,196,0.6);
           font-family: "Manrope", system-ui, sans-serif;
@@ -67,7 +70,7 @@ export function LockScreen({ onUnlock }: Props) {
           -webkit-font-smoothing: antialiased;
         }
 
-        /* atmosphere */
+        /* ---- atmosphere ---- */
         .sv-field {
           position: fixed; inset: 0; z-index: 0; overflow: hidden;
           background:
@@ -76,6 +79,7 @@ export function LockScreen({ onUnlock }: Props) {
             radial-gradient(1200px 800px at 50% 116%, rgba(124,58,237,0.20), transparent 66%),
             linear-gradient(165deg, var(--bg-1), var(--bg-0) 70%);
         }
+
         .sv-blob {
           position: absolute; border-radius: 50%;
           filter: blur(80px); opacity: 0.5; mix-blend-mode: screen;
@@ -106,14 +110,14 @@ export function LockScreen({ onUnlock }: Props) {
           background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.045 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
         }
 
-        /* waveform — centered across page */
+        /* waveform across center */
         .sv-wavebg {
           position: fixed; left: 0; right: 0;
           top: 50%; transform: translateY(-50%);
           z-index: 1; opacity: 0.10; pointer-events: none;
         }
 
-        /* card */
+        /* ---- card ---- */
         .sv-gate {
           position: relative; z-index: 2;
           width: min(420px, calc(100vw - 40px));
@@ -130,34 +134,40 @@ export function LockScreen({ onUnlock }: Props) {
           text-align: center;
           animation: svRise 0.8s cubic-bezier(.2,.8,.2,1) both;
         }
-        /* gradient hairline on top-left edge */
+        /* gradient hairline ring — amber→magenta→transparent via mask-composite */
         .sv-gate::before {
           content: ""; position: absolute; inset: 0;
           border-radius: 26px; padding: 1px;
           background: linear-gradient(135deg, rgba(245,166,35,0.5), rgba(219,39,119,0.45) 45%, transparent 70%);
           -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-          -webkit-mask-composite: xor; mask-composite: exclude;
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
           pointer-events: none;
         }
 
-        @keyframes svRise    { from { opacity: 0; transform: translateY(22px) scale(.985); } to { opacity: 1; transform: none; } }
-        @keyframes svFadeUp  { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-        @keyframes svShake   { 10%,90%{transform:translateX(-1px);} 20%,80%{transform:translateX(2px);} 30%,50%,70%{transform:translateX(-5px);} 40%,60%{transform:translateX(5px);} }
-        @keyframes svSheen   { from { left: -60%; opacity: 0.9; } to { left: 130%; opacity: 0; } }
+        @keyframes svRise   { from { opacity:0; transform:translateY(22px) scale(.985); } to { opacity:1; transform:none; } }
+        @keyframes svFadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+        @keyframes svShake  { 10%,90%{transform:translateX(-1px);} 20%,80%{transform:translateX(2px);} 30%,50%,70%{transform:translateX(-5px);} 40%,60%{transform:translateX(5px);} }
+        @keyframes svSheen  { from { left:-60%; opacity:0.9; } to { left:130%; opacity:0; } }
 
+        /* logo */
         .sv-logo-wrap {
           display: flex; justify-content: center; margin-bottom: 6px;
           animation: svFadeUp .8s .08s both;
         }
-        .sv-logo-wrap svg {
+        .sv-logo-wrap img {
+          height: 46px; width: auto;
           filter: drop-shadow(0 6px 24px rgba(219,39,119,0.35));
         }
 
+        /* eyebrow */
         .sv-eyebrow {
           font-size: 10px; letter-spacing: 0.32em; text-transform: uppercase;
           color: var(--lavender); margin-top: 18px; font-weight: 600;
           animation: svFadeUp .8s .14s both;
         }
+
+        /* title */
         .sv-title {
           font-family: "Instrument Serif", serif; font-weight: 400;
           font-size: 27px; letter-spacing: -0.01em; line-height: 1.15;
@@ -165,6 +175,8 @@ export function LockScreen({ onUnlock }: Props) {
           animation: svFadeUp .8s .2s both;
         }
         .sv-title em { font-style: italic; color: var(--amber); }
+
+        /* sub */
         .sv-sub {
           font-family: "Instrument Serif", serif; font-style: italic;
           font-size: 14px; color: var(--ink-dim);
@@ -172,6 +184,7 @@ export function LockScreen({ onUnlock }: Props) {
           animation: svFadeUp .8s .26s both;
         }
 
+        /* form */
         .sv-form { margin-top: 28px; animation: svFadeUp .8s .32s both; }
 
         .sv-field-label {
@@ -182,6 +195,7 @@ export function LockScreen({ onUnlock }: Props) {
           color: var(--lavender); font-weight: 700;
         }
 
+        /* input shell */
         .sv-shell {
           position: relative; display: flex; align-items: center;
           border-radius: 14px;
@@ -204,29 +218,34 @@ export function LockScreen({ onUnlock }: Props) {
         .sv-shell input::placeholder {
           color: rgba(155,147,196,0.5); letter-spacing: 0.02em; font-weight: 400;
         }
-        .sv-shell .sv-reveal {
+        .sv-reveal {
           width: 46px; flex-shrink: 0; background: transparent; border: 0;
           cursor: pointer; color: var(--lavender);
           display: grid; place-items: center; transition: color .16s;
         }
-        .sv-shell .sv-reveal:hover { color: var(--silver); }
+        .sv-reveal:hover { color: var(--silver); }
         .sv-shell:focus-within {
           border-color: transparent;
           background: rgba(8,5,22,0.9);
           box-shadow: 0 0 0 1.5px rgba(245,166,35,0.55), 0 14px 34px -18px rgba(219,39,119,0.6);
         }
         .sv-shell:focus-within .sv-ico { color: var(--amber); }
-        .sv-shell.sv-err {
-          border-color: var(--bad);
-          box-shadow: 0 0 0 1.5px rgba(232,90,90,0.6);
+        .sv-shell-err {
+          border-color: var(--bad) !important;
+          box-shadow: 0 0 0 1.5px rgba(232,90,90,0.6) !important;
           animation: svShake .42s;
         }
 
+        /* error message */
         .sv-err-msg {
           font-size: 12px; color: var(--bad);
-          margin-top: 10px; min-height: 16px; text-align: left;
+          margin-top: 10px; min-height: 16px;
+          text-align: left;
+          opacity: 0; transition: opacity .2s;
         }
+        .sv-err-msg.show { opacity: 1; }
 
+        /* submit button */
         .sv-btn {
           width: 100%; margin-top: 16px; padding: 16px; border: 0; cursor: pointer;
           border-radius: 14px; position: relative; overflow: hidden;
@@ -255,6 +274,7 @@ export function LockScreen({ onUnlock }: Props) {
           box-shadow: 0 16px 34px -14px rgba(76,175,130,0.6);
         }
 
+        /* footer inside card */
         .sv-foot {
           margin-top: 22px; font-size: 11px; color: var(--ink-dim);
           display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -262,6 +282,7 @@ export function LockScreen({ onUnlock }: Props) {
         }
         .sv-foot-lock { display: inline-flex; }
 
+        /* page footer */
         .sv-verchip {
           position: fixed; bottom: 18px; left: 0; right: 0; z-index: 2;
           text-align: center;
@@ -279,16 +300,28 @@ export function LockScreen({ onUnlock }: Props) {
       `}</style>
 
       <div className="sv-root">
+
+        {/* z-index 0 — atmosphere field */}
         <div className="sv-field">
           <span className="sv-blob sv-blob-a" />
           <span className="sv-blob sv-blob-b" />
           <span className="sv-blob sv-blob-c" />
         </div>
+
+        {/* z-index 1 — grain */}
         <div className="sv-grain" />
 
-        <svg className="sv-wavebg" height="120" width="100%" viewBox="0 0 1440 120" preserveAspectRatio="none" fill="none" aria-hidden="true">
-          <path d="M0,60 C120,60 140,60 200,60 C240,60 250,30 280,30 C300,30 305,90 320,90 C332,90 338,18 352,18 C366,18 372,102 386,102 C400,102 405,44 420,44 C440,44 460,60 520,60 C760,60 760,60 900,60 C940,60 950,34 980,34 C1000,34 1005,88 1020,88 C1032,88 1038,22 1052,22 C1066,22 1072,98 1086,98 C1100,98 1105,48 1120,48 C1140,48 1160,60 1240,60 C1360,60 1380,60 1440,60"
-            stroke="url(#svWgrad)" strokeWidth="2.5" strokeLinecap="round" />
+        {/* z-index 1 — waveform across center */}
+        <svg className="sv-wavebg" height="120" width="100%" viewBox="0 0 1440 120"
+          preserveAspectRatio="none" fill="none" aria-hidden="true">
+          <path
+            d="M0,60 C120,60 140,60 200,60 C240,60 250,30 280,30 C300,30 305,90 320,90
+               C332,90 338,18 352,18 C366,18 372,102 386,102 C400,102 405,44 420,44
+               C440,44 460,60 520,60 C760,60 760,60 900,60 C940,60 950,34 980,34
+               C1000,34 1005,88 1020,88 C1032,88 1038,22 1052,22 C1066,22 1072,98 1086,98
+               C1100,98 1105,48 1120,48 C1140,48 1160,60 1240,60 C1360,60 1380,60 1440,60"
+            stroke="url(#svWgrad)" strokeWidth="2.5" strokeLinecap="round"
+          />
           <defs>
             <linearGradient id="svWgrad" x1="0" y1="0" x2="1440" y2="0" gradientUnits="userSpaceOnUse">
               <stop stopColor="#F5A623" />
@@ -298,33 +331,26 @@ export function LockScreen({ onUnlock }: Props) {
           </defs>
         </svg>
 
+        {/* z-index 2 — card */}
         <main className="sv-gate" role="dialog" aria-label="SyncVision sign in">
-          <div className="sv-logo-wrap" aria-label="SyncVision">
-            {/* bolt icon */}
-            <svg width="28" height="27" viewBox="0 0 48 46" fill="none" aria-hidden="true">
-              <defs>
-                <linearGradient id="svBoltGrad" x1="24" y1="0" x2="24" y2="46" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#c084fc"/>
-                  <stop offset="1" stopColor="#7c3aed"/>
-                </linearGradient>
-              </defs>
-              <path fill="url(#svBoltGrad)"
-                d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/>
-            </svg>
-            {/* wordmark */}
-            <svg width="110" height="18" viewBox="0 0 110 18" aria-hidden="true">
-              <text x="0" y="14"
-                fontFamily="Manrope, system-ui, sans-serif"
-                fontWeight="700" fontSize="15"
-                letterSpacing="0.3" fill="#F4F2FA">SyncVision</text>
-            </svg>
+
+          {/* 1. Logo */}
+          <div className="sv-logo-wrap">
+            <img src={logo} alt="SyncVision" />
           </div>
 
+          {/* 2. Eyebrow */}
           <div className="sv-eyebrow">Private preview</div>
+
+          {/* 3. Title */}
           <h1 className="sv-title">The room is <em>locked.</em></h1>
+
+          {/* 4. Sub */}
           <p className="sv-sub">Enter the access key shared with you to open the shortlist.</p>
 
+          {/* 5. Form */}
           <form className="sv-form" onSubmit={handleSubmit} autoComplete="off" noValidate>
+
             <div className="sv-field-label">
               <span>Access key</span>
             </div>
@@ -337,6 +363,7 @@ export function LockScreen({ onUnlock }: Props) {
                   <circle cx="12" cy="15.4" r="1.5" fill="currentColor" />
                 </svg>
               </span>
+
               <input
                 type={showPw ? 'text' : 'password'}
                 value={password}
@@ -345,6 +372,7 @@ export function LockScreen({ onUnlock }: Props) {
                 aria-label="Password"
                 autoFocus
               />
+
               <button
                 type="button"
                 className="sv-reveal"
@@ -366,10 +394,12 @@ export function LockScreen({ onUnlock }: Props) {
               </button>
             </div>
 
-            {error && (
-              <div className="sv-err-msg" role="alert">That key didn't match. Try again.</div>
-            )}
+            {/* error message */}
+            <div className={`sv-err-msg${error ? ' show' : ''}`} role="alert" aria-live="polite">
+              That key didn't match. Try again.
+            </div>
 
+            {/* submit */}
             <button type="submit" className={`sv-btn${unlocked ? ' ok' : ''}`}>
               {unlocked ? (
                 <>
@@ -389,6 +419,7 @@ export function LockScreen({ onUnlock }: Props) {
             </button>
           </form>
 
+          {/* 6. Card footer */}
           <div className="sv-foot">
             <span className="sv-foot-lock">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
@@ -398,9 +429,12 @@ export function LockScreen({ onUnlock }: Props) {
             </span>
             Encrypted link &middot; expires Jul 1
           </div>
+
         </main>
 
+        {/* 7. Page footer */}
         <div className="sv-verchip">SyncVision &middot; deterministic sync intelligence</div>
+
       </div>
     </>
   );
