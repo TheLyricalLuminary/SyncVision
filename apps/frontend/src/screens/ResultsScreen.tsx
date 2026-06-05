@@ -644,7 +644,7 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
   const [showPipeline, setShowPipeline]         = useState(false);
   const [playbackMsg, setPlaybackMsg]           = useState(false);
   const [localRightsProfile, setLocalRightsProfile] = useState(result.rightsProfile);
-  const [localVector, setLocalVector]               = useState(result.confidenceScore.vector ?? { scene: result.confidenceScore.sceneFitBreakdown / 100, lyrics: result.confidenceScore.lyricsBreakdown / 100, audioSignal: result.confidenceScore.signalBreakdown / 100, rightsClarity: (result.confidenceScore.dataConfidence ?? 50) / 100 });
+  const localVector = result.confidenceScore.vector ?? { scene: result.confidenceScore.sceneFitBreakdown / 100, lyrics: result.confidenceScore.lyricsBreakdown / 100, audioSignal: result.confidenceScore.signalBreakdown / 100, rightsClarity: (result.confidenceScore.dataConfidence ?? 50) / 100 };
   const [pendingAutoFill, setPendingAutoFill]        = useState<AutoFill | undefined>(undefined);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -657,19 +657,6 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
      localVector.audioSignal   * WEIGHTS.audioSignal   +
      localVector.rightsClarity * WEIGHTS.rightsClarity) * 100
   );
-
-  // Recomputes clearance axis from saved rights data — mirrors buildClearanceAxis() in trackVector.ts.
-  const rightsAxisFromBlockers = (blockers: string[], _hasIsrc: boolean): number => {
-    // Invert blocker list: absent blockers = points present. Mirrors computeClearanceComplexity.
-    const BLOCKER_COSTS: Record<string, number> = {
-      ONE_STOP_NOT_CONFIRMED: 40, MASTER_PCT_UNSET: 20,
-      PUBLISHER_UNKNOWN: 15, PRO_WORK_ID_MISSING: 10, WRITER_UNIDENTIFIED: 10,
-    };
-    let score = 100;
-    for (const b of blockers) score -= (BLOCKER_COSTS[b] ?? 0);
-    score = Math.max(0, Math.min(100, score));
-    return Math.max(0, Math.min(1, 0.20 + (score / 100) * 0.80));
-  };
 
   const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
   const hasAudio = audioFilePath !== null;
@@ -1168,10 +1155,10 @@ function CompareModal({
           {([left, right] as const).map((result, col) => {
             const isLeader = col === 0 ? leftScore >= rightScore : rightScore > leftScore;
             const vec = result.confidenceScore.vector ?? {
-              scene:       result.confidenceScore.sceneFitBreakdown / 100,
-              rights:      result.confidenceScore.rightsBreakdown   / 100,
-              lyrics:      result.confidenceScore.lyricsBreakdown   / 100,
-              audioSignal: result.confidenceScore.signalBreakdown   / 100,
+              scene:         result.confidenceScore.sceneFitBreakdown  / 100,
+              lyrics:        result.confidenceScore.lyricsBreakdown   / 100,
+              audioSignal:   result.confidenceScore.signalBreakdown   / 100,
+              rightsClarity: (result.confidenceScore.dataConfidence ?? 50) / 100,
             };
             const score = result.confidenceScore.score;
             const audioPath = resolveAudioUrl(result.track.audioFilePath);
