@@ -13,7 +13,7 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { createAudioToken, verifyAudioToken } from '../lib/audioToken';
 import { canonicalize, sha256Hex, fixedNum, type JsonValue } from '../lib/packetHash';
-import { WEIGHTS } from '../scoring/trackVector';
+import { WEIGHTS, computeDataConfidence } from '../scoring/trackVector';
 import { BRIEF_WEIGHTS } from '../scoring/briefWeights';
 
 const router = Router();
@@ -58,8 +58,11 @@ export interface TrackSlot {
   artistName:   string | null;
   rank:         number;
   fitIndex:     number; // 0–100, 1 decimal
-  vector:       { scene: number; rights: number; lyrics: number; audioSignal: number }; // 4 decimals each
-  axisWeights:  { scene: number; rights: number; lyrics: number; audioSignal: number }; // static WEIGHTS
+  vector:       { scene: number; clearance: number; lyrics: number; audioSignal: number }; // 4 decimals each
+  axisWeights:  { scene: number; clearance: number; lyrics: number; audioSignal: number }; // static WEIGHTS
+  dataConfidence:         number;  // 0–100, % of 8 rights fields verified
+  dataConfidenceVerified: number;
+  dataConfidenceTotal:    number;
   explanation:  string;
   tempo:        number | null;
   tonalCharacter:  string | null;
@@ -213,7 +216,7 @@ function buildHashable(packet: DecisionPacket): Record<string, unknown> {
 
 const VectorSchema = z.object({
   scene:       z.number(),
-  rights:      z.number(),
+  clearance:   z.number(),
   lyrics:      z.number(),
   audioSignal: z.number(),
 });
@@ -233,6 +236,9 @@ const TrackResultSchema = z.object({
     vector:    VectorSchema,
     inputHash: z.string(),
     explanation: z.string(),
+    dataConfidence:         z.number().optional(),
+    dataConfidenceVerified: z.number().optional(),
+    dataConfidenceTotal:    z.number().optional(),
   }),
   rightsProfile: z.object({
     isOneStop:       z.boolean().nullable(),
@@ -374,6 +380,19 @@ router.post('/share', async (req: Request, res: Response) => {
       } catch { /* skip audio for this track */ }
     }
 
+    // Data confidence — computed server-side from DB record (authoritative)
+    const dcInputs = {
+      isrc:               isrc,
+      ascapWorkId:        (dbRp?.['ascapWorkId'] as string | null) ?? null,
+      masterOwnershipPct: dbRp?.['masterOwnershipPct'] != null ? parseFloat(String(dbRp['masterOwnershipPct'])) : null,
+      isOneStop:          (dbRp?.['isOneStop'] as boolean | null) ?? (r.rightsProfile?.isOneStop ?? null),
+      writerName:         (rp?.['writerName'] as string | null) ?? null,
+      writerIpi:          (dbRp?.['writerIpi'] as string | null) ?? null,
+      publisherName:      (rp?.['publisherName'] as string | null) ?? null,
+      proAffiliation:     (rp?.['proAffiliation'] as string | null) ?? null,
+    };
+    const dc = computeDataConfidence(dcInputs);
+
     // Pre-format numbers for deterministic hashing
     const slot: TrackSlot = {
       trackId:         r.trackId,
@@ -383,13 +402,13 @@ router.post('/share', async (req: Request, res: Response) => {
       fitIndex:        fixedNum(r.confidenceScore.score, 1),
       vector: {
         scene:       fixedNum(r.confidenceScore.vector.scene,       4),
-        rights:      fixedNum(r.confidenceScore.vector.rights,      4),
+        clearance:   fixedNum(r.confidenceScore.vector.clearance,   4),
         lyrics:      fixedNum(r.confidenceScore.vector.lyrics,      4),
         audioSignal: fixedNum(r.confidenceScore.vector.audioSignal, 4),
       },
       axisWeights: {
         scene:       fixedNum(WEIGHTS.scene,       4),
-        rights:      fixedNum(WEIGHTS.rights,      4),
+        clearance:   fixedNum(WEIGHTS.clearance,   4),
         lyrics:      fixedNum(WEIGHTS.lyrics,      4),
         audioSignal: fixedNum(WEIGHTS.audioSignal, 4),
       },
@@ -403,6 +422,9 @@ router.post('/share', async (req: Request, res: Response) => {
       rightsAggregate: { totalFields: 7, confirmedFields, conflicts, missing },
       pipeline,
       inputHash:       r.confidenceScore.inputHash,
+      dataConfidence:          dc.score,
+      dataConfidenceVerified:  dc.verifiedCount,
+      dataConfidenceTotal:     dc.totalFields,
       audioToken,      // placeholder — re-signed after packetId is known
       audioExpiresAt,
     };

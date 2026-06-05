@@ -13,14 +13,14 @@ import type { LyricsState } from "../lib/lrclib";
 // ─── Weights (stable, fixed priors) ──────────────────────────────────────────
 
 export const WEIGHTS = {
-  scene:       0.40,  // PAD scene fit (emotional-spatial alignment)
-  rights:      0.25,  // clearance data completeness / risk inversion
+  scene:       0.42,  // PAD scene fit (emotional-spatial alignment)
+  clearance:   0.20,  // clearanceComplexity — how easy is this track to clear?
   lyrics:      0.20,  // lyricsSemantic — keyword-lexicon vocabulary overlap vs brief
-  audioSignal: 0.15,  // spectral tension + intimacy fit to brief
+  audioSignal: 0.18,  // spectral tension + intimacy fit to brief
 } as const;
 
 // Sum guard — caught at import time, not at runtime.
-const _sum = WEIGHTS.scene + WEIGHTS.rights + WEIGHTS.lyrics + WEIGHTS.audioSignal;
+const _sum = WEIGHTS.scene + WEIGHTS.clearance + WEIGHTS.lyrics + WEIGHTS.audioSignal;
 if (Math.abs(_sum - 1.0) > 1e-9) {
   throw new Error(`WEIGHTS must sum to 1.0, got ${_sum}`);
 }
@@ -29,7 +29,7 @@ if (Math.abs(_sum - 1.0) > 1e-9) {
 
 export interface TrackVector {
   scene:       number;  // 0–1
-  rights:      number;  // 0–1
+  clearance:   number;  // 0–1  clearanceComplexity axis
   lyrics:      number;  // 0–1
   audioSignal: number;  // 0–1
 }
@@ -46,7 +46,7 @@ export interface RankedTrack {
 export function scoreTrack(v: TrackVector): number {
   return clamp(
     v.scene       * WEIGHTS.scene       +
-    v.rights      * WEIGHTS.rights      +
+    v.clearance   * WEIGHTS.clearance   +
     v.lyrics      * WEIGHTS.lyrics      +
     v.audioSignal * WEIGHTS.audioSignal,
     0, 1,
@@ -82,36 +82,91 @@ export function buildSceneAxis(
   );
 }
 
-// Rights axis:
-//   Clearance score 0–100 maps to a base contribution of 0.30–1.00.
-//   The 0.30 floor ensures "no rights data entered yet" reads as
-//   uncertain (~0.30), not blocked (0). Absence ≠ confirmed risk.
-//   Each resolved blocker moves the axis upward toward 1.0.
-//   Small residual penalties for missing ISRC / unverified identity
-//   are intentionally kept minor — they flag open questions, not problems.
-export interface RightsInputs {
-  clearanceScore: number;       // 0–100 from computeClearance()
-  hasIsrc: boolean;             // ISRC present and non-synthetic
-  acoustidScore: number | null; // 0–1 match confidence, null = not checked
+// ClearanceComplexity axis:
+//   Measures how easy this track is to clear based on known rights data.
+//   Score 0–100, higher = easier to clear. Maps to 0–1 axis value.
+//
+//   Scoring breakdown (max 100):
+//     isOneStop = true               +40  (single rights holder)
+//     masterOwnershipPct = 100       +20  (no split negotiation)
+//     publisher known, indie/self    +15  (fast clearance path)
+//     publisher known, major label   +5   (known but complex)
+//     proAffiliation known           +10
+//     writerName known               +10
+//     syncLicenseStatus = "cleared"  +5   (bonus)
+//
+//   A one-stop indie with known publisher + PRO = 95+.
+//   A major label track with no one-stop confirmation = 15 or less.
+
+const MAJOR_LABELS = new Set([
+  'sony', 'sony music', 'smg', 'sony bmg',
+  'universal', 'universal music', 'umg', 'universal music group',
+  'warner', 'warner music', 'wmg', 'warner music group',
+  'emi', 'capitol', 'atlantic', 'columbia', 'interscope',
+  'def jam', 'republic', 'rca', 'arista', 'epic', 'polydor',
+  'island', 'motown', 'virgin', 'parlophone',
+]);
+
+function isMajorLabel(publisher: string): boolean {
+  const lower = publisher.toLowerCase().trim();
+  return Array.from(MAJOR_LABELS).some(m => lower.includes(m));
 }
 
-export function buildRightsAxis(inputs: RightsInputs): number {
-  // Map clearance 0→100 to 0.30→1.00 so unverified tracks start in
-  // "uncertain" territory rather than bottoming out at 0.
-  const clearanceContrib = 0.30 + clamp(inputs.clearanceScore / 100, 0, 1) * 0.70;
+export interface ClearanceComplexityInputs {
+  isOneStop:          boolean | null;
+  masterOwnershipPct: number | null;
+  publisherName:      string | null;
+  proAffiliation:     string | null;
+  writerName:         string | null;
+  syncLicenseStatus:  string | null;
+}
 
-  // Residual uncertainty — small by design.
-  const metadataUncertainty = inputs.hasIsrc ? 0 : 0.04;
-  const identityUncertainty =
-    inputs.acoustidScore === null ? 0.02 :  // not yet checked — tiny residual
-    inputs.acoustidScore >= 0.9  ? 0 :      // confirmed match
-    inputs.acoustidScore >= 0.7  ? 0.02 :   // probable match
-                                    0.05;   // weak / no match
+export function computeClearanceComplexity(inputs: ClearanceComplexityInputs): number {
+  let score = 0;
+  if (inputs.isOneStop === true)                               score += 40;
+  if (inputs.masterOwnershipPct === 100)                       score += 20;
+  if (inputs.publisherName) {
+    score += isMajorLabel(inputs.publisherName) ? 8 : 15;
+  }
+  if (inputs.proAffiliation)                                   score += 10;
+  if (inputs.writerName)                                       score += 10;
+  if (inputs.syncLicenseStatus?.toLowerCase() === 'cleared')  score +=  5;
+  return clamp(score, 0, 100);
+}
 
-  return clamp(
-    clearanceContrib - metadataUncertainty - identityUncertainty,
-    0, 1,
-  );
+export function buildClearanceAxis(inputs: ClearanceComplexityInputs): number {
+  const score = computeClearanceComplexity(inputs);
+  // Map 0→100 to 0.20→1.00 — unverified tracks start uncertain, not blocked.
+  return clamp(0.20 + (score / 100) * 0.80, 0, 1);
+}
+
+// dataConfidence — keeps the old 4×25 checklist logic.
+// Does NOT feed into FitIndex. Displayed in the rights panel only.
+export interface DataConfidenceInputs {
+  isrc:           string | null;
+  ascapWorkId:    string | null;
+  masterOwnershipPct: number | null;
+  isOneStop:      boolean | null;
+  writerName:     string | null;
+  writerIpi:      string | null;
+  publisherName:  string | null;
+  proAffiliation: string | null;
+}
+
+export function computeDataConfidence(inputs: DataConfidenceInputs): { score: number; verifiedCount: number; totalFields: number } {
+  const fields = [
+    !!inputs.isrc,
+    !!inputs.ascapWorkId,
+    inputs.masterOwnershipPct !== null,
+    inputs.isOneStop !== null,
+    !!inputs.writerName,
+    !!inputs.writerIpi,
+    !!inputs.publisherName,
+    !!inputs.proAffiliation,
+  ];
+  const verifiedCount = fields.filter(Boolean).length;
+  const totalFields   = fields.length;
+  return { score: Math.round((verifiedCount / totalFields) * 100), verifiedCount, totalFields };
 }
 
 // Lyrics axis — lyricsSemantic keyword-lexicon scoring.
@@ -221,7 +276,7 @@ export function buildAudioSignalAxis(
 export interface VectorInputs {
   padSceneFit:    number;
   dspMatchScore:  number;
-  rights:         RightsInputs;
+  clearance:      ClearanceComplexityInputs;
   /** null = lyrics not yet fetched for this track → axis returns neutral 0.50 */
   lyrics:         LyricsSemanticInputs | null;
   audioSignal: {
@@ -251,7 +306,7 @@ export function buildVector(inputs: VectorInputs): {
 } {
   const vector: TrackVector = {
     scene:       buildSceneAxis(inputs.padSceneFit, inputs.dspMatchScore),
-    rights:      buildRightsAxis(inputs.rights),
+    clearance:   buildClearanceAxis(inputs.clearance),
     lyrics:      buildLyricsAxis(inputs.lyrics),
     audioSignal: buildAudioSignalAxis(
       inputs.audioSignal.tensionMean,

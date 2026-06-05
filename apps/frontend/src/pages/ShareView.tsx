@@ -35,8 +35,11 @@ export interface TrackSlot {
   artistName:   string | null;
   rank:         number;
   fitIndex:     number;
-  vector:       { scene: number; rights: number; lyrics: number; audioSignal: number };
-  axisWeights:  { scene: number; rights: number; lyrics: number; audioSignal: number };
+  vector:       { scene: number; clearance: number; lyrics: number; audioSignal: number };
+  axisWeights:  { scene: number; clearance: number; lyrics: number; audioSignal: number };
+  dataConfidence?:         number;
+  dataConfidenceVerified?: number;
+  dataConfidenceTotal?:    number;
   explanation:  string;
   tempo:        number | null;
   tonalCharacter:  string | null;
@@ -119,6 +122,13 @@ function fieldValue(slot: TrackSlot, field: RightsFieldName): string {
   return '- not entered -';
 }
 
+function clearanceSentence(score: number): string {
+  if (score >= 80) return 'One-stop or indie-owned — fastest clearance path available.';
+  if (score >= 60) return 'Known publisher and writer on file — standard negotiation expected.';
+  if (score >= 40) return 'Major label involvement — multi-party negotiation likely required.';
+  return 'Rights picture incomplete — clearance timeline is uncertain without additional data.';
+}
+
 function clearanceLabel(rights: string | null): { label: string; tone: 'clear' | 'part' | 'blocked' } {
   if (rights === 'CLEAR') return { label: 'Cleared', tone: 'clear' };
   if (rights === 'BLOCKED') return { label: 'Blocked', tone: 'blocked' };
@@ -182,6 +192,13 @@ function PrintTrackPage({ slot, index, total, pages }: { slot: TrackSlot; index:
         <div className="sv-p-score"><div>{slot.fitIndex}</div><span>Fit</span></div>
       </div>
 
+      {/* SECTION 1 — Scene Fit */}
+      <div className="sv-p-assess">
+        <div className="sv-p-lab">Scene fit</div>
+        <p>{Math.round(slot.vector.scene * 100)}/100 — {slot.vector.scene >= 0.70 ? 'Strong alignment with the scene brief target zone.' : slot.vector.scene >= 0.50 ? 'Partial alignment with the scene brief target zone.' : 'Emotional profile falls outside the brief target zone.'}</p>
+      </div>
+
+      {/* SECTION 2 — Sync assessment */}
       <div className="sv-p-assess">
         <div className="sv-p-lab">Sync assessment <em>deterministic - audit-stable</em></div>
         <p>{slot.explanation}</p>
@@ -191,10 +208,10 @@ function PrintTrackPage({ slot, index, total, pages }: { slot: TrackSlot; index:
       <div className="sv-p-axes">
         {([
           ['Scene', slot.vector.scene],
-          ['Rights', slot.vector.rights],
+          ['Clearance', slot.vector.clearance],
           ['Lyrics', slot.vector.lyrics],
           ['Signal', slot.vector.audioSignal],
-        ] as const).map(([label, value]) => {
+        ] as [string, number][]).map(([label, value]) => {
           const pct = Math.round(value * 100);
           return (
             <div className="sv-p-axis" key={label}>
@@ -206,6 +223,20 @@ function PrintTrackPage({ slot, index, total, pages }: { slot: TrackSlot; index:
         })}
       </div>
       <div className="sv-p-axis-cap">Bar fill = axis value (0-100)</div>
+
+      {/* SECTION 3 — Clearance Complexity */}
+      {(() => {
+        const clScore = Math.round(slot.vector.clearance * 100);
+        const dc = slot.dataConfidence ?? null;
+        const dcVer = slot.dataConfidenceVerified ?? null;
+        const dcTot = slot.dataConfidenceTotal ?? 8;
+        return (
+          <div className="sv-p-assess">
+            <div className="sv-p-lab">Clearance complexity</div>
+            <p>{clScore}/100 — {clearanceSentence(clScore)}{dc !== null && dcVer !== null ? ` Rights data: ${dc}% complete — ${dcVer} of ${dcTot} fields verified.` : ''}</p>
+          </div>
+        );
+      })()}
 
       <div className="sv-p-rights">
         <div className="sv-p-rights-head">
@@ -573,11 +604,11 @@ function LiveTrackCard({
         <div className="fi-label">Fit index</div>
         <div className="fi-axes">
           {([
-            ['Scene',  slot.vector.scene,  '#F5A623'],
-            ['Rights', slot.vector.rights, slot.vector.rights >= 0.65 ? '#4CAF82' : slot.vector.rights >= 0.35 ? '#F5B544' : '#E85A5A'],
-            ['Lyrics', slot.vector.lyrics, '#9B93C4'],
-            ['Signal', slot.vector.audioSignal, 'rgba(155,147,196,0.55)'],
-          ] as const).map(([label, value, color]) => {
+            ['Scene',     slot.vector.scene,       '#F5A623'],
+            ['Clearance', slot.vector.clearance,   slot.vector.clearance >= 0.65 ? '#4CAF82' : slot.vector.clearance >= 0.35 ? '#F5B544' : '#E85A5A'],
+            ['Lyrics',    slot.vector.lyrics,      '#9B93C4'],
+            ['Signal',    slot.vector.audioSignal, 'rgba(155,147,196,0.55)'],
+          ] as [string, number, string][]).map(([label, value, color]) => {
             const pct = Math.round(value * 100);
             return (
               <div className="fi-axis" key={label}>
@@ -733,10 +764,10 @@ function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open:
                   <div className="cmp-axes">
                     {([
                       ['Scene', slot.vector.scene],
-                      ['Rights', slot.vector.rights],
+                      ['Clearance', slot.vector.clearance],
                       ['Lyrics', slot.vector.lyrics],
                       ['Signal', slot.vector.audioSignal],
-                    ] as const).map(([label, value]) => (
+                    ] as [string, number][]).map(([label, value]) => (
                       <div className="cmp-axis" key={label}><span className="a-n">{label}</span><span className="a-t"><span className="a-f" style={{ width: `${axisPct(value)}%` }} /></span><span className="a-v">{axisPct(value)}</span></div>
                     ))}
                   </div>

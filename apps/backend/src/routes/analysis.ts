@@ -15,7 +15,7 @@ import prisma from "../lib/prisma";
 import { computeRightsState } from "../scoring/rightsStateMachine";
 import { enrichRightsProfile } from "../services/rightsEnrichment";
 import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
-import { buildVector } from "../scoring/trackVector";
+import { buildVector, computeClearanceComplexity, computeDataConfidence } from "../scoring/trackVector";
 import { selectNarrativeWithLane, type PADValues } from "../scoring/narrativeDictionary";
 
 const router = Router();
@@ -234,11 +234,15 @@ interface AnalysisResult {
     explanation: string;
     // canonical vector — all values 0–100 (×100 for UI display)
     sceneFitBreakdown: number;
-    rightsBreakdown: number;
+    clearanceBreakdown: number;
     lyricsBreakdown: number;
     signalBreakdown: number;
+    // data confidence — separate signal, does not feed FitIndex
+    dataConfidence: number;        // 0–100 percentage of rights fields verified
+    dataConfidenceVerified: number; // count of verified fields
+    dataConfidenceTotal: number;    // total fields checked (8)
     // raw 0–1 vector for audit/downstream use
-    vector: { scene: number; rights: number; lyrics: number; audioSignal: number };
+    vector: { scene: number; clearance: number; lyrics: number; audioSignal: number };
     inputHash: string;
   };
   rightsProfile: {
@@ -352,14 +356,31 @@ async function processJob(jobId: string): Promise<void> {
       const clearance = computeClearance(rp);
       const rightsState = computeRightsState(track.rightsProfile);
 
+      const rpRec = rp as Record<string, unknown> | null;
+      const clearanceInputs = {
+        isOneStop:          rp?.isOneStop ?? null,
+        masterOwnershipPct: rp?.masterOwnershipPct != null ? parseFloat(String(rp.masterOwnershipPct)) : null,
+        publisherName:      rp?.publisherName ?? null,
+        proAffiliation:     rp?.proAffiliation ?? null,
+        writerName:         rp?.writerName ?? null,
+        syncLicenseStatus:  (rpRec?.['syncLicenseStatus'] as string | null) ?? null,
+      };
+
+      const dataConf = computeDataConfidence({
+        isrc:               track.isrc ?? null,
+        ascapWorkId:        (rpRec?.['ascapWorkId'] as string | null) ?? null,
+        masterOwnershipPct: clearanceInputs.masterOwnershipPct,
+        isOneStop:          rp?.isOneStop ?? null,
+        writerName:         rp?.writerName ?? null,
+        writerIpi:          (rpRec?.['writerIpi'] as string | null) ?? null,
+        publisherName:      rp?.publisherName ?? null,
+        proAffiliation:     rp?.proAffiliation ?? null,
+      });
+
       const { vector, ranked } = buildVector({
         padSceneFit:   sceneFit,
         dspMatchScore: sceneFit,  // DSP proxy: same PAD fit until embedding layer lands
-        rights: {
-          clearanceScore: clearance.score,
-          hasIsrc:        Boolean(track.isrc),
-          acoustidScore:  (track as Record<string, unknown>).acoustidScore as number | null ?? null,
-        },
+        clearance:     clearanceInputs,
         // Pass cached lyrics from the DB. If lyricsText/lyricsState are null
         // (not yet fetched for this track), buildLyricsAxis returns neutral 0.50.
         lyrics: {
@@ -398,10 +419,13 @@ async function processJob(jobId: string): Promise<void> {
           score,
           confidenceLabel: confidenceLabelFor(score),
           explanation,
-          sceneFitBreakdown: Math.round(vector.scene       * 100),
-          rightsBreakdown:   Math.round(vector.rights      * 100),
-          lyricsBreakdown:   Math.round(vector.lyrics      * 100),
-          signalBreakdown:   Math.round(vector.audioSignal * 100),
+          sceneFitBreakdown:       Math.round(vector.scene       * 100),
+          clearanceBreakdown:      Math.round(vector.clearance   * 100),
+          lyricsBreakdown:         Math.round(vector.lyrics      * 100),
+          signalBreakdown:         Math.round(vector.audioSignal * 100),
+          dataConfidence:          dataConf.score,
+          dataConfidenceVerified:  dataConf.verifiedCount,
+          dataConfidenceTotal:     dataConf.totalFields,
           vector,
           inputHash: ranked.inputHash,
         },

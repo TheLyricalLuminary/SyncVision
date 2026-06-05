@@ -68,6 +68,45 @@ function cleanTrackTitle(raw: string): string {
   return t || raw;
 }
 
+// ── Scene fit sentence (brief-aware, score-tiered) ────────────
+const BRIEF_EMOTIONAL_DESC: Record<string, { hi: string; mid: string; lo: string }> = {
+  'chase-tension':            { hi: 'High arousal and controlled valence sit squarely in the tension window.', mid: 'Arousal or dominance partially overlaps the chase-tension target.', lo: 'Emotional profile misses the sustained kinetic tension this brief requires.' },
+  'action-combat':            { hi: 'Peak arousal and assertive dominance match the action-combat target zone.', mid: 'Energy reads broadly action-adjacent but lands outside the core target.', lo: 'Track lacks the intensity ceiling this action brief demands.' },
+  'triumph-victory':          { hi: 'High arousal and elevated valence align with the triumph-victory profile.', mid: 'Celebratory energy is present but one PAD dimension reads slightly off-brief.', lo: 'Emotional register does not reach the uplift this victory moment requires.' },
+  'euphoria-celebration':     { hi: 'Bright valence and high energy sit exactly inside the euphoria target.', mid: 'Positive affect is present; arousal or dominance is partially outside the zone.', lo: 'Track reads too subdued for the euphoria-celebration register.' },
+  'suspense-dread':           { hi: 'Moderate arousal and low valence match the suspense-dread window precisely.', mid: 'Tension is present but intensity or tone lands outside the ideal dread range.', lo: 'Emotional profile is too neutral or bright for a suspense-dread cue.' },
+  'horror-psychological':     { hi: 'Low arousal, low valence, and suppressed dominance fit the psychological horror target.', mid: 'Unsettling quality is detectable but one PAD axis reads outside the core zone.', lo: 'Track lacks the psychological weight this horror brief requires.' },
+  'drama-confrontation':      { hi: 'Moderate-to-high arousal and controlled tension fit the drama-confrontation target.', mid: 'Dramatic weight is present but emotional ceiling or valence is slightly off.', lo: 'Emotional profile reads too passive for a confrontation cue.' },
+  'urban-gritty':             { hi: 'Mid-high arousal and subdued valence align with the urban-gritty register.', mid: 'Texture is present but arousal or dominance partially misses the target.', lo: 'Track lacks the raw assertion this gritty urban brief requires.' },
+  'romance-intimacy':         { hi: 'Low arousal, warm valence, and gentle dominance sit inside the romance-intimacy zone.', mid: 'Intimate quality is present but one axis is slightly outside the target window.', lo: 'Track reads too assertive or too neutral for a romance-intimacy cue.' },
+  'heartbreak-separation':    { hi: 'Subdued arousal and low valence match the heartbreak-separation profile.', mid: 'Melancholic quality is detectable but tone or energy partially misses the zone.', lo: 'Emotional register does not reach the grief depth this brief demands.' },
+  'grief-loss':               { hi: 'Very low arousal and muted valence sit squarely in the grief-loss window.', mid: 'Somber quality is present but one PAD dimension reads outside the core target.', lo: 'Track is too energetic or neutral for a grief-loss cue.' },
+  'contemplative-reflective': { hi: 'Low arousal and balanced valence align with the contemplative-reflective target.', mid: 'Reflective tone is present but intensity or valence drifts outside the zone.', lo: 'Track lacks the introspective stillness this contemplative brief requires.' },
+  'emotional-resolution':     { hi: 'Mid arousal and elevated valence fit the emotional-resolution arc.', mid: 'Resolution quality is present but arousal or tone is slightly off the target.', lo: 'Emotional profile does not suggest the resolution arc this brief requires.' },
+  'comedy-light':             { hi: 'Moderate energy and bright valence sit inside the comedy-light window.', mid: 'Positive affect is present but energy or lightness partially misses the target.', lo: 'Track reads too heavy or too neutral for a comedy-light brief.' },
+  'quirky-offbeat':           { hi: 'Moderate arousal and warm valence align with the quirky-offbeat target.', mid: 'Playful quality is present but one PAD axis reads outside the core zone.', lo: 'Track lacks the idiosyncratic energy this offbeat brief requires.' },
+  'montage-transition':       { hi: 'Balanced PAD values fit the neutral-to-flowing montage-transition target.', mid: 'Transition energy is present but emotional coloring slightly misses the zone.', lo: 'Track reads too extreme in one dimension for a smooth montage cue.' },
+  'opening-closing-title':    { hi: 'Moderate arousal and balanced tone fit the title-card register precisely.', mid: 'Ceremonial quality is present but one dimension is slightly off the target.', lo: 'Emotional weight does not match the opening-closing title brief.' },
+  'cinematic-epic':           { hi: 'High dominance and elevated arousal align with the cinematic-epic target zone.', mid: 'Epic scale is present but one PAD dimension partially misses the window.', lo: 'Track lacks the broad scope and gravitas this cinematic brief demands.' },
+  'corporate-aspirational':   { hi: 'Moderate arousal and warm valence fit the corporate-aspirational target.', mid: 'Optimistic quality is present but intensity or tone slightly misses the zone.', lo: 'Track is too understated or too intense for a corporate-aspirational brief.' },
+  'nature-pastoral':          { hi: 'Very low arousal and gentle valence sit inside the nature-pastoral window.', mid: 'Pastoral quality is present but one axis reads slightly outside the target.', lo: 'Track is too assertive or too neutral for a nature-pastoral cue.' },
+};
+
+function sceneFitSentence(briefId: string, sceneFitScore: number): string {
+  const desc = BRIEF_EMOTIONAL_DESC[briefId];
+  if (!desc) return sceneFitScore >= 70 ? 'Strong alignment with the brief target zone.' : sceneFitScore >= 50 ? 'Partial alignment with the brief target zone.' : 'Emotional profile falls outside the brief target zone.';
+  if (sceneFitScore >= 70) return desc.hi;
+  if (sceneFitScore >= 50) return desc.mid;
+  return desc.lo;
+}
+
+function clearanceSentence(clearanceScore: number): string {
+  if (clearanceScore >= 80) return 'One-stop or indie-owned — fastest clearance path available.';
+  if (clearanceScore >= 60) return 'Known publisher and writer on file — standard negotiation expected.';
+  if (clearanceScore >= 40) return 'Major label involvement — multi-party negotiation likely required.';
+  return 'Rights picture incomplete — clearance timeline is uncertain without additional data.';
+}
+
 // ── sub-components ─────────────────────────────────────────────
 function SvLogo({ onClick }: { onClick?: () => void }) {
   return (
@@ -605,32 +644,31 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
   const [showPipeline, setShowPipeline]         = useState(false);
   const [playbackMsg, setPlaybackMsg]           = useState(false);
   const [localRightsProfile, setLocalRightsProfile] = useState(result.rightsProfile);
-  const [localVector, setLocalVector]               = useState(result.confidenceScore.vector ?? { scene: result.confidenceScore.sceneFitBreakdown / 100, rights: result.confidenceScore.rightsBreakdown / 100, lyrics: result.confidenceScore.lyricsBreakdown / 100, audioSignal: result.confidenceScore.signalBreakdown / 100 });
+  const [localVector, setLocalVector]               = useState(result.confidenceScore.vector ?? { scene: result.confidenceScore.sceneFitBreakdown / 100, clearance: result.confidenceScore.clearanceBreakdown / 100, lyrics: result.confidenceScore.lyricsBreakdown / 100, audioSignal: result.confidenceScore.signalBreakdown / 100 });
   const [pendingAutoFill, setPendingAutoFill]        = useState<AutoFill | undefined>(undefined);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Mirror of backend scoreTrack() — same WEIGHTS, same dot product.
   // Recomputed locally whenever rights data saves so the card updates immediately.
-  const WEIGHTS = { scene: 0.40, rights: 0.25, lyrics: 0.20, audioSignal: 0.15 };
+  const WEIGHTS = { scene: 0.42, clearance: 0.20, lyrics: 0.20, audioSignal: 0.18 };
   const liveScore = Math.round(
     (localVector.scene       * WEIGHTS.scene       +
-     localVector.rights      * WEIGHTS.rights      +
+     localVector.clearance   * WEIGHTS.clearance   +
      localVector.lyrics      * WEIGHTS.lyrics      +
      localVector.audioSignal * WEIGHTS.audioSignal) * 100
   );
 
-  // Recomputes rights axis from blocker list — mirrors buildRightsAxis() in trackVector.ts.
-  const rightsAxisFromBlockers = (blockers: string[], hasIsrc: boolean): number => {
+  // Recomputes clearance axis from saved rights data — mirrors buildClearanceAxis() in trackVector.ts.
+  const rightsAxisFromBlockers = (blockers: string[], _hasIsrc: boolean): number => {
+    // Invert blocker list: absent blockers = points present. Mirrors computeClearanceComplexity.
     const BLOCKER_COSTS: Record<string, number> = {
-      MASTER_PCT_UNSET: 20, WRITER_UNIDENTIFIED: 15, WRITER_IPI_MISSING: 15,
-      PUBLISHER_UNKNOWN: 15, PRO_WORK_ID_MISSING: 15, ONE_STOP_NOT_CONFIRMED: 20,
+      ONE_STOP_NOT_CONFIRMED: 40, MASTER_PCT_UNSET: 20,
+      PUBLISHER_UNKNOWN: 15, PRO_WORK_ID_MISSING: 10, WRITER_UNIDENTIFIED: 10,
     };
-    let clearanceScore = 100;
-    for (const b of blockers) clearanceScore -= (BLOCKER_COSTS[b] ?? 0);
-    clearanceScore = Math.max(0, clearanceScore);
-    const clearanceRisk       = 1 - clearanceScore / 100;
-    const metadataUncertainty = hasIsrc ? 0 : 0.08;
-    return Math.max(0, Math.min(1, 1 - clearanceRisk - metadataUncertainty - 0.04));
+    let score = 100;
+    for (const b of blockers) score -= (BLOCKER_COSTS[b] ?? 0);
+    score = Math.max(0, Math.min(100, score));
+    return Math.max(0, Math.min(1, 0.20 + (score / 100) * 0.80));
   };
 
   const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
@@ -717,8 +755,19 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
         )}
       </div>
 
-      {/* Sync assessment box */}
-      <div className="sv-reasoning" style={{ marginTop: 10, padding: '10px 12px', borderRadius: 11, background: 'linear-gradient(180deg, rgba(219,39,119,0.06), transparent)', border: '1px solid rgba(219,39,119,0.2)' }}>
+      {/* SECTION 1 — Scene Fit */}
+      <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 11, background: 'linear-gradient(180deg, rgba(123,112,178,0.07), transparent)', border: `1px solid ${C.hairlineStrong}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+          <div style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.lavender, fontWeight: 700 }}>Scene Fit</div>
+          <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 16, lineHeight: 1, color: result.confidenceScore.sceneFitBreakdown >= 70 ? '#34D399' : result.confidenceScore.sceneFitBreakdown >= 50 ? C.amber : C.magenta, fontVariantNumeric: 'tabular-nums' }}>{result.confidenceScore.sceneFitBreakdown}<span style={{ fontFamily: SANS, fontStyle: 'normal', fontSize: 9, color: C.lavender, marginLeft: 2 }}>/100</span></span>
+        </div>
+        <div style={{ fontFamily: SANS, fontSize: 12, lineHeight: 1.6, color: 'rgba(226,232,240,0.80)', letterSpacing: '0.01em' }}>
+          {sceneFitSentence(briefId, result.confidenceScore.sceneFitBreakdown)}
+        </div>
+      </div>
+
+      {/* SECTION 2 — Sync assessment */}
+      <div className="sv-reasoning" style={{ marginTop: 6, padding: '10px 12px', borderRadius: 11, background: 'linear-gradient(180deg, rgba(219,39,119,0.06), transparent)', border: '1px solid rgba(219,39,119,0.2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
           <div style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.magenta, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
             <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" /></svg>
@@ -745,10 +794,10 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
         {/* weighted axis bars — container width ∝ weight, fill ∝ axis value */}
         <div style={{ display: 'flex', gap: 2, width: '100%' }}>
           {([
-            { key: 'scene',  label: 'Scene',  sub: 'fit',      weight: 0.40, value: localVector.scene,  actionable: false },
-            { key: 'rights', label: 'Rights', sub: 'exposure', weight: 0.25, value: localVector.rights, actionable: true  },
-            { key: 'lyrics', label: 'Lyrics', sub: 'fit',      weight: 0.20, value: localVector.lyrics, actionable: false, pending: !localRightsProfile },
-            { key: 'audioSignal', label: 'Signal', sub: 'mix fit', weight: 0.15, value: localVector.audioSignal, actionable: false },
+            { key: 'scene',     label: 'Scene',     sub: 'fit',        weight: 0.42, value: localVector.scene,     actionable: false },
+            { key: 'clearance', label: 'Clearance', sub: 'complexity', weight: 0.20, value: localVector.clearance,  actionable: true  },
+            { key: 'lyrics',    label: 'Lyrics',    sub: 'fit',        weight: 0.20, value: localVector.lyrics,     actionable: false, pending: !localRightsProfile },
+            { key: 'audioSignal', label: 'Signal',  sub: 'mix fit',    weight: 0.18, value: localVector.audioSignal, actionable: false },
           ] as { key: string; label: string; sub: string; weight: number; value: number; actionable: boolean; pending?: boolean }[]).map((axis, _i, arr) => {
             const pct   = Math.round(axis.value * 100);
             const isLow = axis.value < 0.4;
@@ -810,6 +859,31 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
         </div>
       </div>
 
+      {/* SECTION 3 — Clearance Complexity */}
+      {(() => {
+        const cs = result.confidenceScore;
+        const clScore = cs.clearanceBreakdown ?? Math.round((cs.vector?.clearance ?? 0) * 100);
+        const dc = cs.dataConfidence ?? null;
+        const dcVer = cs.dataConfidenceVerified ?? null;
+        const dcTot = cs.dataConfidenceTotal ?? 8;
+        return (
+          <div style={{ marginTop: 6, padding: '10px 12px', borderRadius: 11, background: 'linear-gradient(180deg, rgba(245,181,68,0.05), transparent)', border: `1px solid ${C.amberBorder}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+              <div style={{ fontSize: 9, letterSpacing: '0.26em', textTransform: 'uppercase', color: C.amber, fontWeight: 700 }}>Clearance Complexity</div>
+              <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 16, lineHeight: 1, color: clScore >= 70 ? '#34D399' : clScore >= 50 ? C.amber : C.magenta, fontVariantNumeric: 'tabular-nums' }}>{clScore}<span style={{ fontFamily: SANS, fontStyle: 'normal', fontSize: 9, color: C.lavender, marginLeft: 2 }}>/100</span></span>
+            </div>
+            <div style={{ fontFamily: SANS, fontSize: 12, lineHeight: 1.6, color: 'rgba(226,232,240,0.80)', letterSpacing: '0.01em' }}>
+              {clearanceSentence(clScore)}
+            </div>
+            {dc !== null && dcVer !== null && (
+              <div style={{ marginTop: 6, fontSize: 10, color: 'rgba(123,112,178,0.65)', letterSpacing: '0.04em' }}>
+                Rights data: {dc}% complete — {dcVer} of {dcTot} fields verified
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* tag row */}
       <div style={{ marginTop: 8, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ position: 'relative' }}>
@@ -870,9 +944,9 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
             };
             setLocalRightsProfile(newRp);
             onRightsSaved?.(result.track.id, newRp);
-            // Recompute rights axis → live score update
-            const newRightsAxis = rightsAxisFromBlockers(saved.blockers, Boolean(saved.isrc ?? result.track.isrc));
-            setLocalVector(v => ({ ...v, rights: newRightsAxis }));
+            // Recompute clearance axis → live score update
+            const newClearanceAxis = rightsAxisFromBlockers(saved.blockers, Boolean(saved.isrc ?? result.track.isrc));
+            setLocalVector(v => ({ ...v, clearance: newClearanceAxis }));
             setRightsPanel(false);
             setShowPipeline(true);
           }}
@@ -921,23 +995,23 @@ function buildVerdict(
   sceneParams: SceneParams,
 ): string {
   const wVec = winner.confidenceScore.vector ?? {
-    scene:       winner.confidenceScore.sceneFitBreakdown / 100,
-    rights:      winner.confidenceScore.rightsBreakdown   / 100,
-    lyrics:      winner.confidenceScore.lyricsBreakdown   / 100,
-    audioSignal: winner.confidenceScore.signalBreakdown   / 100,
+    scene:       winner.confidenceScore.sceneFitBreakdown  / 100,
+    clearance:   winner.confidenceScore.clearanceBreakdown / 100,
+    lyrics:      winner.confidenceScore.lyricsBreakdown    / 100,
+    audioSignal: winner.confidenceScore.signalBreakdown    / 100,
   };
   const lVec = loser.confidenceScore.vector ?? {
-    scene:       loser.confidenceScore.sceneFitBreakdown / 100,
-    rights:      loser.confidenceScore.rightsBreakdown   / 100,
-    lyrics:      loser.confidenceScore.lyricsBreakdown   / 100,
-    audioSignal: loser.confidenceScore.signalBreakdown   / 100,
+    scene:       loser.confidenceScore.sceneFitBreakdown  / 100,
+    clearance:   loser.confidenceScore.clearanceBreakdown / 100,
+    lyrics:      loser.confidenceScore.lyricsBreakdown    / 100,
+    audioSignal: loser.confidenceScore.signalBreakdown    / 100,
   };
 
   const gaps: { axis: string; gap: number }[] = [
     { axis: 'audioSignal', gap: wVec.audioSignal - lVec.audioSignal },
     { axis: 'scene',       gap: wVec.scene       - lVec.scene       },
     { axis: 'lyrics',      gap: wVec.lyrics       - lVec.lyrics      },
-    { axis: 'rights',      gap: wVec.rights       - lVec.rights      },
+    { axis: 'clearance',   gap: wVec.clearance   - lVec.clearance   },
   ];
   const dominant = gaps.reduce((a, b) => Math.abs(a.gap) > Math.abs(b.gap) ? a : b);
 
@@ -976,14 +1050,14 @@ function buildVerdict(
     axisSentence = `${wName} leads on lyric fit.`;
     editorialSentence = `The lyric content aligns more directly with the ${register.toLowerCase()} subject matter, reducing the risk of a clearance-level semantic mismatch.`;
   } else {
-    // rights is dominant differentiator
-    axisSentence = `${wName} leads on rights clarity.`;
+    // clearance is dominant differentiator
+    axisSentence = `${wName} leads on clearance complexity.`;
     editorialSentence = `Its rights profile has fewer unresolved fields, which reduces clearance risk when the picture editor needs a quick decision.`;
   }
 
-  // ── rights closing sentence ──
-  const wR = Math.round((wVec.rights ?? 0) * 100);
-  const lR = Math.round((lVec.rights ?? 0) * 100);
+  // ── clearance closing sentence ──
+  const wR = Math.round((wVec.clearance ?? 0) * 100);
+  const lR = Math.round((lVec.clearance ?? 0) * 100);
   const rightsDiff = wR - lR;
   let rightsSentence: string;
   if (Math.abs(rightsDiff) <= 5) {

@@ -168,6 +168,7 @@ const LANE_HEURISTICS: Record<LaneTag, RegExp[]> = {
     /rate card/i,
     /approval.*require/i,
   ],
+  clearance: [],  // alias for rights lane — phrases tagged 'rights' in the dictionary
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -393,7 +394,7 @@ function checkFailLaneBalance(): void {
     if (!phrases || phrases.length !== PHRASES_PER_POOL) continue; // CHECK 1 covers this
 
     // Count phrases per lane and validate each tag
-    const laneCounts: Record<LaneTag, number> = { scene: 0, lyrics: 0, rights: 0 };
+    const laneCounts: Record<LaneTag, number> = { scene: 0, lyrics: 0, rights: 0, clearance: 0 };
 
     for (let i = 0; i < phrases.length; i++) {
       const fp = phrases[i];
@@ -449,7 +450,7 @@ function checkFailLaneBalance(): void {
 
 /** Heuristic lane classifier — returns null if no strong signal. */
 function classifyFailLane(text: string): LaneTag | null {
-  const scores: Record<LaneTag, number> = { scene: 0, lyrics: 0, rights: 0 };
+  const scores: Record<LaneTag, number> = { scene: 0, lyrics: 0, rights: 0, clearance: 0 };
   for (const [lane, patterns] of Object.entries(LANE_HEURISTICS) as Array<[LaneTag, RegExp[]]>) {
     for (const pat of patterns) {
       if (pat.test(text)) scores[lane]++;

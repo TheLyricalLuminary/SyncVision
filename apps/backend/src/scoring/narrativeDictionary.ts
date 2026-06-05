@@ -44,7 +44,7 @@ export type Tier = 'PASS' | 'MAYBE' | 'FAIL';
  * Positional convention in FAIL pools:
  *   [0,1] → 'scene'   [2,3] → 'lyrics'   [4,5] → 'rights'
  */
-export type LaneTag = 'scene' | 'lyrics' | 'rights';
+export type LaneTag = 'scene' | 'lyrics' | 'rights' | 'clearance';
 
 export interface FailPhrase {
   text: string;
@@ -1309,10 +1309,10 @@ export function composeNarrative(
  *   rights → 'rights'  (clearance friction)
  * signal axis is excluded from lane selection (max contribution 0.05).
  */
-const AXIS_TO_LANE: Readonly<Record<'scene' | 'lyrics' | 'rights', LaneTag>> = {
-  scene:  'scene',
-  lyrics: 'lyrics',
-  rights: 'rights',
+const AXIS_TO_LANE: Readonly<Record<'scene' | 'lyrics' | 'clearance', LaneTag>> = {
+  scene:     'scene',
+  lyrics:    'lyrics',
+  clearance: 'rights',  // clearance axis maps to 'rights' lane (existing phrase pool)
 } as const;
 
 /**
@@ -1325,16 +1325,16 @@ const AXIS_TO_LANE: Readonly<Record<'scene' | 'lyrics' | 'rights', LaneTag>> = {
  */
 function dominantFailLane(vector: TrackVector): LaneTag {
   const shortfalls = {
-    scene:  (1 - vector.scene)  * WEIGHTS.scene,
-    lyrics: (1 - vector.lyrics) * WEIGHTS.lyrics,
-    rights: (1 - vector.rights) * WEIGHTS.rights,
+    scene:     (1 - vector.scene)     * WEIGHTS.scene,
+    lyrics:    (1 - vector.lyrics)    * WEIGHTS.lyrics,
+    clearance: (1 - vector.clearance) * WEIGHTS.clearance,
   } as const;
 
   // Tie-break: scene wins unless another axis is strictly larger.
-  // Ordering: scene > lyrics > rights.
-  const dominant: 'scene' | 'lyrics' | 'rights' =
-    shortfalls.rights > shortfalls.lyrics && shortfalls.rights > shortfalls.scene
-      ? 'rights'
+  // Ordering: scene > lyrics > clearance.
+  const dominant: 'scene' | 'lyrics' | 'clearance' =
+    shortfalls.clearance > shortfalls.lyrics && shortfalls.clearance > shortfalls.scene
+      ? 'clearance'
       : shortfalls.lyrics > shortfalls.scene
         ? 'lyrics'
         : 'scene';
@@ -1375,7 +1375,7 @@ export function selectNarrativeWithLane(
   // Compute scene-fit score to determine tier
   const sceneFit = (
     vector.scene       * WEIGHTS.scene       +
-    vector.rights      * WEIGHTS.rights      +
+    vector.clearance   * WEIGHTS.clearance   +
     vector.lyrics      * WEIGHTS.lyrics      +
     vector.audioSignal * WEIGHTS.audioSignal
   ) * 100;

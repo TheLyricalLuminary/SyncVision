@@ -18,10 +18,13 @@ export type AnalysisResult = {
     confidenceLabel: string;
     explanation: string;
     sceneFitBreakdown: number;
-    rightsBreakdown: number;
+    clearanceBreakdown: number;
     lyricsBreakdown: number;
     signalBreakdown: number;
-    vector: { scene: number; rights: number; lyrics: number; audioSignal: number };
+    dataConfidence: number;
+    dataConfidenceVerified: number;
+    dataConfidenceTotal: number;
+    vector: { scene: number; clearance: number; lyrics: number; audioSignal: number };
     inputHash: string;
   };
   rightsProfile: {

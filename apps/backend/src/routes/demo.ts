@@ -261,10 +261,13 @@ router.post("/demo/check", async (req: Request, res: Response) => {
       const { vector } = buildVector({
         padSceneFit:   sceneFit,
         dspMatchScore: sceneFit,
-        rights: {
-          clearanceScore: clearance.score,
-          hasIsrc:        Boolean(track!.isrc),
-          acoustidScore:  (track as any).acoustidScore as number | null ?? null,
+        clearance: {
+          isOneStop:          null,
+          masterOwnershipPct: null,
+          publisherName:      null,
+          proAffiliation:     null,
+          writerName:         null,
+          syncLicenseStatus:  null,
         },
         lyrics: null,
         audioSignal: {
