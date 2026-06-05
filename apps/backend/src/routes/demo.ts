@@ -258,24 +258,16 @@ router.post("/demo/check", async (req: Request, res: Response) => {
         (track as any).modelVersion ?? null,
       );
 
-      const rpRec = rp as Record<string, unknown> | null;
       const { vector } = buildVector({
         padSceneFit:   sceneFit,
         dspMatchScore: sceneFit,
-        clearance: {
-          isOneStop:          rp?.isOneStop ?? null,
-          masterOwnershipPct: rp?.masterOwnershipPct != null ? parseFloat(String(rp.masterOwnershipPct)) : null,
-          publisherName:      rp?.publisherName ?? null,
-          proAffiliation:     rp?.proAffiliation ?? null,
-          writerName:         rp?.writerName ?? null,
-          syncLicenseStatus:  (rpRec?.['syncLicenseStatus'] as string | null) ?? null,
-        },
         lyrics: null,
         audioSignal: {
           tensionMean:  meanTimelineCol(track!.timeline, 2),
           intimacyMean: meanTimelineCol(track!.timeline, 4),
           briefId,
         },
+        rightsClarity: null,  // demo mode — neutral
       });
       const narrative = selectNarrativeWithLane(track!.id, briefId, vector, {
         tempo: track?.tempo ?? null,

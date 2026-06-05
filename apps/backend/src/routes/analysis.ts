@@ -242,7 +242,7 @@ interface AnalysisResult {
     dataConfidenceVerified: number; // count of verified fields
     dataConfidenceTotal: number;    // total fields checked (8)
     // raw 0–1 vector for audit/downstream use
-    vector: { scene: number; clearance: number; lyrics: number; audioSignal: number };
+    vector: { scene: number; lyrics: number; audioSignal: number; rightsClarity: number };
     inputHash: string;
   };
   rightsProfile: {
@@ -380,9 +380,6 @@ async function processJob(jobId: string): Promise<void> {
       const { vector, ranked } = buildVector({
         padSceneFit:   sceneFit,
         dspMatchScore: sceneFit,  // DSP proxy: same PAD fit until embedding layer lands
-        clearance:     clearanceInputs,
-        // Pass cached lyrics from the DB. If lyricsText/lyricsState are null
-        // (not yet fetched for this track), buildLyricsAxis returns neutral 0.50.
         lyrics: {
           lyricsText:  track.lyricsText  ?? null,
           lyricsState: track.lyricsState ?? null,
@@ -393,6 +390,7 @@ async function processJob(jobId: string): Promise<void> {
           intimacyMean: worker.intimacyMean,
           briefId:      job.briefId,
         },
+        rightsClarity: dataConf.score,  // dataConfidence 0–100 → rights clarity axis
       });
 
       const score = Math.round(ranked.score * 100);
@@ -421,7 +419,7 @@ async function processJob(jobId: string): Promise<void> {
           confidenceLabel: confidenceLabelFor(score),
           explanation,
           sceneFitBreakdown:       Math.round(vector.scene       * 100),
-          clearanceBreakdown:      Math.round(vector.clearance   * 100),
+          clearanceBreakdown:      computeClearanceComplexity(clearanceInputs),
           lyricsBreakdown:         Math.round(vector.lyrics      * 100),
           signalBreakdown:         Math.round(vector.audioSignal * 100),
           dataConfidence:          dataConf.score,

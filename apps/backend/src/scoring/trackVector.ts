@@ -13,14 +13,15 @@ import type { LyricsState } from "../lib/lrclib";
 // ─── Weights (stable, fixed priors) ──────────────────────────────────────────
 
 export const WEIGHTS = {
-  scene:       0.42,  // PAD scene fit (emotional-spatial alignment)
-  clearance:   0.20,  // clearanceComplexity — how easy is this track to clear?
-  lyrics:      0.20,  // lyricsSemantic — keyword-lexicon vocabulary overlap vs brief
-  audioSignal: 0.18,  // spectral tension + intimacy fit to brief
+  scene:         0.45,  // PAD scene fit (emotional-spatial alignment)
+  lyrics:        0.25,  // lyricsSemantic — keyword-lexicon vocabulary overlap vs brief
+  audioSignal:   0.20,  // spectral tension + intimacy fit to brief
+  rightsClarity: 0.10,  // data confidence — rewards complete rights data without overriding creative ranking
+  // clearanceComplexity is NOT in FitIndex — displayed independently as a separate signal
 } as const;
 
 // Sum guard — caught at import time, not at runtime.
-const _sum = WEIGHTS.scene + WEIGHTS.clearance + WEIGHTS.lyrics + WEIGHTS.audioSignal;
+const _sum = WEIGHTS.scene + WEIGHTS.lyrics + WEIGHTS.audioSignal + WEIGHTS.rightsClarity;
 if (Math.abs(_sum - 1.0) > 1e-9) {
   throw new Error(`WEIGHTS must sum to 1.0, got ${_sum}`);
 }
@@ -28,10 +29,10 @@ if (Math.abs(_sum - 1.0) > 1e-9) {
 // ─── Canonical vector ─────────────────────────────────────────────────────────
 
 export interface TrackVector {
-  scene:       number;  // 0–1
-  clearance:   number;  // 0–1  clearanceComplexity axis
-  lyrics:      number;  // 0–1
-  audioSignal: number;  // 0–1
+  scene:         number;  // 0–1
+  lyrics:        number;  // 0–1
+  audioSignal:   number;  // 0–1
+  rightsClarity: number;  // 0–1, data confidence (completeness of rights fields)
 }
 
 export interface RankedTrack {
@@ -45,10 +46,10 @@ export interface RankedTrack {
 
 export function scoreTrack(v: TrackVector): number {
   return clamp(
-    v.scene       * WEIGHTS.scene       +
-    v.clearance   * WEIGHTS.clearance   +
-    v.lyrics      * WEIGHTS.lyrics      +
-    v.audioSignal * WEIGHTS.audioSignal,
+    v.scene         * WEIGHTS.scene         +
+    v.lyrics        * WEIGHTS.lyrics        +
+    v.audioSignal   * WEIGHTS.audioSignal   +
+    v.rightsClarity * WEIGHTS.rightsClarity,
     0, 1,
   );
 }
@@ -273,10 +274,18 @@ export function buildAudioSignalAxis(
 
 // ─── Full vector builder ──────────────────────────────────────────────────────
 
+// RightsClarity axis — data confidence as a soft scoring input.
+//   Maps the dataConfidence percentage (0–100) to a 0–1 axis value.
+//   Rewards complete rights data without letting it override creative ranking.
+//   Falls back to 0.50 (neutral) when dataConfidence is null.
+export function buildRightsClarityAxis(dataConfidenceScore: number | null): number {
+  if (dataConfidenceScore === null) return 0.50;
+  return clamp(dataConfidenceScore / 100, 0, 1);
+}
+
 export interface VectorInputs {
   padSceneFit:    number;
   dspMatchScore:  number;
-  clearance:      ClearanceComplexityInputs;
   /** null = lyrics not yet fetched for this track → axis returns neutral 0.50 */
   lyrics:         LyricsSemanticInputs | null;
   audioSignal: {
@@ -284,6 +293,8 @@ export interface VectorInputs {
     intimacyMean: number | null;
     briefId:      string;
   };
+  /** dataConfidence score 0–100, or null if not computed → axis returns neutral 0.50 */
+  rightsClarity:  number | null;
 }
 
 function sortedJson(value: unknown): string {
@@ -305,14 +316,14 @@ export function buildVector(inputs: VectorInputs): {
   ranked: Omit<RankedTrack, "trackId">;
 } {
   const vector: TrackVector = {
-    scene:       buildSceneAxis(inputs.padSceneFit, inputs.dspMatchScore),
-    clearance:   buildClearanceAxis(inputs.clearance),
-    lyrics:      buildLyricsAxis(inputs.lyrics),
-    audioSignal: buildAudioSignalAxis(
+    scene:         buildSceneAxis(inputs.padSceneFit, inputs.dspMatchScore),
+    lyrics:        buildLyricsAxis(inputs.lyrics),
+    audioSignal:   buildAudioSignalAxis(
       inputs.audioSignal.tensionMean,
       inputs.audioSignal.intimacyMean,
       inputs.audioSignal.briefId,
     ),
+    rightsClarity: buildRightsClarityAxis(inputs.rightsClarity),
   };
 
   const score = scoreTrack(vector);

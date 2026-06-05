@@ -24,7 +24,7 @@ export type AnalysisResult = {
     dataConfidence: number;
     dataConfidenceVerified: number;
     dataConfidenceTotal: number;
-    vector: { scene: number; clearance: number; lyrics: number; audioSignal: number };
+    vector: { scene: number; lyrics: number; audioSignal: number; rightsClarity: number };
     inputHash: string;
   };
   rightsProfile: {

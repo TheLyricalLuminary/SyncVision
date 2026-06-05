@@ -58,8 +58,9 @@ export interface TrackSlot {
   artistName:   string | null;
   rank:         number;
   fitIndex:     number; // 0–100, 1 decimal
-  vector:       { scene: number; clearance: number; lyrics: number; audioSignal: number }; // 4 decimals each
-  axisWeights:  { scene: number; clearance: number; lyrics: number; audioSignal: number }; // static WEIGHTS
+  vector:       { scene: number; lyrics: number; audioSignal: number; rightsClarity: number }; // 4 decimals each
+  axisWeights:  { scene: number; lyrics: number; audioSignal: number; rightsClarity: number }; // static WEIGHTS
+  clearanceScore: number;  // 0–100, displayed separately — NOT part of FitIndex
   dataConfidence:         number;  // 0–100, % of 8 rights fields verified
   dataConfidenceVerified: number;
   dataConfidenceTotal:    number;
@@ -215,10 +216,12 @@ function buildHashable(packet: DecisionPacket): Record<string, unknown> {
 // ── Zod schema for POST body ──────────────────────────────────────────────────
 
 const VectorSchema = z.object({
-  scene:       z.number(),
-  clearance:   z.number(),
-  lyrics:      z.number(),
-  audioSignal: z.number(),
+  scene:         z.number(),
+  lyrics:        z.number(),
+  audioSignal:   z.number(),
+  rightsClarity: z.number(),
+  // legacy fields accepted for backwards-compat with in-flight payloads
+  clearance:     z.number().optional(),
 });
 
 const TrackResultSchema = z.object({
@@ -236,6 +239,7 @@ const TrackResultSchema = z.object({
     vector:    VectorSchema,
     inputHash: z.string(),
     explanation: z.string(),
+    clearanceBreakdown:     z.number().optional(),
     dataConfidence:         z.number().optional(),
     dataConfidenceVerified: z.number().optional(),
     dataConfidenceTotal:    z.number().optional(),
@@ -401,17 +405,18 @@ router.post('/share', async (req: Request, res: Response) => {
       rank:            r.rank,
       fitIndex:        fixedNum(r.confidenceScore.score, 1),
       vector: {
-        scene:       fixedNum(r.confidenceScore.vector.scene,       4),
-        clearance:   fixedNum(r.confidenceScore.vector.clearance,   4),
-        lyrics:      fixedNum(r.confidenceScore.vector.lyrics,      4),
-        audioSignal: fixedNum(r.confidenceScore.vector.audioSignal, 4),
+        scene:         fixedNum(r.confidenceScore.vector.scene,         4),
+        lyrics:        fixedNum(r.confidenceScore.vector.lyrics,        4),
+        audioSignal:   fixedNum(r.confidenceScore.vector.audioSignal,   4),
+        rightsClarity: fixedNum(r.confidenceScore.vector.rightsClarity, 4),
       },
       axisWeights: {
-        scene:       fixedNum(WEIGHTS.scene,       4),
-        clearance:   fixedNum(WEIGHTS.clearance,   4),
-        lyrics:      fixedNum(WEIGHTS.lyrics,      4),
-        audioSignal: fixedNum(WEIGHTS.audioSignal, 4),
+        scene:         fixedNum(WEIGHTS.scene,         4),
+        lyrics:        fixedNum(WEIGHTS.lyrics,        4),
+        audioSignal:   fixedNum(WEIGHTS.audioSignal,   4),
+        rightsClarity: fixedNum(WEIGHTS.rightsClarity, 4),
       },
+      clearanceScore: r.confidenceScore.clearanceBreakdown ?? 0,
       explanation:     r.confidenceScore.explanation,
       tempo:           r.tempo,
       tonalCharacter:  r.tonalCharacter,

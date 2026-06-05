@@ -100,7 +100,7 @@ function mapResponse(resp: DemoCheckResponse): AnalysisResult[] {
         dataConfidence: 50,
         dataConfidenceVerified: 4,
         dataConfidenceTotal: 8,
-        vector: { scene: score / 100, clearance: score / 100, lyrics: 0.5, audioSignal: (score / 100) * 0.6 },
+        vector: { scene: score / 100, lyrics: 0.5, audioSignal: (score / 100) * 0.6, rightsClarity: 0.5 },
         inputHash: '',
       },
       rightsProfile: {

@@ -55,10 +55,10 @@ interface SanityEntry {
 
 function computeFitIndex(lyricsAxis: number): number {
   return parseFloat((
-    NEUTRAL    * WEIGHTS.scene       +
-    NEUTRAL    * WEIGHTS.clearance   +
-    lyricsAxis * WEIGHTS.lyrics      +
-    NEUTRAL    * WEIGHTS.audioSignal
+    NEUTRAL    * WEIGHTS.scene         +
+    lyricsAxis * WEIGHTS.lyrics        +
+    NEUTRAL    * WEIGHTS.audioSignal   +
+    NEUTRAL    * WEIGHTS.rightsClarity
   ).toFixed(4));
 }
 

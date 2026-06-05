@@ -1310,16 +1310,16 @@ export function composeNarrative(
 // ---------------------------------------------------------------------------
 
 /**
- * Axis → LaneTag mapping (Option A — axis-mirroring taxonomy).
- *   scene  → 'scene'   (PAD / tonal mismatch)
- *   lyrics → 'lyrics'  (arrangement / content mismatch)
- *   rights → 'rights'  (clearance friction)
- * signal axis is excluded from lane selection (max contribution 0.05).
+ * Axis → LaneTag mapping.
+ *   scene         → 'scene'   (PAD / tonal mismatch)
+ *   lyrics        → 'lyrics'  (content mismatch)
+ *   rightsClarity → 'rights'  (data confidence shortfall)
+ * audioSignal and clearanceComplexity excluded from lane selection.
  */
-const AXIS_TO_LANE: Readonly<Record<'scene' | 'lyrics' | 'clearance', LaneTag>> = {
-  scene:     'scene',
-  lyrics:    'lyrics',
-  clearance: 'rights',  // clearance axis maps to 'rights' lane (existing phrase pool)
+const AXIS_TO_LANE: Readonly<Record<'scene' | 'lyrics' | 'rightsClarity', LaneTag>> = {
+  scene:         'scene',
+  lyrics:        'lyrics',
+  rightsClarity: 'rights',
 } as const;
 
 /**
@@ -1327,24 +1327,23 @@ const AXIS_TO_LANE: Readonly<Record<'scene' | 'lyrics' | 'clearance', LaneTag>> 
  *
  * shortfall(axis) = (1 − vector[axis]) × WEIGHTS[axis]
  *
- * Tie-break ordering: scene > lyrics > rights.
- * Signal axis is excluded (max contribution 0.05 — noise floor).
+ * Tie-break ordering: scene > lyrics > rightsClarity.
+ * audioSignal excluded (signal friction is not a narrative lane).
  */
 function dominantFailLane(vector: TrackVector): LaneTag {
   const shortfalls = {
-    scene:     (1 - vector.scene)     * WEIGHTS.scene,
-    lyrics:    (1 - vector.lyrics)    * WEIGHTS.lyrics,
-    clearance: (1 - vector.clearance) * WEIGHTS.clearance,
+    scene:         (1 - vector.scene)         * WEIGHTS.scene,
+    lyrics:        (1 - vector.lyrics)        * WEIGHTS.lyrics,
+    rightsClarity: (1 - vector.rightsClarity) * WEIGHTS.rightsClarity,
   } as const;
 
-  // Tie-break: scene wins unless another axis is strictly larger.
-  // Ordering: scene > lyrics > clearance.
-  const dominant: 'scene' | 'lyrics' | 'clearance' =
-    shortfalls.clearance > shortfalls.lyrics && shortfalls.clearance > shortfalls.scene
-      ? 'clearance'
+  const dominant = (
+    shortfalls.rightsClarity > shortfalls.scene && shortfalls.rightsClarity > shortfalls.lyrics
+      ? 'rightsClarity'
       : shortfalls.lyrics > shortfalls.scene
         ? 'lyrics'
-        : 'scene';
+        : 'scene'
+  ) as 'scene' | 'lyrics' | 'rightsClarity';
 
   return AXIS_TO_LANE[dominant];
 }
@@ -1381,10 +1380,10 @@ export function selectNarrativeWithLane(
 
   // Compute scene-fit score to determine tier
   const sceneFit = (
-    vector.scene       * WEIGHTS.scene       +
-    vector.clearance   * WEIGHTS.clearance   +
-    vector.lyrics      * WEIGHTS.lyrics      +
-    vector.audioSignal * WEIGHTS.audioSignal
+    vector.scene         * WEIGHTS.scene         +
+    vector.lyrics        * WEIGHTS.lyrics        +
+    vector.audioSignal   * WEIGHTS.audioSignal   +
+    vector.rightsClarity * WEIGHTS.rightsClarity
   ) * 100;
 
   const tier = tierFromScore(sceneFit);

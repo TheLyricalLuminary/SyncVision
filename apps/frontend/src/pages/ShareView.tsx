@@ -35,8 +35,9 @@ export interface TrackSlot {
   artistName:   string | null;
   rank:         number;
   fitIndex:     number;
-  vector:       { scene: number; clearance: number; lyrics: number; audioSignal: number };
-  axisWeights:  { scene: number; clearance: number; lyrics: number; audioSignal: number };
+  vector:       { scene: number; lyrics: number; audioSignal: number; rightsClarity: number };
+  axisWeights:  { scene: number; lyrics: number; audioSignal: number; rightsClarity: number };
+  clearanceScore?: number;  // 0–100, displayed separately — NOT part of FitIndex
   dataConfidence?:         number;
   dataConfidenceVerified?: number;
   dataConfidenceTotal?:    number;
@@ -207,10 +208,10 @@ function PrintTrackPage({ slot, index, total, pages }: { slot: TrackSlot; index:
       <div className="sv-p-panel-label">SyncScore axes</div>
       <div className="sv-p-axes">
         {([
-          ['Scene', slot.vector.scene],
-          ['Clearance', slot.vector.clearance],
+          ['Scene',  slot.vector.scene],
           ['Lyrics', slot.vector.lyrics],
           ['Signal', slot.vector.audioSignal],
+          ['Rights', slot.vector.rightsClarity],
         ] as [string, number][]).map(([label, value]) => {
           const pct = Math.round(value * 100);
           return (
@@ -226,7 +227,7 @@ function PrintTrackPage({ slot, index, total, pages }: { slot: TrackSlot; index:
 
       {/* SECTION 3 — Clearance Complexity */}
       {(() => {
-        const clScore = Math.round(slot.vector.clearance * 100);
+        const clScore = slot.clearanceScore ?? 0;
         const dc = slot.dataConfidence ?? null;
         const dcVer = slot.dataConfidenceVerified ?? null;
         const dcTot = slot.dataConfidenceTotal ?? 8;
@@ -604,10 +605,10 @@ function LiveTrackCard({
         <div className="fi-label">Fit index</div>
         <div className="fi-axes">
           {([
-            ['Scene',     slot.vector.scene,       '#F5A623'],
-            ['Clearance', slot.vector.clearance,   slot.vector.clearance >= 0.65 ? '#4CAF82' : slot.vector.clearance >= 0.35 ? '#F5B544' : '#E85A5A'],
-            ['Lyrics',    slot.vector.lyrics,      '#9B93C4'],
-            ['Signal',    slot.vector.audioSignal, 'rgba(155,147,196,0.55)'],
+            ['Scene',  slot.vector.scene,         '#F5A623'],
+            ['Lyrics', slot.vector.lyrics,        '#9B93C4'],
+            ['Signal', slot.vector.audioSignal,   'rgba(155,147,196,0.55)'],
+            ['Rights', slot.vector.rightsClarity, '#4CAF82'],
           ] as [string, number, string][]).map(([label, value, color]) => {
             const pct = Math.round(value * 100);
             return (
@@ -763,10 +764,10 @@ function CompareModal({ packet, open, onClose }: { packet: DecisionPacket; open:
                 <div className={`cmp-half ${index === 0 && showFirst ? 'is-leader' : ''}`} key={slot.trackId}>
                   <div className="cmp-axes">
                     {([
-                      ['Scene', slot.vector.scene],
-                      ['Clearance', slot.vector.clearance],
+                      ['Scene',  slot.vector.scene],
                       ['Lyrics', slot.vector.lyrics],
                       ['Signal', slot.vector.audioSignal],
+                      ['Rights', slot.vector.rightsClarity],
                     ] as [string, number][]).map(([label, value]) => (
                       <div className="cmp-axis" key={label}><span className="a-n">{label}</span><span className="a-t"><span className="a-f" style={{ width: `${axisPct(value)}%` }} /></span><span className="a-v">{axisPct(value)}</span></div>
                     ))}

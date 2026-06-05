@@ -644,18 +644,18 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
   const [showPipeline, setShowPipeline]         = useState(false);
   const [playbackMsg, setPlaybackMsg]           = useState(false);
   const [localRightsProfile, setLocalRightsProfile] = useState(result.rightsProfile);
-  const [localVector, setLocalVector]               = useState(result.confidenceScore.vector ?? { scene: result.confidenceScore.sceneFitBreakdown / 100, clearance: result.confidenceScore.clearanceBreakdown / 100, lyrics: result.confidenceScore.lyricsBreakdown / 100, audioSignal: result.confidenceScore.signalBreakdown / 100 });
+  const [localVector, setLocalVector]               = useState(result.confidenceScore.vector ?? { scene: result.confidenceScore.sceneFitBreakdown / 100, lyrics: result.confidenceScore.lyricsBreakdown / 100, audioSignal: result.confidenceScore.signalBreakdown / 100, rightsClarity: (result.confidenceScore.dataConfidence ?? 50) / 100 });
   const [pendingAutoFill, setPendingAutoFill]        = useState<AutoFill | undefined>(undefined);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Mirror of backend scoreTrack() — same WEIGHTS, same dot product.
   // Recomputed locally whenever rights data saves so the card updates immediately.
-  const WEIGHTS = { scene: 0.42, clearance: 0.20, lyrics: 0.20, audioSignal: 0.18 };
+  const WEIGHTS = { scene: 0.45, lyrics: 0.25, audioSignal: 0.20, rightsClarity: 0.10 };
   const liveScore = Math.round(
-    (localVector.scene       * WEIGHTS.scene       +
-     localVector.clearance   * WEIGHTS.clearance   +
-     localVector.lyrics      * WEIGHTS.lyrics      +
-     localVector.audioSignal * WEIGHTS.audioSignal) * 100
+    (localVector.scene         * WEIGHTS.scene         +
+     localVector.lyrics        * WEIGHTS.lyrics        +
+     localVector.audioSignal   * WEIGHTS.audioSignal   +
+     localVector.rightsClarity * WEIGHTS.rightsClarity) * 100
   );
 
   // Recomputes clearance axis from saved rights data — mirrors buildClearanceAxis() in trackVector.ts.
@@ -794,10 +794,10 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
         {/* weighted axis bars — container width ∝ weight, fill ∝ axis value */}
         <div style={{ display: 'flex', gap: 2, width: '100%' }}>
           {([
-            { key: 'scene',     label: 'Scene',     sub: 'fit',        weight: 0.42, value: localVector.scene,     actionable: false },
-            { key: 'clearance', label: 'Clearance', sub: 'complexity', weight: 0.20, value: localVector.clearance,  actionable: true  },
-            { key: 'lyrics',    label: 'Lyrics',    sub: 'fit',        weight: 0.20, value: localVector.lyrics,     actionable: false, pending: !localRightsProfile },
-            { key: 'audioSignal', label: 'Signal',  sub: 'mix fit',    weight: 0.18, value: localVector.audioSignal, actionable: false },
+            { key: 'scene',         label: 'Scene',   sub: 'fit',        weight: 0.45, value: localVector.scene,         actionable: false },
+            { key: 'lyrics',        label: 'Lyrics',  sub: 'fit',        weight: 0.25, value: localVector.lyrics,        actionable: false, pending: !localRightsProfile },
+            { key: 'audioSignal',   label: 'Signal',  sub: 'mix fit',    weight: 0.20, value: localVector.audioSignal,   actionable: false },
+            { key: 'rightsClarity', label: 'Rights',  sub: 'data score', weight: 0.10, value: localVector.rightsClarity, actionable: true  },
           ] as { key: string; label: string; sub: string; weight: number; value: number; actionable: boolean; pending?: boolean }[]).map((axis, _i, arr) => {
             const pct   = Math.round(axis.value * 100);
             const isLow = axis.value < 0.4;
@@ -862,7 +862,7 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
       {/* SECTION 3 — Clearance Complexity */}
       {(() => {
         const cs = result.confidenceScore;
-        const clScore = cs.clearanceBreakdown ?? Math.round((cs.vector?.clearance ?? 0) * 100);
+        const clScore = cs.clearanceBreakdown ?? 0;
         const dc = cs.dataConfidence ?? null;
         const dcVer = cs.dataConfidenceVerified ?? null;
         const dcTot = cs.dataConfidenceTotal ?? 8;
@@ -944,9 +944,6 @@ function TrackCard({ result, briefId, topScore, isFirst, onRightsSaved }: { resu
             };
             setLocalRightsProfile(newRp);
             onRightsSaved?.(result.track.id, newRp);
-            // Recompute clearance axis → live score update
-            const newClearanceAxis = rightsAxisFromBlockers(saved.blockers, Boolean(saved.isrc ?? result.track.isrc));
-            setLocalVector(v => ({ ...v, clearance: newClearanceAxis }));
             setRightsPanel(false);
             setShowPipeline(true);
           }}
@@ -995,23 +992,23 @@ function buildVerdict(
   sceneParams: SceneParams,
 ): string {
   const wVec = winner.confidenceScore.vector ?? {
-    scene:       winner.confidenceScore.sceneFitBreakdown  / 100,
-    clearance:   winner.confidenceScore.clearanceBreakdown / 100,
-    lyrics:      winner.confidenceScore.lyricsBreakdown    / 100,
-    audioSignal: winner.confidenceScore.signalBreakdown    / 100,
+    scene:         winner.confidenceScore.sceneFitBreakdown  / 100,
+    lyrics:        winner.confidenceScore.lyricsBreakdown    / 100,
+    audioSignal:   winner.confidenceScore.signalBreakdown    / 100,
+    rightsClarity: (winner.confidenceScore.dataConfidence ?? 50) / 100,
   };
   const lVec = loser.confidenceScore.vector ?? {
-    scene:       loser.confidenceScore.sceneFitBreakdown  / 100,
-    clearance:   loser.confidenceScore.clearanceBreakdown / 100,
-    lyrics:      loser.confidenceScore.lyricsBreakdown    / 100,
-    audioSignal: loser.confidenceScore.signalBreakdown    / 100,
+    scene:         loser.confidenceScore.sceneFitBreakdown  / 100,
+    lyrics:        loser.confidenceScore.lyricsBreakdown    / 100,
+    audioSignal:   loser.confidenceScore.signalBreakdown    / 100,
+    rightsClarity: (loser.confidenceScore.dataConfidence ?? 50) / 100,
   };
 
   const gaps: { axis: string; gap: number }[] = [
-    { axis: 'audioSignal', gap: wVec.audioSignal - lVec.audioSignal },
-    { axis: 'scene',       gap: wVec.scene       - lVec.scene       },
-    { axis: 'lyrics',      gap: wVec.lyrics       - lVec.lyrics      },
-    { axis: 'clearance',   gap: wVec.clearance   - lVec.clearance   },
+    { axis: 'audioSignal',   gap: wVec.audioSignal   - lVec.audioSignal   },
+    { axis: 'scene',         gap: wVec.scene         - lVec.scene         },
+    { axis: 'lyrics',        gap: wVec.lyrics        - lVec.lyrics        },
+    { axis: 'rightsClarity', gap: wVec.rightsClarity - lVec.rightsClarity },
   ];
   const dominant = gaps.reduce((a, b) => Math.abs(a.gap) > Math.abs(b.gap) ? a : b);
 
@@ -1049,15 +1046,17 @@ function buildVerdict(
   } else if (dominant.axis === 'lyrics') {
     axisSentence = `${wName} leads on lyric fit.`;
     editorialSentence = `The lyric content aligns more directly with the ${register.toLowerCase()} subject matter, reducing the risk of a clearance-level semantic mismatch.`;
+  } else if (dominant.axis === 'rightsClarity') {
+    axisSentence = `${wName} leads on rights data completeness.`;
+    editorialSentence = `Its rights record has more verified fields, which reduces clearance risk when the picture editor needs a quick decision.`;
   } else {
-    // clearance is dominant differentiator
-    axisSentence = `${wName} leads on clearance complexity.`;
-    editorialSentence = `Its rights profile has fewer unresolved fields, which reduces clearance risk when the picture editor needs a quick decision.`;
+    axisSentence = `${wName} leads on scene fit.`;
+    editorialSentence = `Its overall creative profile is a closer match for the ${register.toLowerCase()} brief.`;
   }
 
   // ── clearance closing sentence ──
-  const wR = Math.round((wVec.clearance ?? 0) * 100);
-  const lR = Math.round((lVec.clearance ?? 0) * 100);
+  const wR = winner.confidenceScore.clearanceBreakdown ?? 0;
+  const lR = loser.confidenceScore.clearanceBreakdown ?? 0;
   const rightsDiff = wR - lR;
   let rightsSentence: string;
   if (Math.abs(rightsDiff) <= 5) {
