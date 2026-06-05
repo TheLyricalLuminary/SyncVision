@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import logo from '../assets/syncvision-logo-dark.png';
 
 const STORAGE_KEY = 'sv_auth';
 
@@ -155,9 +154,8 @@ export function LockScreen({ onUnlock }: Props) {
           display: flex; justify-content: center; margin-bottom: 6px;
           animation: svFadeUp .8s .08s both;
         }
-        .sv-logo-wrap img {
-          height: 46px; width: auto;
-          filter: drop-shadow(0 0 12px rgba(255,255,255,0.18)) drop-shadow(0 6px 24px rgba(219,39,119,0.35)) brightness(1.15);
+        .sv-logo-svg {
+          filter: drop-shadow(0 4px 20px rgba(219,39,119,0.45));
         }
 
         /* eyebrow */
@@ -335,8 +333,37 @@ export function LockScreen({ onUnlock }: Props) {
         <main className="sv-gate" role="dialog" aria-label="SyncVision sign in">
 
           {/* 1. Logo */}
-          <div className="sv-logo-wrap">
-            <img src={logo} alt="SyncVision" />
+          <div className="sv-logo-wrap" aria-label="SyncVision">
+            <svg className="sv-logo-svg" viewBox="0 0 560 132" aria-hidden="true" style={{height:'42px',width:'auto',display:'block'}}>
+              <defs>
+                <linearGradient id="svWave" x1="0" y1="1" x2="1" y2="0">
+                  <stop offset="0%"   stopColor="#6D28D9"/>
+                  <stop offset="34%"  stopColor="#7C3AED"/>
+                  <stop offset="62%"  stopColor="#DB2777"/>
+                  <stop offset="100%" stopColor="#F472B6"/>
+                </linearGradient>
+              </defs>
+              {/* "Sync" wordmark */}
+              <text x="0" y="100" fontFamily='"Baloo 2", system-ui, sans-serif' fontWeight="800" fontSize="110" letterSpacing="-3" fill="#ffffff">Sync</text>
+              {/* waveform bars icon (V-shape) scaled to ~72px wide, baseline at y=100 */}
+              <g transform="translate(242, -24) scale(0.29)">
+                <g fill="url(#svWave)">
+                  <rect x="6"   y="96"  width="22" height="204" rx="11"/>
+                  <rect x="34"  y="150" width="22" height="150" rx="11"/>
+                  <rect x="62"  y="196" width="22" height="104" rx="11"/>
+                  <rect x="90"  y="232" width="22" height="68"  rx="11"/>
+                  <rect x="118" y="258" width="22" height="42"  rx="11"/>
+                  <rect x="146" y="214" width="22" height="86"  rx="11"/>
+                  <rect x="174" y="150" width="22" height="150" rx="11"/>
+                  <rect x="202" y="60"  width="22" height="240" rx="11"/>
+                  <rect x="230" y="120" width="22" height="180" rx="11"/>
+                </g>
+              </g>
+              {/* "ision" wordmark */}
+              <text x="318" y="100" fontFamily='"Baloo 2", system-ui, sans-serif' fontWeight="800" fontSize="110" letterSpacing="-3" fill="#ffffff">ision</text>
+              {/* ™ */}
+              <text x="538" y="48" fontFamily='"Manrope", sans-serif' fontWeight="700" fontSize="28" fill="#ffffff" opacity="0.7">™</text>
+            </svg>
           </div>
 
           {/* 2. Eyebrow */}
