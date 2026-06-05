@@ -36,8 +36,6 @@ const DEFAULT_SCENE_PARAMS: SceneParams = {
   sceneLengthSec: null,
 };
 
-const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'Unity';
-
 // Share links bypass the lock screen — supervisors receive them without accounts.
 function isShareRoute(): boolean {
   return /^#share=/.test(window.location.hash);
