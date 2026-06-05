@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import logo from '../assets/syncvision-logo.png';
 
 const STORAGE_KEY = 'sv_auth';
 
@@ -8,10 +7,10 @@ interface Props {
 }
 
 export function LockScreen({ onUnlock }: Props) {
-  const [password, setPassword]   = useState('');
-  const [error, setError]         = useState(false);
-  const [showPw, setShowPw]       = useState(false);
-  const [unlocked, setUnlocked]   = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError]       = useState(false);
+  const [showPw, setShowPw]     = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
 
   function handleSubmit(e: React.FormEvent) {
@@ -25,12 +24,11 @@ export function LockScreen({ onUnlock }: Props) {
     } else {
       setError(true);
       setPassword('');
-      // re-trigger shake by removing and re-adding class
       const el = shellRef.current;
       if (el) {
-        el.classList.remove('sv-shell-err');
-        void el.offsetWidth; // reflow
-        el.classList.add('sv-shell-err');
+        el.classList.remove('sv2-shake');
+        void el.offsetWidth;
+        el.classList.add('sv2-shake');
       }
     }
   }
@@ -38,237 +36,353 @@ export function LockScreen({ onUnlock }: Props) {
   function handleInput(v: string) {
     setPassword(v);
     setError(false);
-    if (shellRef.current) shellRef.current.classList.remove('sv-shell-err');
+    shellRef.current?.classList.remove('sv2-shake');
   }
-
-  const EYE_ON = (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M2.5 12 S6 5.5 12 5.5 S21.5 12 21.5 12 S18 18.5 12 18.5 S2.5 12 2.5 12 Z" stroke="currentColor" strokeWidth="1.6"/>
-      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6"/>
-    </svg>
-  );
-  const EYE_OFF = (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M2.5 12 S6 5.5 12 5.5 S21.5 12 21.5 12 S18 18.5 12 18.5 S2.5 12 2.5 12 Z" stroke="currentColor" strokeWidth="1.6"/>
-      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6"/>
-      <path d="M4 4 L20 20" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
-    </svg>
-  );
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
-        .sv-lock-root {
-          --bg-0:#08051A; --bg-1:#100A28; --bg-2:#1A1233;
-          --silver:#F4F2FA; --lavender:#9B93C4;
-          --amber:#F5A623; --magenta:#DB2777; --violet:#7C3AED;
-          --good:#4CAF82; --bad:#E85A5A;
-          --hairline:rgba(123,112,178,0.18);
-          --hairline-strong:rgba(123,112,178,0.34);
-          --ink-dim:rgba(155,147,196,0.6);
-          font-family: "Manrope", system-ui, sans-serif;
-          color: var(--silver);
-          background: var(--bg-0);
+        .sv2-root {
           min-height: 100vh;
           display: grid;
           place-items: center;
-          overflow: hidden;
           position: relative;
+          overflow: hidden;
+          font-family: "Manrope", system-ui, sans-serif;
           -webkit-font-smoothing: antialiased;
-        }
-
-        .sv-field {
-          position: fixed; inset: 0; z-index: 0; overflow: hidden;
           background:
-            radial-gradient(900px 640px at 14% -6%,  rgba(245,166,35,0.16), transparent 56%),
-            radial-gradient(880px 620px at 92% 8%,  rgba(219,39,119,0.18), transparent 56%),
-            radial-gradient(1200px 800px at 50% 116%, rgba(124,58,237,0.20), transparent 66%),
-            linear-gradient(165deg, var(--bg-1), var(--bg-0) 70%);
+            radial-gradient(ellipse 80% 60% at 50% 20%, rgba(80,40,140,0.55) 0%, transparent 70%),
+            radial-gradient(ellipse 60% 40% at 20% 80%, rgba(180,100,20,0.12) 0%, transparent 60%),
+            radial-gradient(ellipse 60% 50% at 80% 10%,  rgba(100,40,160,0.20) 0%, transparent 60%),
+            radial-gradient(ellipse 100% 100% at 50% 50%, #0e0820 0%, #06030f 100%);
         }
 
-        .sv-blob { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.5; mix-blend-mode: screen; }
-        .sv-blob-a { width: 520px; height: 520px; left: -90px; top: -120px; background: radial-gradient(circle, rgba(245,166,35,0.5), transparent 70%); animation: svDrift1 22s ease-in-out infinite; }
-        .sv-blob-b { width: 560px; height: 560px; right: -120px; top: -80px; background: radial-gradient(circle, rgba(219,39,119,0.55), transparent 70%); animation: svDrift2 26s ease-in-out infinite; }
-        .sv-blob-c { width: 640px; height: 640px; left: 30%; bottom: -260px; background: radial-gradient(circle, rgba(124,58,237,0.5), transparent 70%); animation: svDrift3 30s ease-in-out infinite; }
-        @keyframes svDrift1 { 0%,100%{ transform: translate(0,0) scale(1);} 50%{ transform: translate(60px,40px) scale(1.1);} }
-        @keyframes svDrift2 { 0%,100%{ transform: translate(0,0) scale(1);} 50%{ transform: translate(-50px,50px) scale(1.08);} }
-        @keyframes svDrift3 { 0%,100%{ transform: translate(0,0) scale(1);} 50%{ transform: translate(40px,-40px) scale(1.12);} }
-
-        .sv-grain {
-          position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.4; mix-blend-mode: overlay;
-          background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.045 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-        }
-
-        .sv-wavebg { position: fixed; left: 0; right: 0; top: 50%; transform: translateY(-50%); z-index: 1; opacity: 0.10; pointer-events: none; }
-
-        .sv-gate {
-          position: relative; z-index: 2;
-          width: min(420px, calc(100vw - 40px));
-          padding: 44px 40px 36px;
-          border-radius: 26px;
-          background: linear-gradient(180deg, rgba(26,18,51,0.82), rgba(16,10,40,0.86));
-          border: 1px solid var(--hairline-strong);
-          box-shadow:
-            0 40px 90px -38px rgba(0,0,0,0.85),
-            0 0 0 1px rgba(255,255,255,0.02) inset,
-            0 1px 0 rgba(255,255,255,0.06) inset;
-          -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-          text-align: center;
-          animation: svRise 0.8s cubic-bezier(.2,.8,.2,1) both;
-        }
-        .sv-gate::before {
-          content: ""; position: absolute; inset: 0; border-radius: 26px; padding: 1px;
-          background: linear-gradient(135deg, rgba(245,166,35,0.5), rgba(219,39,119,0.45) 45%, transparent 70%);
-          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-          -webkit-mask-composite: xor; mask-composite: exclude;
+        /* animated waveform — lower background */
+        .sv2-wave {
+          position: fixed;
+          left: 0; right: 0;
+          bottom: 18%;
+          z-index: 0;
+          opacity: 0.07;
           pointer-events: none;
         }
-        @keyframes svRise { from { opacity: 0; transform: translateY(22px) scale(.985); } to { opacity: 1; transform: none; } }
-        @keyframes svFadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-        @keyframes svShake { 10%,90%{transform:translateX(-1px);} 20%,80%{transform:translateX(2px);} 30%,50%,70%{transform:translateX(-5px);} 40%,60%{transform:translateX(5px);} }
-        @keyframes svSheen { from { left: -60%; opacity: 0.9; } to { left: 130%; opacity: 0; } }
-
-        .sv-logo-wrap { display: flex; justify-content: center; margin-bottom: 6px; animation: svFadeUp .8s .08s both; }
-        .sv-logo-wrap img { height: 46px; width: auto; filter: drop-shadow(0 6px 24px rgba(219,39,119,0.35)); }
-
-        .sv-eyebrow {
-          font-size: 10px; letter-spacing: 0.32em; text-transform: uppercase;
-          color: var(--lavender); margin-top: 18px; font-weight: 600;
-          animation: svFadeUp .8s .14s both;
+        .sv2-wave path {
+          stroke-dasharray: 2400;
+          stroke-dashoffset: 2400;
+          animation: sv2WaveDraw 3.5s cubic-bezier(.4,0,.2,1) forwards,
+                     sv2WavePulse 6s 3.5s ease-in-out infinite;
         }
-        .sv-title {
-          font-family: "Instrument Serif", serif; font-weight: 400;
-          font-size: 27px; letter-spacing: -0.01em; line-height: 1.15;
-          margin: 7px 0 0; color: var(--silver);
-          animation: svFadeUp .8s .2s both;
+        @keyframes sv2WaveDraw {
+          to { stroke-dashoffset: 0; }
         }
-        .sv-title em { font-style: italic; color: var(--amber); }
-        .sv-sub {
-          font-family: "Instrument Serif", serif; font-style: italic;
-          font-size: 14px; color: var(--ink-dim); margin: 9px 0 0; line-height: 1.45;
-          animation: svFadeUp .8s .26s both;
+        @keyframes sv2WavePulse {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.55; }
         }
 
-        .sv-form { margin-top: 28px; animation: svFadeUp .8s .32s both; }
+        /* frosted glass card */
+        .sv2-card {
+          position: relative;
+          z-index: 2;
+          width: min(420px, calc(100vw - 40px));
+          padding: 44px 40px 36px;
+          border-radius: 16px;
+          background: rgba(22, 14, 42, 0.72);
+          -webkit-backdrop-filter: blur(24px);
+          backdrop-filter: blur(24px);
+          box-shadow:
+            0 0 0 1px rgba(160,120,255,0.10),
+            0 8px 32px -8px rgba(0,0,0,0.6),
+            0 0 80px -20px rgba(120,60,220,0.30),
+            0 0 120px -40px rgba(245,147,24,0.12);
+          text-align: center;
+          animation: sv2Rise 0.75s cubic-bezier(.2,.8,.2,1) both;
+        }
+        @keyframes sv2Rise {
+          from { opacity: 0; transform: translateY(20px) scale(.97); }
+          to   { opacity: 1; transform: none; }
+        }
+        @keyframes sv2FadeUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: none; }
+        }
+        @keyframes sv2Shake {
+          10%,90% { transform: translateX(-2px); }
+          20%,80% { transform: translateX(3px); }
+          30%,50%,70% { transform: translateX(-5px); }
+          40%,60% { transform: translateX(5px); }
+        }
 
-        .sv-field-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-        .sv-field-label .l { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--lavender); font-weight: 700; white-space: nowrap; }
+        /* logo wordmark */
+        .sv2-logo {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          margin-bottom: 20px;
+          animation: sv2FadeUp .7s .05s both;
+        }
 
-        .sv-input-shell {
-          position: relative; display: flex; align-items: center;
-          border-radius: 14px;
-          background: rgba(8,5,22,0.7);
-          border: 1px solid var(--hairline-strong);
-          transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+        /* eyebrow */
+        .sv2-eyebrow {
+          font-size: 10px;
+          letter-spacing: 0.3em;
+          text-transform: uppercase;
+          font-weight: 700;
+          color: rgba(160,140,210,0.65);
+          margin-bottom: 10px;
+          animation: sv2FadeUp .7s .12s both;
+        }
+
+        /* heading */
+        .sv2-heading {
+          font-family: "Instrument Serif", Georgia, serif;
+          font-weight: 400;
+          font-size: 28px;
+          line-height: 1.2;
+          color: #f0ecfa;
+          margin: 0 0 10px;
+          animation: sv2FadeUp .7s .18s both;
+        }
+        .sv2-heading em {
+          font-style: italic;
+          color: #F59318;
+        }
+
+        /* subtitle */
+        .sv2-sub {
+          font-family: "Instrument Serif", Georgia, serif;
+          font-style: italic;
+          font-size: 13.5px;
+          color: rgba(160,148,200,0.6);
+          line-height: 1.5;
+          margin: 0 0 28px;
+          animation: sv2FadeUp .7s .24s both;
+        }
+
+        /* form */
+        .sv2-form { animation: sv2FadeUp .7s .30s both; }
+
+        .sv2-label {
+          display: block;
+          font-size: 10px;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          font-weight: 700;
+          color: rgba(160,140,210,0.60);
+          margin-bottom: 8px;
+          text-align: left;
+        }
+
+        /* input shell */
+        .sv2-shell {
+          display: flex;
+          align-items: center;
+          background: rgba(8,4,18,0.75);
+          border-radius: 10px;
+          border: 1px solid rgba(140,110,220,0.18);
+          transition: border-color .2s, box-shadow .2s;
           overflow: hidden;
         }
-        .sv-input-shell .ico { display: grid; place-items: center; width: 46px; flex-shrink: 0; color: var(--lavender); }
-        .sv-input-shell input {
-          flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
-          color: var(--silver); font-family: "Manrope", sans-serif; font-size: 15px; font-weight: 500;
-          padding: 16px 14px 16px 0; letter-spacing: 0.04em;
+        .sv2-shell:focus-within {
+          border-color: rgba(245,147,24,0.45);
+          box-shadow: 0 0 0 3px rgba(245,147,24,0.10);
         }
-        .sv-input-shell input::placeholder { color: rgba(155,147,196,0.5); letter-spacing: 0.02em; font-weight: 400; }
-        .sv-input-shell .reveal {
-          width: 46px; flex-shrink: 0; background: transparent; border: 0; cursor: pointer;
-          color: var(--lavender); display: grid; place-items: center; transition: color .16s;
+        .sv2-shell.sv2-shake {
+          animation: sv2Shake .4s;
+          border-color: rgba(245,147,24,0.5);
         }
-        .sv-input-shell .reveal:hover { color: var(--silver); }
-        .sv-input-shell:focus-within {
-          border-color: transparent;
-          background: rgba(8,5,22,0.9);
-          box-shadow: 0 0 0 1.5px rgba(245,166,35,0.55), 0 14px 34px -18px rgba(219,39,119,0.6);
+        .sv2-shell .sv2-ico {
+          width: 44px;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+          color: rgba(160,140,210,0.55);
         }
-        .sv-input-shell:focus-within .ico { color: var(--amber); }
-        .sv-shell-err { border-color: var(--bad) !important; box-shadow: 0 0 0 1.5px rgba(232,90,90,0.6) !important; animation: svShake .42s; }
+        .sv2-shell:focus-within .sv2-ico { color: #F59318; }
+        .sv2-shell input {
+          flex: 1;
+          min-width: 0;
+          border: 0;
+          outline: 0;
+          background: transparent;
+          color: #f0ecfa;
+          font-family: "Manrope", sans-serif;
+          font-size: 15px;
+          font-weight: 500;
+          padding: 15px 12px 15px 0;
+          letter-spacing: 0.03em;
+        }
+        .sv2-shell input::placeholder {
+          color: rgba(160,140,210,0.35);
+          font-weight: 400;
+        }
+        .sv2-reveal {
+          width: 44px;
+          flex-shrink: 0;
+          background: transparent;
+          border: 0;
+          cursor: pointer;
+          color: rgba(160,140,210,0.55);
+          display: grid;
+          place-items: center;
+          transition: color .15s;
+        }
+        .sv2-reveal:hover { color: #f0ecfa; }
 
-        .sv-err-msg { font-size: 12px; color: var(--bad); margin-top: 10px; min-height: 16px; text-align: left; }
-
-        .sv-enter-btn {
-          width: 100%; margin-top: 16px; padding: 16px; border: 0; cursor: pointer;
-          border-radius: 14px; position: relative; overflow: hidden;
-          font-family: "Manrope", sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.04em;
-          color: #1a0d02;
-          background: linear-gradient(135deg, #FBBF24, var(--amber) 45%, var(--magenta) 130%);
-          box-shadow: 0 16px 34px -14px rgba(245,166,35,0.6), 0 0 0 1px rgba(255,255,255,0.12) inset;
-          transition: transform .12s ease, box-shadow .2s ease, filter .2s ease;
-          display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+        /* error */
+        .sv2-err {
+          font-size: 12px;
+          color: #F59318;
+          margin-top: 9px;
+          text-align: left;
+          min-height: 16px;
         }
-        .sv-enter-btn:hover { transform: translateY(-1px); box-shadow: 0 22px 42px -14px rgba(219,39,119,0.65), 0 0 0 1px rgba(255,255,255,0.16) inset; }
-        .sv-enter-btn:active { transform: translateY(0); }
-        .sv-enter-btn::after {
-          content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 45%;
-          background: linear-gradient(105deg, transparent, rgba(255,255,255,0.45), transparent);
-          transform: skewX(-18deg); opacity: 0;
-        }
-        .sv-enter-btn:hover::after { animation: svSheen .9s ease; }
-        .sv-enter-btn.ok { background: linear-gradient(135deg, #5ED99B, var(--good)); color: #042414; box-shadow: 0 16px 34px -14px rgba(76,175,130,0.6); }
 
-        .sv-foot {
-          margin-top: 22px; font-size: 11px; color: var(--ink-dim);
-          display: flex; align-items: center; justify-content: center; gap: 8px;
-          animation: svFadeUp .8s .4s both;
+        /* button */
+        .sv2-btn {
+          width: 100%;
+          margin-top: 16px;
+          padding: 15px;
+          border: 0;
+          border-radius: 10px;
+          cursor: pointer;
+          font-family: "Manrope", sans-serif;
+          font-weight: 700;
+          font-size: 14px;
+          letter-spacing: 0.06em;
+          color: #ffffff;
+          background: linear-gradient(135deg, #F59318 0%, #C2410C 100%);
+          box-shadow: 0 8px 24px -8px rgba(245,147,24,0.50);
+          transition: transform .12s, box-shadow .18s, filter .18s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          position: relative;
+          overflow: hidden;
         }
-        .sv-foot .lock { display: inline-flex; }
+        .sv2-btn:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 12px 32px -8px rgba(194,65,12,0.60);
+          filter: brightness(1.06);
+        }
+        .sv2-btn:active { transform: translateY(0); }
+        .sv2-btn.ok {
+          background: linear-gradient(135deg, #4ade80, #16a34a);
+          box-shadow: 0 8px 24px -8px rgba(74,222,128,0.40);
+        }
 
-        .sv-verchip {
-          position: fixed; bottom: 18px; left: 0; right: 0; z-index: 2;
-          text-align: center; font-family: "JetBrains Mono", monospace;
-          font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
-          color: rgba(155,147,196,0.4);
+        /* foot */
+        .sv2-foot {
+          margin-top: 20px;
+          font-size: 11px;
+          color: rgba(160,140,210,0.45);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          animation: sv2FadeUp .7s .38s both;
+        }
+
+        /* page footer */
+        .sv2-pagefooter {
+          position: fixed;
+          bottom: 16px;
+          left: 0; right: 0;
+          z-index: 2;
+          text-align: center;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 9px;
+          letter-spacing: 0.22em;
+          text-transform: uppercase;
+          color: rgba(140,120,190,0.28);
+          pointer-events: none;
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .sv-blob-a, .sv-blob-b, .sv-blob-c,
-          .sv-gate, .sv-logo-wrap, .sv-eyebrow, .sv-title, .sv-sub, .sv-form, .sv-foot { animation: none !important; }
-          .sv-enter-btn:hover::after { animation: none; }
+          .sv2-card, .sv2-logo, .sv2-eyebrow, .sv2-heading,
+          .sv2-sub, .sv2-form, .sv2-foot { animation: none !important; }
+          .sv2-wave path { animation: none !important; stroke-dashoffset: 0; }
         }
       `}</style>
 
-      <div className="sv-lock-root">
-        <div className="sv-field">
-          <span className="sv-blob sv-blob-a" />
-          <span className="sv-blob sv-blob-b" />
-          <span className="sv-blob sv-blob-c" />
-        </div>
-        <div className="sv-grain" />
+      <div className="sv2-root">
 
-        <svg className="sv-wavebg" height="120" width="100%" viewBox="0 0 1440 120" preserveAspectRatio="none" fill="none" aria-hidden="true">
-          <path d="M0,60 C120,60 140,60 200,60 C240,60 250,30 280,30 C300,30 305,90 320,90 C332,90 338,18 352,18 C366,18 372,102 386,102 C400,102 405,44 420,44 C440,44 460,60 520,60 C760,60 760,60 900,60 C940,60 950,34 980,34 C1000,34 1005,88 1020,88 C1032,88 1038,22 1052,22 C1066,22 1072,98 1086,98 C1100,98 1105,48 1120,48 C1140,48 1160,60 1240,60 C1360,60 1380,60 1440,60"
-            stroke="url(#svWgrad)" strokeWidth="2.5" strokeLinecap="round" />
-          <defs>
-            <linearGradient id="svWgrad" x1="0" y1="0" x2="1440" y2="0" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#F5A623"/>
-              <stop offset="0.5" stopColor="#DB2777"/>
-              <stop offset="1" stopColor="#7C3AED"/>
-            </linearGradient>
-          </defs>
+        {/* animated waveform — lower background */}
+        <svg
+          className="sv2-wave"
+          height="90"
+          width="100%"
+          viewBox="0 0 1440 90"
+          preserveAspectRatio="none"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M0,45 C80,45 90,45 140,45 C170,45 175,22 195,22 C212,22 215,68 228,68 C240,68 243,14 256,14 C270,14 273,76 286,76 C299,76 302,34 316,34 C332,34 348,45 390,45 C570,45 570,45 680,45 C706,45 710,25 728,25 C742,25 745,66 758,66 C770,66 773,17 786,17 C800,17 803,74 816,74 C829,74 832,36 846,36 C862,36 878,45 930,45 C1020,45 1050,45 1100,45 C1126,45 1130,25 1148,25 C1162,25 1165,66 1178,66 C1190,66 1193,17 1206,17 C1220,17 1223,74 1236,74 C1249,74 1252,36 1266,36 C1282,36 1298,45 1350,45 C1400,45 1420,45 1440,45"
+            stroke="#F59318"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
         </svg>
 
-        <main className="sv-gate" role="dialog" aria-label="SyncVision sign in">
-          <div className="sv-logo-wrap">
-            <img src={logo} alt="SyncVision" />
+        {/* card */}
+        <main className="sv2-card" role="dialog" aria-label="SyncVision sign in">
+
+          {/* inline SVG wordmark */}
+          <div className="sv2-logo" aria-label="SyncVision">
+            <svg width="32" height="31" viewBox="0 0 48 46" fill="none" aria-hidden="true">
+              <path
+                fill="url(#sv2logoGrad)"
+                d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"
+              />
+              <defs>
+                <linearGradient id="sv2logoGrad" x1="24" y1="0" x2="24" y2="46" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#d8b4fe"/>
+                  <stop offset="1" stopColor="#a855f7"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <svg width="118" height="20" viewBox="0 0 118 20" fill="none" aria-hidden="true">
+              <text
+                x="0" y="16"
+                fontFamily="Manrope, system-ui, sans-serif"
+                fontWeight="700"
+                fontSize="16"
+                letterSpacing="0.5"
+                fill="#f0ecfa"
+              >
+                SyncVision
+              </text>
+            </svg>
           </div>
 
-          <div className="sv-eyebrow">Private preview</div>
-          <h1 className="sv-title">The room is <em>locked.</em></h1>
-          <p className="sv-sub">Enter the access key shared with you to open the shortlist.</p>
+          <div className="sv2-eyebrow">Private Preview</div>
 
-          <form className="sv-form" onSubmit={handleSubmit} autoComplete="off" noValidate>
-            <div className="sv-field-label">
-              <span className="l">Access key</span>
-            </div>
-            <div className="sv-input-shell" ref={shellRef}>
-              <span className="ico" aria-hidden="true">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+          <h1 className="sv2-heading">
+            The room is <em>locked.</em>
+          </h1>
+
+          <p className="sv2-sub">
+            Enter the access key shared with you to open the shortlist.
+          </p>
+
+          <form className="sv2-form" onSubmit={handleSubmit} autoComplete="off" noValidate>
+            <label className="sv2-label" htmlFor="sv2-pw">Access Key</label>
+
+            <div className="sv2-shell" ref={shellRef}>
+              <span className="sv2-ico" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <rect x="4" y="10.5" width="16" height="10" rx="2.4" stroke="currentColor" strokeWidth="1.7"/>
-                  <path d="M8 10.5 V7.2 a4 4 0 0 1 8 0 V10.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
+                  <path d="M8 10.5V7.2a4 4 0 0 1 8 0V10.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
                   <circle cx="12" cy="15.4" r="1.5" fill="currentColor"/>
                 </svg>
               </span>
               <input
+                id="sv2-pw"
                 type={showPw ? 'text' : 'password'}
                 value={password}
                 onChange={e => handleInput(e.target.value)}
@@ -278,48 +392,57 @@ export function LockScreen({ onUnlock }: Props) {
               />
               <button
                 type="button"
-                className="reveal"
+                className="sv2-reveal"
                 aria-label={showPw ? 'Hide password' : 'Show password'}
                 onClick={() => setShowPw(p => !p)}
               >
-                {showPw ? EYE_OFF : EYE_ON}
+                {showPw ? (
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" stroke="currentColor" strokeWidth="1.6"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6"/>
+                    <path d="M4 4L20 20" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
+                  </svg>
+                ) : (
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" stroke="currentColor" strokeWidth="1.6"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6"/>
+                  </svg>
+                )}
               </button>
             </div>
+
             {error && (
-              <div className="sv-err-msg">That key didn't match. Try again.</div>
+              <div className="sv2-err" role="alert">Incorrect password</div>
             )}
 
-            <button type="submit" className={`sv-enter-btn${unlocked ? ' ok' : ''}`}>
+            <button type="submit" className={`sv2-btn${unlocked ? ' ok' : ''}`}>
               {unlocked ? (
                 <>
                   <span>Unlocked</span>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M5 12 L10 17 L19 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 12L10 17L19 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </>
               ) : (
-                <>
-                  <span>Enter</span>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M3 8h9M8.5 4l4 4-4 4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </>
+                <span>Enter →</span>
               )}
             </button>
           </form>
 
-          <div className="sv-foot">
-            <span className="lock">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                <rect x="4" y="10.5" width="16" height="10" rx="2.4" stroke="currentColor" strokeWidth="1.7"/>
-                <path d="M8 10.5 V7.2 a4 4 0 0 1 8 0 V10.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
-              </svg>
-            </span>
-            Encrypted link &middot; expires Jul 1
+          <div className="sv2-foot">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="4" y="10.5" width="16" height="10" rx="2.4" stroke="currentColor" strokeWidth="1.8"/>
+              <path d="M8 10.5V7.2a4 4 0 0 1 8 0V10.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
+            Encrypted link · expires Jul 1
           </div>
+
         </main>
 
-        <div className="sv-verchip">SyncVision &middot; deterministic sync intelligence</div>
+        <div className="sv2-pagefooter">
+          SyncVision · Deterministic Sync Intelligence
+        </div>
+
       </div>
     </>
   );
