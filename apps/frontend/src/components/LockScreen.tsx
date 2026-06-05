@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import logo from '../assets/syncvision-logo.png';
 
 const STORAGE_KEY = 'sv_auth';
 
@@ -130,7 +131,7 @@ export function LockScreen({ onUnlock }: Props) {
         @keyframes svSheen { from { left: -60%; opacity: 0.9; } to { left: 130%; opacity: 0; } }
 
         .sv-logo-wrap { display: flex; justify-content: center; margin-bottom: 6px; animation: svFadeUp .8s .08s both; }
-        .sv-logo-wrap svg { filter: drop-shadow(0 4px 18px rgba(219,39,119,0.3)); }
+        .sv-logo-wrap img { height: 46px; width: auto; filter: drop-shadow(0 6px 24px rgba(219,39,119,0.35)); }
 
         .sv-eyebrow {
           font-size: 10px; letter-spacing: 0.32em; text-transform: uppercase;
@@ -248,24 +249,7 @@ export function LockScreen({ onUnlock }: Props) {
 
         <main className="sv-gate" role="dialog" aria-label="SyncVision sign in">
           <div className="sv-logo-wrap">
-            <svg width="210" height="38" viewBox="0 0 210 38" fill="none" aria-label="SyncVision" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="svLogoGrad" x1="68" y1="0" x2="106" y2="0" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#F5A623"/>
-                  <stop offset="0.5" stopColor="#DB2777"/>
-                  <stop offset="1" stopColor="#A855F7"/>
-                </linearGradient>
-              </defs>
-              <text x="0" y="29" fontFamily="Manrope, system-ui, sans-serif" fontWeight="800" fontSize="27" fill="#F4F2FA" letterSpacing="-0.6">Sync</text>
-              {/* EKG heartbeat spike */}
-              <polyline
-                points="70,19 76,19 79,11 82,27 85,8 88,30 91,19 97,19"
-                stroke="url(#svLogoGrad)" strokeWidth="2.4" fill="none"
-                strokeLinecap="round" strokeLinejoin="round"
-              />
-              <text x="99" y="29" fontFamily="Manrope, system-ui, sans-serif" fontWeight="800" fontSize="27" fill="#F4F2FA" letterSpacing="-0.6">ision</text>
-              <text x="196" y="14" fontFamily="Manrope, system-ui, sans-serif" fontWeight="600" fontSize="9" fill="rgba(155,147,196,0.65)">™</text>
-            </svg>
+            <img src={logo} alt="SyncVision" />
           </div>
 
           <div className="sv-eyebrow">Private preview</div>
