@@ -1082,16 +1082,16 @@ function CompareModal({
   const rightScore = right.confidenceScore.score;
   const lead = leftIdx < rightIdx ? leftScore - rightScore : rightScore - leftScore;
 
-  const AXES = ['scene', 'rights', 'lyrics', 'audioSignal'] as const;
+  const AXES = ['scene', 'rightsClarity', 'lyrics', 'audioSignal'] as const;
   const AXIS_COLORS = {
-    scene:       '#F5A623',
-    rights:      (v: number) => v >= 0.65 ? '#4CAF82' : v >= 0.35 ? '#F5B544' : '#E85A5A',
+    scene:         '#F5A623',
+    rightsClarity: (v: number) => v >= 0.65 ? '#4CAF82' : v >= 0.35 ? '#F5B544' : '#E85A5A',
     lyrics:      '#9B93C4',
     audioSignal: 'rgba(155,147,196,0.55)',
   } as const;
 
   const axisColor = (key: typeof AXES[number], value: number) =>
-    key === 'rights' ? (AXIS_COLORS.rights as (v: number) => string)(value) : AXIS_COLORS[key] as string;
+    key === 'rightsClarity' ? (AXIS_COLORS.rightsClarity as (v: number) => string)(value) : AXIS_COLORS[key] as string;
 
   return (
     <div
@@ -1219,12 +1219,12 @@ function CompareHalf({
 }: {
   result:    AnalysisResult;
   score:     number;
-  vec:       { scene: number; rights: number; lyrics: number; audioSignal: number };
+  vec:       { scene: number; rightsClarity: number; lyrics: number; audioSignal: number };
   audioPath: string | null;
   isLeader:  boolean;
   lead:      number;
-  axisColor: (key: 'scene' | 'rights' | 'lyrics' | 'audioSignal', value: number) => string;
-  axes:      readonly ('scene' | 'rights' | 'lyrics' | 'audioSignal')[];
+  axisColor: (key: 'scene' | 'rightsClarity' | 'lyrics' | 'audioSignal', value: number) => string;
+  axes:      readonly ('scene' | 'rightsClarity' | 'lyrics' | 'audioSignal')[];
 }) {
   const [playing,  setPlaying]  = useState(false);
   const [time,     setTime]     = useState(0);
