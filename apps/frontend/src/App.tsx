@@ -36,7 +36,7 @@ const DEFAULT_SCENE_PARAMS: SceneParams = {
   sceneLengthSec: null,
 };
 
-const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD as string | undefined;
+const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'Unity';
 
 // Share links bypass the lock screen — supervisors receive them without accounts.
 function isShareRoute(): boolean {
@@ -46,7 +46,7 @@ function isShareRoute(): boolean {
 function App() {
   const [shareRoute, setShareRoute] = useState<ShareRoute>({ type: 'none' });
   const [unlocked, setUnlocked] = useState<boolean>(
-    !APP_PASSWORD || isShareRoute() || isAuthenticated(),
+    isShareRoute() || isAuthenticated(),
   );
 
   const [view, setView] = useState<View>('brief');

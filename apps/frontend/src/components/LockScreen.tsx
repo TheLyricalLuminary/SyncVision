@@ -13,7 +13,7 @@ export function LockScreen({ onUnlock }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const expected = import.meta.env.VITE_APP_PASSWORD as string | undefined;
+    const expected = import.meta.env.VITE_APP_PASSWORD || 'Unity';
     if (password === expected) {
       sessionStorage.setItem(STORAGE_KEY, '1');
       setError(false);
