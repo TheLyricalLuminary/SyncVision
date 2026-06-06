@@ -354,9 +354,3 @@ building competing products based on this architecture, is
 strictly prohibited.
 
 For licensing inquiries contact the author directly.
-
-
-Commit to main. No branches.
-
-
-That's the complete README — everything from the original preserved and strengthened, all the new architecture accurately reflected, copyright locked in. Send it.
