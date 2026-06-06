@@ -673,8 +673,9 @@ function CompareModal({ packet, open, onClose, onToast }: { packet: DecisionPack
 
   function handleExportTop2() {
     document.body.classList.add('sv-print-top2');
+    const cleanup = () => document.body.classList.remove('sv-print-top2');
+    window.addEventListener('afterprint', cleanup, { once: true });
     window.print();
-    document.body.classList.remove('sv-print-top2');
   }
 
   function handleSendToEditor() {
@@ -688,15 +689,17 @@ function CompareModal({ packet, open, onClose, onToast }: { packet: DecisionPack
       '',
       'Full shortlist with audio and rights detail:',
       window.location.href,
+      '',
+      `Brief: ${packet.briefText}`,
     ].join('\n');
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
   function handleSaveAsShortlist() {
     void navigator.clipboard.writeText(window.location.href).then(() => {
-      onToast('Share link copied — send this to your editor');
+      onToast('Share link copied to clipboard');
     }).catch(() => {
-      onToast('Share link copied — send this to your editor');
+      onToast('Share link copied to clipboard');
     });
   }
 
@@ -857,7 +860,12 @@ function LiveShareView({ packet }: { packet: DecisionPacket }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decisions, notes }),
       });
-      setSendState(res.ok ? 'sent' : 'error');
+      if (res.ok) {
+        setSendState('sent');
+        showToast('Decisions sent. Maya has been notified.');
+      } else {
+        setSendState('error');
+      }
     } catch {
       setSendState('error');
     }
