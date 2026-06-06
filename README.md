@@ -286,19 +286,6 @@ Trailer / Promo · Period / Historical
 
 ---
 
-## Tiers
-
-| Tier | Price | Catalogue | Features |
-|---|---|---|---|
-| Starter | $149/mo | Up to 100 tracks | Rights FSM, scene fit scoring, deterministic audit hash, CSV export |
-| Pro ★ | $299/mo | Up to 500 tracks | Everything in Starter, Fit Index ranking, priority support |
-| Studio | $499/mo | Up to 2,000 tracks | Everything in Pro, multi-catalog management, team access, rights report export |
-| Enterprise | $1,999/mo | Unlimited | Everything in Studio, API access, dedicated account manager, custom SLA |
-
-★ Most popular
-
----
-
 ## Status
 
 End-to-end pipeline operational. Four real independently-computed 
