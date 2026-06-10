@@ -22,10 +22,7 @@ import { CREDIT_PACKS, getCreditPackById, resolvePackPriceId } from "../contract
 
 const router = Router();
 
-const CONFIGURED_URL = process.env.FRONTEND_URL ?? "http://localhost:5174";
-const APP_URL = CONFIGURED_URL.includes("localhost")
-  ? "https://music-sync-rights-platform.onrender.com"
-  : CONFIGURED_URL;
+const APP_URL = process.env.FRONTEND_URL ?? "http://localhost:5174";
 
 // ─── GET /api/stripe/plans ────────────────────────────────────────────────────
 

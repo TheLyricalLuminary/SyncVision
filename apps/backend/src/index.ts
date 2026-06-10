@@ -42,17 +42,18 @@ if (missing.length > 0) {
 const app = express();
 const port = process.env.PORT ?? 3000;
 
-// Trust reverse proxy headers (Render, nginx, Cloudflare) when configured.
+// Trust reverse proxy headers (Railway, nginx, Cloudflare) when configured.
 // Required for correct req.ip and HTTPS protocol detection behind load balancers.
 if (process.env.TRUST_PROXY === "true") {
   app.set("trust proxy", 1);
 }
 
-// CORS — allow the configured production frontend origins
+// CORS — allow the configured production frontend origin.
+// Set FRONTEND_URL to the Railway frontend public URL in production.
+// Additional origins can be added via EXTRA_ALLOWED_ORIGINS (comma-separated).
 const allowedOrigins = [
-  "https://syncvision-frontend.onrender.com",
-  "https://music-sync-rights-platform.onrender.com",
   process.env.FRONTEND_URL,
+  ...(process.env.EXTRA_ALLOWED_ORIGINS ?? "").split(",").map(s => s.trim()).filter(Boolean),
 ].filter(Boolean) as string[];
 
 app.use((req, res, next) => {
@@ -123,7 +124,7 @@ app.use(
 );
 
 // Serve Vite production build only when the dist directory is present.
-// In backend-only deployments (Render) the frontend is served separately.
+// In backend-only deployments the frontend is served as a separate Railway service.
 const clientDist = path.join(__dirname, "../../frontend/dist");
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
@@ -141,16 +142,6 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
-
-  const renderUrl = process.env.RENDER_EXTERNAL_URL;
-  if (renderUrl) {
-    setInterval(() => {
-      fetch(`${renderUrl}/health`)
-        .then(() => console.log("[keep-alive] ping ok"))
-        .catch((e: unknown) => console.warn("[keep-alive] ping failed:", e));
-    }, 10 * 60 * 1000);
-    console.log(`[keep-alive] pinging ${renderUrl}/health every 10 min`);
-  }
 });
 
 // Audio analysis consumer — Redis Streams, optional (dev without Redis is fine).

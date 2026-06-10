@@ -17,7 +17,7 @@ RUN python3 --version
 
 # ── Python DSP dependencies ────────────────────────────────────────────────────
 # --prefer-binary prevents scipy/numba from falling through to source compilation,
-# which is unreliable under BLAS/ATLAS version variance on Render.
+# which is unreliable under BLAS/ATLAS version variance on some CI runners.
 COPY apps/worker/requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir --prefer-binary --break-system-packages \
         --upgrade pip setuptools wheel \
@@ -42,5 +42,10 @@ ENV AUDIO_STORAGE_PATH=/var/audio
 
 RUN mkdir -p /var/audio
 
+COPY apps/backend/start.sh /app/apps/backend/start.sh
+RUN chmod +x /app/apps/backend/start.sh
+
 EXPOSE 3000
-CMD ["node", "apps/backend/dist/index.js"]
+# start.sh runs `prisma migrate deploy` then starts the server.
+# Migrations run at container startup so DATABASE_URL is available.
+CMD ["/app/apps/backend/start.sh"]

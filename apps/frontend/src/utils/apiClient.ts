@@ -79,15 +79,11 @@ export type CurrentUser = {
 const USE_SEED_ENGINE =
   (import.meta.env.VITE_USE_SEED_ENGINE ?? 'true') === 'true';
 
-const PROD_API_FALLBACK = 'https://syncvision-api.onrender.com';
-
 if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
-  console.warn('[SyncVision] VITE_API_URL not set — using hardcoded fallback:', PROD_API_FALLBACK);
+  console.error('[SyncVision] VITE_API_URL is not set — API calls will fail in production. Set this to the Railway backend public URL before building.');
 }
 
-export const API_BASE: string =
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD ? PROD_API_FALLBACK : '');
+export const API_BASE: string = import.meta.env.VITE_API_URL || '';
 
 console.log('[SyncVision] API base URL:', API_BASE || '(relative — dev mode)');
 
