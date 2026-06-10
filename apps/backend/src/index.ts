@@ -16,6 +16,7 @@ import demoRouter from "./routes/demo";
 import analysisRouter from "./routes/analysis";
 import composerReportRouter from "./routes/composerReport";
 import shareRouter from "./routes/share";
+import debugRouter from "./routes/debug";
 import { startConsumer } from "./queue/consumer";
 import { startWebhookWorker } from "./queue/webhookWorker";
 import { startReconciliationWorker } from "./queue/reconciliationWorker";
@@ -95,6 +96,7 @@ app.use("/api", composerReportRouter);
 app.use("/api", shareRouter);
 app.use("/api", demoRouter);
 app.use("/api", analysisRouter);
+app.use("/api", debugRouter);
 
 app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok" });
@@ -160,6 +162,16 @@ if (process.env.REDIS_URL) {
 const stopWebhookWorker = startWebhookWorker();
 const stopReconciliationWorker = startReconciliationWorker();
 startReconciliationCron();
+
+// Keep-alive ping — prevents Render free-tier cold starts during active outreach.
+// Set KEEP_ALIVE_URL to the backend /health URL to enable; omit to skip.
+if (process.env.KEEP_ALIVE_URL) {
+  const keepAliveUrl = process.env.KEEP_ALIVE_URL;
+  console.log(`[keep-alive] pinging ${keepAliveUrl} every 10 minutes`);
+  setInterval(() => {
+    fetch(keepAliveUrl).catch((e) => console.warn("[keep-alive] ping failed:", e));
+  }, 10 * 60 * 1000);
+}
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, async () => {

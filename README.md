@@ -80,8 +80,8 @@ Memory · Energy · Style
 The composer uploads tracks. Canonical track identity is resolved 
 at ingestion using a three-tier chain:
 
-1. **Embedded tags** — ID3 (TIT2/TPE1/TSRC), Vorbis/FLAC 
-   comments: title, artist, ISRC extracted directly
+1. **Embedded tags** — ID3 (TIT2/TPE1/TSRC): title, artist, 
+   ISRC extracted directly
 2. **Filename parsing** — strips UUID prefixes, noise words 
    (watermarked, background vocals, official video), trailing 
    numbers, splits on Artist - Title delimiter
@@ -268,6 +268,42 @@ worker/     Python — librosa audio analysis (spawned as subprocess)
 - **Credits.fm** — entity resolution across MLC, CISAC, DSP
 - **LRCLib / Lyrics.ovh** — lyric text for semantic axis
 - **Render** — deployment (Node 20 + Python 3.11 + ffmpeg)
+
+---
+
+## Environment variables
+
+Full variable reference is in `apps/backend/.env.example` (backend) and 
+`apps/frontend/.env.example` (frontend). The tables below list the 
+variables that must be set in the Render dashboard before deploying.
+
+### Backend (required in production)
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | Neon PostgreSQL pooler connection string |
+| `JWT_SECRET` | 64-byte hex secret for auth token signing |
+| `FRONTEND_URL` | Public frontend URL — gates CORS and Stripe redirects |
+| `AUDIO_STORAGE_PATH` | Absolute path where uploaded audio files are stored |
+| `AUDIO_TOKEN_SECRET` | **REQUIRED** — signs short-lived audio stream tokens. Server refuses to start without this. Generate: `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"` |
+
+### Backend (optional in production)
+
+| Variable | Default | Description |
+|---|---|---|
+| `EXTRA_ALLOWED_ORIGINS` | _(empty)_ | Comma-separated additional CORS origins |
+| `KEEP_ALIVE_URL` | _(empty)_ | Set to `/health` URL to ping every 10 min and prevent Render free-tier cold starts |
+| `TRUST_PROXY` | `false` | Set `true` behind Render/nginx/Cloudflare for correct IP detection |
+| `STRIPE_SECRET_KEY` | _(empty)_ | Stripe routes return 503 when absent |
+| `STRIPE_WEBHOOK_SECRET` | _(empty)_ | Required to receive Stripe webhook events |
+| `REDIS_URL` | _(empty)_ | Enables audio analysis queue and BullMQ webhook worker |
+
+### Frontend (required at build time)
+
+| Variable | Description |
+|---|---|
+| `VITE_APP_URL` | Public frontend URL — baked into OG/Twitter Card meta tags for LinkedIn link previews |
+| `VITE_API_URL` | Backend public URL — set in production; leave empty for local dev (Vite proxies `/api`) |
 
 ---
 

@@ -29,7 +29,7 @@ const PYTHON_BIN = process.env.PYTHON_BIN || "python3";
 const UPLOAD_DIR = process.env.AUDIO_STORAGE_PATH ?? AUDIO_DIR;
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const ALLOWED_EXTENSIONS = new Set([".wav", ".mp3", ".flac"]);
+const ALLOWED_EXTENSIONS = new Set([".mp3"]);
 
 function sanitizeBasename(name: string): string {
   const base = path.basename(name);
@@ -52,7 +52,7 @@ const upload = multer({
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (ALLOWED_EXTENSIONS.has(ext)) cb(null, true);
-    else cb(new Error(`Unsupported file extension: ${ext}. Use .wav, .mp3, or .flac.`));
+    else cb(new Error(`Unsupported file type: ${ext}. Use MP3.`));
   },
 });
 
