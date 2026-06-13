@@ -28,11 +28,20 @@ RUN pip3 install --no-cache-dir --prefer-binary --break-system-packages \
 WORKDIR /app
 COPY package*.json ./
 COPY apps/backend/package*.json ./apps/backend/
+COPY apps/frontend/package*.json ./apps/frontend/
 RUN cd apps/backend && npm install
+RUN cd apps/frontend && npm install
 
 COPY apps/backend ./apps/backend
+COPY apps/frontend ./apps/frontend
 COPY apps/worker  ./apps/worker
 
+ARG VITE_API_URL=""
+ARG VITE_APP_URL=""
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_APP_URL=$VITE_APP_URL
+
+RUN cd apps/frontend && npm run build
 RUN cd apps/backend && npm run build
 
 # ── Runtime ────────────────────────────────────────────────────────────────────

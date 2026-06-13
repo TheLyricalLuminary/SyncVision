@@ -1,0 +1,42 @@
+app = "syncvision"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile"
+
+  [build.args]
+    VITE_API_URL = "https://syncvision.fly.dev"
+    VITE_APP_URL = "https://syncvision.fly.dev"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  AUDIO_STORAGE_PATH = "/var/audio"
+  PYTHON_BIN = "/usr/bin/python3"
+  TRUST_PROXY = "true"
+  LOG_LEVEL = "info"
+  DB_ENVIRONMENT = "production"
+  QUEUE_PREFIX = "syncvision:prod"
+  ENABLE_STRIPE_RECONCILIATION = "false"
+  JWT_EXPIRES_IN = "30d"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[mounts]
+  source = "audio_data"
+  destination = "/var/audio"
