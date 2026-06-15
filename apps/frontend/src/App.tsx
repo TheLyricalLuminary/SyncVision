@@ -11,7 +11,7 @@ import ShareView from './pages/ShareView';
 import { useAnalysisJob } from './hooks/useAnalysisJob';
 import { useCredits } from './hooks/useCredits';
 import type { BriefId } from './engine/classifyBrief';
-import type { AnalysisResult, SceneParams } from './utils/apiClient';
+import type { AnalysisResult, SceneParams, SceneArc } from './utils/apiClient';
 import { API_BASE } from './utils/apiClient';
 import type { DecisionPacket } from './pages/ShareView';
 
@@ -51,6 +51,7 @@ function App() {
   const [briefText, setBriefText] = useState('');
   const [briefId, setBriefId] = useState<BriefId>('montage-transition');
   const [sceneParams, setSceneParams] = useState<SceneParams>(DEFAULT_SCENE_PARAMS);
+  const [sceneArc, setSceneArc] = useState<SceneArc | null>(null);
   const [trackFilenames, setTrackFilenames] = useState<string[]>([]);
 
   const job     = useAnalysisJob();
@@ -129,10 +130,11 @@ function App() {
         <BriefScreen
           initialBriefText={briefText}
           initialSceneParams={sceneParams}
-          onContinue={({ briefText: bt, briefId: bid, sceneParams: sp }) => {
+          onContinue={({ briefText: bt, briefId: bid, sceneParams: sp, sceneArc: sa }) => {
             setBriefText(bt);
             setBriefId(bid);
             setSceneParams(sp);
+            setSceneArc(sa);
             setView('ingest');
           }}
         />

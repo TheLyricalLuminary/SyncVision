@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { classifyBrief, BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
-import type { SceneParams } from '../utils/apiClient';
+import { extractSceneArc, type SceneParams, type SceneArc, type ArcPhases } from '../utils/apiClient';
+import { SceneArcInspector } from '../components/SceneArcInspector';
 
 const C = {
   purple:        '#F5A623',
@@ -137,7 +138,7 @@ function SectionLabel({ label, hint }: { label: string; hint?: string }) {
 type BriefScreenProps = {
   initialBriefText?: string;
   initialSceneParams?: SceneParams;
-  onContinue: (args: { briefText: string; briefId: BriefId; sceneParams: SceneParams }) => void;
+  onContinue: (args: { briefText: string; briefId: BriefId; sceneParams: SceneParams; sceneArc: SceneArc | null }) => void;
 };
 
 export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }: BriefScreenProps) {
@@ -153,6 +154,9 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
   const [manualBriefId, setManualBriefId] = useState<BriefId | null>(null);
   const [showBriefPicker, setShowBriefPicker] = useState(false);
   const [exampleIdx, setExampleIdx] = useState(0);
+  const [sceneArc, setSceneArc] = useState<SceneArc | null>(null);
+  const [arcLoading, setArcLoading] = useState(false);
+  const [adjustedPhases, setAdjustedPhases] = useState<ArcPhases | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -160,6 +164,24 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
     const handle = window.setTimeout(() => setDetectedBriefId(classifyBrief(briefText)), 500);
     return () => window.clearTimeout(handle);
   }, [briefText]);
+
+  // Deterministic Scene Arc extraction — debounced live preview (backend engine).
+  useEffect(() => {
+    if (briefText.trim().length < 10) { setSceneArc(null); setArcLoading(false); return; }
+    setArcLoading(true);
+    const params: SceneParams = {
+      pacing,
+      emotionalRegister: selectedMoods.length > 0 ? selectedMoods.join(', ') : null,
+      sceneLengthSec: null,
+    };
+    const handle = window.setTimeout(() => {
+      extractSceneArc(briefText, params)
+        .then((a) => setSceneArc(a))
+        .catch(() => setSceneArc(null))
+        .finally(() => setArcLoading(false));
+    }, 450);
+    return () => window.clearTimeout(handle);
+  }, [briefText, pacing, selectedMoods]);
 
   const realWordCount = briefText.trim()
     ? briefText.trim().split(/\s+/).filter(w => w.length >= 2).length
@@ -170,6 +192,10 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
     if (!canContinue) return;
     const briefId = manualBriefId ?? classifyBrief(briefText) ?? 'montage-transition';
     const parsedLen = sceneLengthSec.trim() ? Number(sceneLengthSec) : null;
+    // Carry the final (possibly hand-adjusted) Scene Arc forward for later sessions.
+    const finalArc: SceneArc | null = sceneArc
+      ? { ...sceneArc, ...(adjustedPhases ?? {}) }
+      : null;
     onContinue({
       briefText: briefText.trim(),
       briefId,
@@ -178,6 +204,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
         emotionalRegister: selectedMoods.length > 0 ? selectedMoods.join(', ') : null,
         sceneLengthSec: parsedLen != null && !Number.isNaN(parsedLen) ? parsedLen : null,
       },
+      sceneArc: finalArc,
     });
   };
 
@@ -226,6 +253,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
           .sv-shell { padding: 36px 36px 96px; }
           .sv-grid { grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); gap: 24px; }
           .sv-scene { grid-column: 1 / -1; }
+          .sv-arc { grid-column: 1 / -1; }
           .sv-synthesis { grid-column: 1 / -1; }
           .sv-cta-row { grid-column: 1 / -1; }
           .sv-card { border-radius: 22px; padding: 24px 26px; }
@@ -360,6 +388,11 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
               </button>
             </div>
           </section>
+
+          {/* Scene Arc inspector — the deterministic emotional shape */}
+          <div className="sv-arc">
+            <SceneArcInspector arc={sceneArc} loading={arcLoading} onAdjustedChange={setAdjustedPhases} />
+          </div>
 
           {/* Pacing */}
           <section className="sv-card">

@@ -61,6 +61,37 @@ export type SceneParams = {
   sceneLengthSec: number | null;
 };
 
+// ── Scene Arc (deterministic extraction — POST /api/arc/extract) ─────────────
+
+export type ArcSignalEvent = {
+  id: string;
+  label: string;
+  matched: string; // the exact trigger phrase that fired (provenance)
+  offset: number;
+  sentence: number; // 1-based sentence of first match
+  intensity: 1 | 2 | 3;
+  count: number;
+};
+
+export type SceneArc = {
+  opening: number;
+  heldBreath: number;
+  turn: number;
+  release: number;
+  curve: number[]; // magnitude curve (expandable resolution; 4 in v1)
+  valenceCurve: number[]; // signed emotional direction, -100..100
+  phaseCount: number;
+  narrativeCertainty: number; // 0–1
+  signals: string[];
+  events: ArcSignalEvent[];
+  category: string | null;
+  inputHash: string;
+  lexiconVersion: string;
+};
+
+/** The four-phase magnitude values a supervisor may manually adjust. */
+export type ArcPhases = Pick<SceneArc, 'opening' | 'heldBreath' | 'turn' | 'release'>;
+
 export type SubmitResponse = { jobId: string };
 
 export type JobStatus =
@@ -167,4 +198,22 @@ export async function fetchCurrentUser(): Promise<CurrentUser> {
 
 export function isUsingSeedEngine(): boolean {
   return USE_SEED_ENGINE;
+}
+
+/**
+ * Extract a deterministic Scene Arc from a scene description.
+ * Always hits the backend (deterministic engine, server-authoritative) — never
+ * the seed engine. In dev the Vite proxy forwards /api to the backend.
+ */
+export async function extractSceneArc(
+  sceneText: string,
+  sceneParams?: SceneParams,
+): Promise<SceneArc> {
+  const res = await fetch(`${API_BASE}/api/arc/extract`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sceneText, sceneParams }),
+  });
+  if (!res.ok) throw new Error(`extractSceneArc failed: ${res.status}`);
+  return res.json();
 }
