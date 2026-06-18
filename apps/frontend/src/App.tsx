@@ -8,6 +8,7 @@ import {
   decodeSharePayload,
 } from './screens/ResultsScreen';
 import ShareView from './pages/ShareView';
+import DesignSystemShowcase from './screens/DesignSystemShowcase';
 import { useAnalysisJob } from './hooks/useAnalysisJob';
 import { useCredits } from './hooks/useCredits';
 import type { BriefId } from './engine/classifyBrief';
@@ -39,6 +40,11 @@ const DEFAULT_SCENE_PARAMS: SceneParams = {
 // Share links bypass the lock screen — supervisors receive them without accounts.
 function isShareRoute(): boolean {
   return /^#share=/.test(window.location.hash);
+}
+
+// The Design System 2.0 reference surface — a non-sensitive showcase at #design.
+function isDesignRoute(): boolean {
+  return /^#\/?design\b/.test(window.location.hash);
 }
 
 function App() {
@@ -86,6 +92,11 @@ function App() {
   useEffect(() => {
     if (job.phase === 'complete') setView('results');
   }, [job.phase]);
+
+  // The design system reference is public — it carries no user data.
+  if (isDesignRoute()) {
+    return <DesignSystemShowcase />;
+  }
 
   if (!unlocked) {
     return <LockScreen onUnlock={() => setUnlocked(true)} />;
