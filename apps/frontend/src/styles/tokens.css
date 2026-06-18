@@ -1,0 +1,195 @@
+/* ============================================================================
+   SyncVision — Design System 2.0 · Token Foundation
+   ----------------------------------------------------------------------------
+   The bedrock layer. Components reference these SEMANTIC tokens only; the raw
+   palette stays private. Token names describe FUNCTION, not color.
+
+   Mirrors the foundation slides of the Design System 2.0 deck:
+     02 · Color & tokens   03 · Typography
+     04 · Spacing/grid/elevation   05 · Motion
+
+   See design/DESIGN-SYSTEM.md for the full specification and rationale.
+   ============================================================================ */
+
+:root {
+  /* ── Private palette ──────────────────────────────────────────────────────
+     Raw values. Do NOT reference these from components — use the semantic
+     tokens below. Kept here so the whole system has one source of truth. */
+  --_ink-900: #0D0B1E; /* canvas */
+  --_ink-800: #120D26;
+  --_ink-700: #170B33;
+  --_ink-600: #1C1340;
+
+  --_gold:    #F5A623;
+  --_magenta: #DB2777;
+  --_violet:  #7C3AED;
+  --_iris:    #8B5CF6;
+
+  --_silver:   #F4F2FA;
+  --_lavender: #9B93C4;
+
+  /* ── Surfaces · elevation ladder ──────────────────────────────────────────
+     Midnight surfaces. Each rung is a touch lighter than the one below it. */
+  --surface-canvas:  var(--_ink-900); /* #0D0B1E — the page */
+  --surface-raised:  var(--_ink-800); /* chips, rows */
+  --surface-card:    var(--_ink-700); /* Story Match cards */
+  --surface-panel:   var(--_ink-600); /* decision panel */
+
+  /* Hairlines — the only borders in the system. Never heavy. */
+  --hairline:        rgba(123, 112, 178, 0.16);
+  --hairline-strong: rgba(123, 112, 178, 0.30);
+
+  /* ── Text ─────────────────────────────────────────────────────────────── */
+  --text-primary:   var(--_silver);
+  --text-secondary: var(--_lavender);
+  --text-muted:     rgba(155, 147, 196, 0.62);
+
+  /* ── Accents — TWO per view, maximum ──────────────────────────────────────
+     Cinematic restraint. A screen picks at most two of these. */
+  --accent-primary:   var(--_gold);    /* #F5A623 */
+  --accent-secondary: var(--_magenta); /* #DB2777 */
+  --accent-tertiary:  var(--_violet);  /* #7C3AED */
+  --accent-iris:      var(--_iris);    /* #8B5CF6 */
+
+  /* The emotional arc gradient — the scene's journey, violet into gold. */
+  --gradient-arc: linear-gradient(90deg, var(--accent-tertiary), var(--accent-primary));
+
+  /* ── Arc Match™ state scale — THE CORE METRIC LANGUAGE ────────────────────
+     A score is never just a number; it is a band. The scale runs from the
+     aligned-gold glow (top) to the mismatch-red glow (bottom) — the same two
+     anchors used for per-beat alignment, so the whole system speaks one color.
+       Excellent 90–100 · Strong 78–89 · Partial 65–77 · Weak <65          */
+  --arc-excellent: #FFCF6B; /* = aligned glow, top of scale */
+  --arc-strong:    #F2B84B;
+  --arc-partial:   #E8895A;
+  --arc-weak:      #FF6B6B; /* = mismatch glow, bottom of scale */
+
+  /* Per-beat alignment glows (the two anchors of the scale above). */
+  --arc-aligned:  #FFCF6B; /* matching beats glow gold */
+  --arc-mismatch: #FF6B6B; /* divergent beats glow red */
+
+  /* ── Typography ───────────────────────────────────────────────────────────
+     Serif for feeling, sans for function, mono for fact. */
+  --font-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-sans:  "Manrope", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:  "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Type scale (role → size). Line-heights pair with each role below. */
+  --text-display:   clamp(2.75rem, 1.6rem + 4.4vw, 4.5rem); /* cover / presentation */
+  --text-headline:  2rem;    /* card & panel headlines */
+  --text-narrative: 1.0625rem;/* why-it-works, scene language (serif italic) */
+  --text-body:      0.9375rem;/* operational copy */
+  --text-data:      0.875rem; /* scores, timecodes, BPM */
+  --text-label:     0.6875rem;/* eyebrows, axis, tokens */
+
+  --tracking-label: 0.18em;   /* uppercase eyebrows & tokens */
+  --tracking-tight: -0.01em;
+
+  /* ── Spacing · 4px base rhythm ────────────────────────────────────────────
+     Token number = multiple of the 4px base. Trades density for breathing
+     room. Canonical steps from the deck: 2·4·6·8·12·16·24. */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+
+  /* Layout grid — 12 columns on a 1280px max measure. */
+  --grid-max:     1280px;
+  --grid-columns: 12;
+  --grid-gutter:  var(--space-6);
+
+  /* ── Radius · 6 → 28 ──────────────────────────────────────────────────── */
+  --radius-xs:   6px;
+  --radius-md:   12px;
+  --radius-xl:   20px;
+  --radius-2xl:  28px;
+  --radius-pill: 999px; /* state pills, chips, meters */
+
+  /* ── Elevation ladder ─────────────────────────────────────────────────────
+     Depth is soft, long, low-opacity shadow — never a hard drop. */
+  --elev-1: 0 1px 2px rgba(8, 5, 20, 0.40),
+            0 4px 14px rgba(8, 5, 20, 0.22);
+  --elev-2: 0 2px 6px rgba(8, 5, 20, 0.42),
+            0 12px 34px rgba(8, 5, 20, 0.34);
+  --elev-3: 0 6px 18px rgba(8, 5, 20, 0.46),
+            0 28px 64px rgba(8, 5, 20, 0.42);
+  --elev-4: 0 12px 32px rgba(8, 5, 20, 0.50),
+            0 48px 120px rgba(8, 5, 20, 0.52);
+
+  /* ── Motion ─────────────────────────────────────────────────────────────
+     Motion communicates confidence, never play. Curves settle and snap. */
+  --dur-instant: 80ms;  /* hover tints, taps */
+  --dur-fast:    160ms; /* button & tab states */
+  --dur-base:    240ms; /* panel & card transitions */
+  --dur-slow:    420ms; /* score count-up, morphs */
+  --dur-cine:    900ms; /* arc draw-in, alignment */
+
+  --ease-snap:     cubic-bezier(.16, 1, .3, 1);  /* the alignment "lock" */
+  --ease-standard: cubic-bezier(.4, 0, .2, 1);   /* general UI */
+  --ease-decel:    cubic-bezier(0, 0, .2, 1);    /* entrances, draw-ins */
+  --ease-accel:    cubic-bezier(.4, 0, 1, 1);    /* exits */
+}
+
+/* ── Typographic roles ──────────────────────────────────────────────────────
+   Utility classes for the six roles. Use the role, not raw font + size. */
+.sv-display {
+  font-family: var(--font-serif);
+  font-size: var(--text-display);
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+}
+.sv-headline {
+  font-family: var(--font-serif);
+  font-size: var(--text-headline);
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+.sv-narrative {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--text-narrative);
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+.sv-body {
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.sv-data {
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.sv-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Motion is opt-out: anyone who asks for less, gets none. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-fast:    0ms;
+    --dur-base:    0ms;
+    --dur-slow:    0ms;
+    --dur-cine:    0ms;
+  }
+}
