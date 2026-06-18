@@ -56,9 +56,9 @@
   }
 
   /* General text classes go dark */
-  .text-mg-lavender,
-  .text-mg-cosmic,
-  .text-mg-silver {
+  .text-lavender,
+  .text-mist,
+  .text-silver {
     color: #1a1a1a !important;
   }
 

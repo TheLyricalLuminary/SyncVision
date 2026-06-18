@@ -42,6 +42,9 @@ const PACING_OPTIONS: Array<{ value: SceneParams['pacing']; label: string; desc:
   { value: 'driving', label: 'Driving', desc: 'kinetic, urgent, forward motion' },
 ];
 
+// Equalizer animation speed per pacing — slower pace = slower bars.
+const PACE_SPEED: Record<string, string> = { slow: '1.5s', mid: '0.95s', driving: '0.55s' };
+
 const MOOD_FAMILIES: Array<{ name: string; moods: string[]; isStyle?: boolean }> = [
   { name: 'Connection',   moods: ['Intimate', 'Romantic', 'Vulnerable', 'Yearning', 'Tender', 'Longing'] },
   { name: 'Conflict',     moods: ['Tense', 'Defiant', 'Desperate', 'Eerie', 'Foreboding', 'Dread', 'Volatile'] },
@@ -246,7 +249,22 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
         .sv-synthesis { margin-top: 0; }
         .sv-cta-row { margin-top: 4px; }
         .sv-pill { min-height: 36px; padding: 7px 12px; }
-        .sv-pacing-btn { min-height: 52px; }
+        .sv-pacing-btn { min-height: 52px; position: relative; }
+        /* gradient selected-ring (amber→magenta) via mask-composite */
+        .sv-pacing-btn.on::before { content: ""; position: absolute; inset: 0; border-radius: 14px; padding: 1.5px; background: linear-gradient(135deg, ${C.purple}, ${C.magenta}); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; }
+        /* live equalizer — bars animate at a pace-specific speed when selected */
+        .sv-eq { display: flex; align-items: flex-end; gap: 2.5px; height: 20px; flex-shrink: 0; margin-left: auto; }
+        .sv-eq i { width: 3px; height: 35%; border-radius: 2px; background: ${C.lavender}; opacity: 0.35; display: block; }
+        .sv-pacing-btn.on .sv-eq i { opacity: 1; background: linear-gradient(180deg, ${C.magenta}, ${C.purple}); }
+        @media (prefers-reduced-motion: no-preference) {
+          .sv-pacing-btn.on .sv-eq i { animation: sv-eqbar var(--eqspeed, 0.9s) ease-in-out infinite; }
+          .sv-pacing-btn.on .sv-eq i:nth-child(2) { animation-delay: .12s; }
+          .sv-pacing-btn.on .sv-eq i:nth-child(3) { animation-delay: .26s; }
+          .sv-pacing-btn.on .sv-eq i:nth-child(4) { animation-delay: .08s; }
+          @keyframes sv-eqbar { 0%, 100% { height: 28%; } 50% { height: 100%; } }
+          .sv-sparkle { animation: sv-sparkle 3s ease-in-out infinite; transform-origin: center; }
+          @keyframes sv-sparkle { 0%, 100% { opacity: 0.75; transform: scale(1) rotate(0); } 50% { opacity: 1; transform: scale(1.18) rotate(18deg); } }
+        }
         @media (min-width: 880px) {
           .sv-stepper { display: inline-flex; }
           .sv-step-badge { display: none; }
@@ -405,13 +423,13 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                     key={opt.value}
                     type="button"
                     onClick={() => setPacing(on ? null : opt.value)}
-                    className="sv-pacing-btn"
+                    className={`sv-pacing-btn${on ? ' on' : ''}`}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 12,
                       padding: '10px 14px', borderRadius: 14,
                       background: on ? 'linear-gradient(135deg, rgba(245,166,35,0.22), rgba(219,39,119,0.10))' : 'rgba(15,8,35,0.5)',
-                      border: `1px solid ${on ? 'rgba(123,112,178,0.5)' : C.hairline}`,
-                      boxShadow: on ? '0 0 0 1px rgba(245,166,35,0.16) inset, 0 6px 14px -6px rgba(245,166,35,0.4)' : 'none',
+                      border: `1px solid ${on ? 'transparent' : C.hairline}`,
+                      boxShadow: on ? '0 0 0 1px rgba(245,166,35,0.16) inset, 0 12px 26px -16px rgba(245,166,35,0.5)' : 'none',
                       cursor: 'pointer', textAlign: 'left', fontFamily: SANS, width: '100%',
                     }}
                   >
@@ -422,6 +440,9 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                       <span style={{ fontSize: 13, color: C.amber, fontWeight: 700, letterSpacing: '-0.005em' }}>{opt.label}</span>
                       <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: on ? 'rgba(226,232,240,0.82)' : C.lavender, lineHeight: 1.2 }}>{opt.desc}</span>
                     </span>
+                    <span className="sv-eq" aria-hidden="true" style={{ '--eqspeed': PACE_SPEED[opt.value ?? ''] } as React.CSSProperties}>
+                      <i /><i /><i /><i />
+                    </span>
                   </button>
                 );
               })}
@@ -430,7 +451,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
 
           {/* Mood families */}
           <section className="sv-card">
-            <SectionLabel label="Mood" hint="pick by feeling" />
+            <SectionLabel label="Mood" hint={selectedMoods.length ? `${selectedMoods.length} selected` : 'pick by feeling'} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {MOOD_FAMILIES.map(family => (
                 <div key={family.name} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -474,7 +495,7 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
             <div className="sv-synthesis" style={{ padding: '16px 20px', borderRadius: 18, background: 'linear-gradient(180deg,rgba(219,39,119,0.16),rgba(245,166,35,0.08) 60%,rgba(245,166,35,0.03))', border: '1px solid rgba(219,39,119,0.32)', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: `linear-gradient(180deg, ${C.magenta}, ${C.purple})` }} />
               <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.magenta, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
-                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" fill="currentColor" /></svg>
+                <svg className="sv-sparkle" width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" fill="currentColor" /></svg>
                 Creative direction
               </div>
               <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(15px,1.5vw,20px)', lineHeight: 1.4, color: C.silver, letterSpacing: '-0.005em', maxWidth: '70ch' }}>

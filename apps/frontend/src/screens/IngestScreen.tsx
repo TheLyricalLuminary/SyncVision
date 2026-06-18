@@ -156,6 +156,14 @@ const handleAddIsrc = () => {
     <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: BG }}>
       <style>{`
         @keyframes sv-pulse-dot { 0%,100%{opacity:.7;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)} }
+        .sv-dz-icon { position: relative; width: 56px; height: 56px; border-radius: 18px; background: rgba(245,166,35,0.18); border: 1px solid rgba(167,139,250,0.32); display: grid; place-items: center; color: var(--lavender, #9B93C4); margin: 0 auto 18px; }
+        .sv-dz-icon::after { content:""; position:absolute; inset:-8px; border-radius:50%; border:1px solid rgba(245,166,35,0.3); opacity:0; }
+        @media (prefers-reduced-motion: no-preference) {
+          .sv-dz-icon { animation: dzFloat 3.2s ease-in-out infinite; }
+          .sv-dz-icon::after { animation: dzPulse 2.6s ease-out infinite; }
+        }
+        @keyframes dzFloat { 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-5px); } }
+        @keyframes dzPulse { 0%{ opacity:0.7; transform:scale(0.9); } 100%{ opacity:0; transform:scale(1.25); } }
         .sv-ing-topbar { position: sticky; top: 0; z-index: 10; background: linear-gradient(180deg,rgba(6,3,15,0.94),rgba(6,3,15,0.6) 70%,transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid ${C.hairline}; }
         .sv-ing-topbar-inner { max-width: 1280px; margin: 0 auto; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
         .sv-ing-stepper { display: none; align-items: center; gap: 10px; }
@@ -254,8 +262,8 @@ const handleAddIsrc = () => {
                 cursor: 'pointer',
               }}
             >
-              <div style={{ width: 48, height: 48, margin: '0 auto 14px', borderRadius: 16, background: 'rgba(245,166,35,0.18)', border: '1px solid rgba(123,112,178,0.32)', display: 'grid', placeItems: 'center', color: C.lavender }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M12 4 V16 M6 10 L12 4 L18 10 M4 20 H20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <div className="sv-dz-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M12 4 V16 M6 10 L12 4 L18 10 M4 20 H20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </div>
               <div style={{ fontFamily: SERIF, fontSize: 'clamp(17px,2vw,24px)', color: C.silver, letterSpacing: '-0.005em' }}>Drag audio files here</div>
               <div style={{ fontSize: 13, color: C.lavender, marginTop: 6 }}>
