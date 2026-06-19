@@ -13,7 +13,7 @@ import { computeSongArc } from "../scoring/songArcReduction";
 const router = Router();
 
 router.get("/tracks/:trackId/arc", async (req: Request, res: Response) => {
-  const { trackId } = req.params;
+  const trackId = req.params.trackId as string;
 
   const track = await prisma.track.findUnique({
     where: { id: trackId },
