@@ -18,6 +18,8 @@ import { BRIEF_WEIGHTS } from "../scoring/briefWeights";
 import { buildVector, computeClearanceComplexity, computeDataConfidence } from "../scoring/trackVector";
 import { selectNarrativeWithLane, type PADValues } from "../scoring/narrativeDictionary";
 import { fetchLyrics, cleanTitle, cleanArtist } from "../lib/lrclib";
+import { computeSongArc } from "../scoring/songArcReduction";
+import { matchArcs, type MatchableArc, type ArcMatchResult } from "../scoring/arcMatch";
 
 const router = Router();
 
@@ -245,6 +247,8 @@ interface AnalysisResult {
     // raw 0–1 vector for audit/downstream use
     vector: { scene: number; lyrics: number; audioSignal: number; rightsClarity: number };
     inputHash: string;
+    // Arc Match — present when a sceneArc was submitted with the job
+    arcMatch?: ArcMatchResult;
   };
   rightsProfile: {
     isOneStop: boolean | null;
@@ -272,6 +276,7 @@ interface JobRecord {
   briefText: string;
   briefId: string;
   sceneParams: SceneParams;
+  sceneArc?: MatchableArc;
   trackIds: string[];
   results: AnalysisResult[];
   error?: string;
@@ -405,6 +410,12 @@ async function processJob(jobId: string): Promise<void> {
         proAffiliation:     rp?.proAffiliation ?? null,
       });
 
+      // Arc Match — compare scene arc against this track's audio shape
+      const songArc = track.timeline
+        ? computeSongArc(track.timeline as number[][], track.id)
+        : null;
+      const arcMatch = matchArcs(job.sceneArc, songArc) ?? undefined;
+
       const { vector, ranked } = buildVector({
         padSceneFit:   sceneFit,
         dspMatchScore: sceneFit,  // DSP proxy: same PAD fit until embedding layer lands
@@ -455,6 +466,7 @@ async function processJob(jobId: string): Promise<void> {
           dataConfidenceTotal:     dataConf.totalFields,
           vector,
           inputHash: ranked.inputHash,
+          arcMatch,
         },
         rightsProfile: track.rightsProfile
           ? {
@@ -473,7 +485,18 @@ async function processJob(jobId: string): Promise<void> {
       });
     }
 
-    results.sort((a, b) => b.confidenceScore.score - a.confidenceScore.score);
+    // When a sceneArc was submitted, sort primarily by arc match (the shape signal),
+    // falling back to confidence score. Without a sceneArc, keep the existing sort.
+    if (job.sceneArc) {
+      results.sort((a, b) => {
+        const aArc = a.confidenceScore.arcMatch?.combinedScore ?? 0;
+        const bArc = b.confidenceScore.arcMatch?.combinedScore ?? 0;
+        if (bArc !== aArc) return bArc - aArc;
+        return b.confidenceScore.score - a.confidenceScore.score;
+      });
+    } else {
+      results.sort((a, b) => b.confidenceScore.score - a.confidenceScore.score);
+    }
     results.forEach((r, i) => {
       r.rank = i + 1;
     });
@@ -501,10 +524,11 @@ router.post("/analysis/submit", (req: Request, res: Response) => {
     briefText?: unknown;
     briefId?: unknown;
     sceneParams?: unknown;
+    sceneArc?: unknown;
     trackIds?: unknown;
   };
 
-  const { briefText, briefId, sceneParams, trackIds } = body;
+  const { briefText, briefId, sceneParams, sceneArc, trackIds } = body;
 
   if (typeof briefText !== "string" || typeof briefId !== "string") {
     res.status(400).json({ error: "invalid_body" });
@@ -546,12 +570,29 @@ router.post("/analysis/submit", (req: Request, res: Response) => {
     sceneLengthSec: sp.sceneLengthSec ?? null,
   };
 
+  // Validate and sanitise sceneArc if provided — must have the four numeric phases
+  let normalizedSceneArc: MatchableArc | undefined;
+  if (sceneArc && typeof sceneArc === "object") {
+    const sa = sceneArc as Record<string, unknown>;
+    const nums = ["opening", "heldBreath", "turn", "release"].map(k => Number(sa[k]));
+    if (nums.every(n => Number.isFinite(n))) {
+      const vc = Array.isArray(sa["valenceCurve"])
+        ? (sa["valenceCurve"] as unknown[]).map(Number).filter(Number.isFinite)
+        : [0, 0, 0, 0];
+      normalizedSceneArc = {
+        opening: nums[0], heldBreath: nums[1], turn: nums[2], release: nums[3],
+        valenceCurve: vc,
+      };
+    }
+  }
+
   const jobId = randomUUID();
   jobs.set(jobId, {
     status: "pending",
     briefText,
     briefId,
     sceneParams: normalizedSceneParams,
+    sceneArc: normalizedSceneArc,
     trackIds: trackIds as string[],
     results: [],
     startedAt: Date.now(),

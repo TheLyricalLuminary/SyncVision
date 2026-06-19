@@ -158,7 +158,7 @@ function App() {
           onAnalyze={(filenames) => {
             setTrackFilenames(filenames);
             setView('analyzing');
-            void job.start({ briefText, briefId, sceneParams, trackFilenames: filenames });
+            void job.start({ briefText, briefId, sceneParams, sceneArc, trackFilenames: filenames });
           }}
         />
       )}

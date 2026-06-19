@@ -4,6 +4,7 @@ import {
   submitAnalysis,
   type AnalysisResult,
   type SceneParams,
+  type SceneArc,
 } from '../utils/apiClient';
 
 export type JobPhase =
@@ -25,6 +26,7 @@ export type UseAnalysisJob = {
     briefText: string;
     briefId: string;
     sceneParams: SceneParams;
+    sceneArc?: SceneArc | null;
     trackFilenames: string[];
   }) => Promise<void>;
   reset: () => void;
@@ -100,7 +102,7 @@ export function useAnalysisJob(): UseAnalysisJob {
       }, 250);
 
       try {
-        const { jobId } = await submitAnalysis(args);
+        const { jobId } = await submitAnalysis({ ...args });
         setPhase('pending');
 
         const tick = async () => {

@@ -26,6 +26,7 @@ export type AnalysisResult = {
     dataConfidenceTotal: number;
     vector: { scene: number; lyrics: number; audioSignal: number; rightsClarity: number };
     inputHash: string;
+    arcMatch?: ArcMatchResult;
   };
   rightsProfile: {
     isrc?: string | null;
@@ -92,6 +93,12 @@ export type SceneArc = {
 /** The four-phase magnitude values a supervisor may manually adjust. */
 export type ArcPhases = Pick<SceneArc, 'opening' | 'heldBreath' | 'turn' | 'release'>;
 
+export type ArcMatchResult = {
+  magnitudeScore: number; // 0–100 shape similarity
+  valenceScore:   number; // 0–100 direction alignment
+  combinedScore:  number; // 0–100 final match quality
+};
+
 export type SubmitResponse = { jobId: string };
 
 export type JobStatus =
@@ -144,6 +151,7 @@ export async function submitAnalysis(args: {
   briefText: string;
   briefId: string;
   sceneParams: SceneParams;
+  sceneArc?: SceneArc | null;
   trackFilenames: string[];
 }): Promise<SubmitResponse> {
   if (USE_SEED_ENGINE) {
@@ -155,6 +163,7 @@ export async function submitAnalysis(args: {
       briefText: args.briefText,
       briefId: args.briefId,
       sceneParams: args.sceneParams,
+      sceneArc: args.sceneArc ?? undefined,
       trackIds: args.trackFilenames,
     }),
   });
