@@ -15,6 +15,7 @@ import catalogsRouter from "./routes/catalogs";
 import demoRouter from "./routes/demo";
 import analysisRouter from "./routes/analysis";
 import arcRouter from "./routes/arc";
+import songArcRouter from "./routes/songArc";
 import composerReportRouter from "./routes/composerReport";
 import shareRouter from "./routes/share";
 import debugRouter from "./routes/debug";
@@ -98,6 +99,7 @@ app.use("/api", shareRouter);
 app.use("/api", demoRouter);
 app.use("/api", analysisRouter);
 app.use("/api", arcRouter);
+app.use("/api", songArcRouter);
 app.use("/api", debugRouter);
 
 app.get("/health", (_req: Request, res: Response) => {
