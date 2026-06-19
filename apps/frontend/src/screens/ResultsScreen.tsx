@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE, type AnalysisResult, type SceneParams, type SceneArc } from '../utils/apiClient';
 import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
-import { ArcMatchGraph } from '../components/ArcMatchGraph';
+import { SceneArcInspector } from '../components/SceneArcInspector';
+import { ArcCandidateRow }    from '../components/ArcCandidateRow';
+import { DecisionRail }       from '../components/DecisionRail';
 
 // ── design tokens ────────────────────────────────────────────
 const C = {
@@ -446,8 +448,8 @@ function RightsTable({
 // ── LocalRightsOverride type ──────────────────────────────────
 type LocalRightsOverride = NonNullable<AnalysisResult['rightsProfile']> & { blockers?: string[] };
 
-// ── LeadCard ───────────────────────────────────────────────────
-function LeadCard({
+// ── LeadCard removed — replaced by ArcCandidateRow + DecisionRail ──
+function _LeadCard_unused({
   result,
   briefId: _briefId,
   sceneArc,
@@ -727,8 +729,8 @@ function LeadCard({
   );
 }
 
-// ── MiniCard ───────────────────────────────────────────────────
-function MiniCard({
+// ── MiniCard removed — replaced by ArcCandidateRow ──
+function _MiniCard_unused({
   result,
   topScore,
   dimmed,
@@ -1090,6 +1092,8 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
   const [compareOpen,          setCompareOpen]  = useState(false);
   const [activeTab,            setActiveTab]    = useState<'shortlist' | 'considered' | 'archive'>('shortlist');
   const [localRightsOverrides, setLocalRightsOverrides] = useState<Record<string, LocalRightsOverride>>({});
+  const [selectedTrackId, setSelectedTrackId]           = useState<string | null>(results[0]?.track.id ?? null);
+  const selectedResult = results.find(r => r.track.id === selectedTrackId) ?? results[0];
 
   const onExportPdf = () => {
     try { window.print(); } catch (e) { setToast(e instanceof Error ? e.message : 'Print failed.'); }
@@ -1147,9 +1151,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
     }
   };
 
-  const topScore    = results[0]?.confidenceScore.score ?? 100;
-  const lead        = results[0];
-  const sideResults = results.slice(1);
+  const topScore = results[0]?.confidenceScore.score ?? 100;
 
   // toolbar stats
   const rightsBlockerCount = results.filter(r => (r.rightsProfile?.blockers?.length ?? 0) > 0).length;
@@ -1182,17 +1184,19 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
         @media (min-width: 880px) { .sv-rs-stepper { display: inline-flex; } .sv-rs-step-badge { display: none; } }
 
         /* results stage grid */
-        .sv-results-stage { display: grid; grid-template-columns: 1fr; gap: 24px; }
-        @media (min-width: 1000px) {
-          .sv-results-stage { grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap: 32px; align-items: start; }
+        .sv-results-stage { display: grid; grid-template-columns: 1fr; gap: 16px; }
+        @media (min-width: 800px) {
+          .sv-results-stage { grid-template-columns: 280px minmax(0,1fr) 340px; gap: 24px; align-items: start; }
         }
 
-        /* side list */
-        .sv-side-list { display: flex; flex-direction: column; gap: 12px; }
-        @media (min-width: 1000px) { .sv-side-list { position: sticky; top: 72px; } }
+        /* scene panel (left col) */
+        @media (min-width: 800px) { .sv-scene-panel { position: sticky; top: 72px; } }
 
-        /* toolbar spans full width */
-        .sv-toolbar { grid-column: 1 / -1; }
+        /* candidate list (center col) */
+        .sv-candidate-list { display: flex; flex-direction: column; gap: 8px; }
+
+        /* decision rail (right col) */
+        @media (min-width: 800px) { .sv-decision-rail { position: sticky; top: 72px; } }
 
         /* lead card gradient border */
         .sv-lead-card::before { content: ""; position: absolute; inset: -1px; border-radius: 22px; padding: 1.5px; background: linear-gradient(180deg, rgba(245,166,35,0.55), rgba(221,122,58,0.45) 40%, transparent 80%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; }
@@ -1370,68 +1374,70 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
         ) : (
           <section className="sv-results-stage">
 
-            {/* lead card */}
-            {lead && (
-              <LeadCard
-                result={lead}
-                briefId={briefId}
-                sceneArc={sceneArc}
-                onRightsSaved={(id, ov) => setLocalRightsOverrides(m => ({ ...m, [id]: ov }))}
-                onShare={() => void onCopyShareLink()}
-                onMoveToConsidered={() => setActiveTab('considered')}
-              />
-            )}
-
-            {/* side list */}
-            <aside className="sv-side-list">
-              {sideResults.length > 0 && (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, padding: '4px 4px 8px' }}>
-                    <span style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.amber }}>Also in shortlist &middot; {sideResults.length}</span>
-                    {results.length >= 2 && (
-                      <span onClick={() => setCompareOpen(true)} style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: 'rgba(167,139,250,0.6)', cursor: 'pointer' }}>compare &darr;</span>
-                    )}
-                  </div>
-                  {sideResults.map((r, i) => (
-                    <MiniCard key={r.track.id} result={r} topScore={topScore} dimmed={i > 2} />
-                  ))}
-                </>
-              )}
-
-              {sideResults.length === 0 && (
-                <div style={{ padding: '24px 16px', textAlign: 'center', fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, color: 'rgba(155,147,196,0.5)' }}>
-                  Only one track in shortlist.
-                </div>
-              )}
+            {/* col 1 — scene panel */}
+            <aside className="sv-scene-panel">
+              {sceneArc
+                ? <SceneArcInspector arc={sceneArc} />
+                : <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.lavender, margin: 0, padding: '16px 0' }}>
+                    No scene arc — go back to Brief to extract one.
+                  </p>
+              }
             </aside>
 
-            {/* toolbar */}
-            <div className="sv-toolbar no-print" style={{ padding: '14px 18px', borderRadius: 14, background: 'rgba(15,8,35,0.7)', border: `1px solid ${C.hairline}`, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.amber }}>
-                <b style={{ color: C.silver, fontWeight: 700, fontFamily: SANS, fontSize: 13, letterSpacing: '-0.01em', marginRight: 3 }}>{results.length}</b>
-                shortlisted
-              </span>
-              {rightsBlockerCount > 0 && (
+            {/* col 2 — candidate list */}
+            <div className="sv-candidate-list">
+              {results.map(r => (
+                <ArcCandidateRow
+                  key={r.track.id}
+                  result={r}
+                  sceneArc={sceneArc}
+                  selected={selectedTrackId === r.track.id}
+                  onSelect={() => setSelectedTrackId(r.track.id)}
+                  topScore={topScore}
+                />
+              ))}
+
+              {/* toolbar — lives below list in center column */}
+              <div className="no-print" style={{ marginTop: 8, padding: '12px 16px', borderRadius: 12, background: 'rgba(15,8,35,0.7)', border: `1px solid ${C.hairline}`, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.amber }}>
-                  <b style={{ color: C.silver, fontWeight: 700, fontFamily: SANS, fontSize: 13, letterSpacing: '-0.01em', marginRight: 3 }}>{rightsBlockerCount}</b>
-                  rights blocker{rightsBlockerCount > 1 ? 's' : ''}
+                  <b style={{ color: C.silver, fontWeight: 700, fontFamily: SANS, fontSize: 13, letterSpacing: '-0.01em', marginRight: 3 }}>{results.length}</b>
+                  shortlisted
                 </span>
+                {rightsBlockerCount > 0 && (
+                  <span style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.amber }}>
+                    <b style={{ color: C.silver, fontWeight: 700, fontFamily: SANS, fontSize: 13, letterSpacing: '-0.01em', marginRight: 3 }}>{rightsBlockerCount}</b>
+                    rights blocker{rightsBlockerCount > 1 ? 's' : ''}
+                  </span>
+                )}
+                {needLyricsCount > 0 && (
+                  <span style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.amber }}>
+                    <b style={{ color: C.silver, fontWeight: 700, fontFamily: SANS, fontSize: 13, letterSpacing: '-0.01em', marginRight: 3 }}>{needLyricsCount}</b>
+                    need lyrics
+                  </span>
+                )}
+                <div style={{ flex: 1 }} />
+                <button type="button" onClick={onExportPdf} style={{ padding: '8px 14px', borderRadius: 9, background: 'transparent', border: `1px solid ${C.hairlineStrong}`, color: C.silver, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M6 3 H18 V21 L12 16 L6 21 Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>
+                  PDF
+                </button>
+                <button type="button" onClick={() => void onCopyShareLink()} style={{ padding: '8px 14px', fontSize: 11, borderRadius: 9, border: 0, background: `linear-gradient(135deg,${C.purple},${C.magenta})`, color: '#fff', fontWeight: 700, letterSpacing: '0.02em', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  Share
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              </div>
+            </div>
+
+            {/* col 3 — decision rail */}
+            <div className="sv-decision-rail">
+              {selectedResult && (
+                <DecisionRail
+                  result={selectedResult}
+                  sceneArc={sceneArc}
+                  onShare={() => void onCopyShareLink()}
+                  onRightsSaved={(id, ov) => setLocalRightsOverrides(m => ({ ...m, [id]: ov }))}
+                  onMoveToConsidered={() => setActiveTab('considered')}
+                />
               )}
-              {needLyricsCount > 0 && (
-                <span style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.amber }}>
-                  <b style={{ color: C.silver, fontWeight: 700, fontFamily: SANS, fontSize: 13, letterSpacing: '-0.01em', marginRight: 3 }}>{needLyricsCount}</b>
-                  need lyrics
-                </span>
-              )}
-              <div style={{ flex: 1 }} />
-              <button type="button" onClick={onExportPdf} style={{ padding: '10px 16px', borderRadius: 10, background: 'transparent', border: `1px solid ${C.hairlineStrong}`, color: C.silver, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M6 3 H18 V21 L12 16 L6 21 Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>
-                Export PDF
-              </button>
-              <button type="button" onClick={() => void onCopyShareLink()} style={{ padding: '10px 18px', fontSize: 12, borderRadius: 10, border: 0, background: `linear-gradient(135deg,${C.purple},${C.magenta})`, color: '#fff', fontWeight: 700, letterSpacing: '0.02em', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                Share with director
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </button>
             </div>
 
           </section>
