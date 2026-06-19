@@ -335,6 +335,18 @@ async function processJob(jobId: string): Promise<void> {
           },
           include: { rightsProfile: true },
         });
+      } else if (!track.timeline && worker.timeline) {
+        // Backfill timeline for tracks ingested before arc scoring was added
+        track = await prisma.track.update({
+          where: { id: track.id },
+          data: {
+            timeline: worker.timeline,
+            tempo: worker.tempo ?? track.tempo,
+            tonalCharacter: worker.tonalCharacter ?? track.tonalCharacter,
+            energyCharacter: worker.energyCharacter ?? track.energyCharacter,
+          },
+          include: { rightsProfile: true },
+        });
       }
 
       // If enrichment hasn't run yet for this track, await it now before scoring

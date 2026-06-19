@@ -84,6 +84,7 @@ export function DecisionRail({ result, sceneArc, onShare, onRightsSaved, onMoveT
   const [localRights,     setLocalRights]     = useState(result.rightsProfile);
   const [pendingAutoFill, setPendingAutoFill] = useState<AutoFill | undefined>(undefined);
   const [evidenceOpen,    setEvidenceOpen]    = useState(!hasArcData);
+  const [audioError,      setAudioError]      = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
@@ -110,6 +111,7 @@ export function DecisionRail({ result, sceneArc, onShare, onRightsSaved, onMoveT
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
+    setAudioError(null);
     setRightsPanel(false);
     setLocalRights(result.rightsProfile);
     setEvidenceOpen(!hasArcData);
@@ -123,12 +125,19 @@ export function DecisionRail({ result, sceneArc, onShare, onRightsSaved, onMoveT
     const onPlay  = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
     const onEnded = () => setIsPlaying(false);
+    const onError = () => {
+      const err = audio.error;
+      const msg = err ? `Audio error ${err.code}: ${err.message || 'file may be missing or unsupported'}` : 'Audio failed to load';
+      setAudioError(msg);
+      setIsPlaying(false);
+    };
     audio.addEventListener('timeupdate', onTime);
     audio.addEventListener('loadedmetadata', onMeta);
     audio.addEventListener('durationchange', onMeta);
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
+    audio.addEventListener('error', onError);
     return () => {
       audio.removeEventListener('timeupdate', onTime);
       audio.removeEventListener('loadedmetadata', onMeta);
@@ -136,6 +145,7 @@ export function DecisionRail({ result, sceneArc, onShare, onRightsSaved, onMoveT
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('error', onError);
       if (currentAudio.el === audio) currentAudio.el = null;
       audio.pause();
     };
@@ -350,6 +360,7 @@ export function DecisionRail({ result, sceneArc, onShare, onRightsSaved, onMoveT
         <span style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 10, color: C.lavender, letterSpacing: '0.04em', flexShrink: 0 }}>{timeLabel}</span>
       </div>
       {playbackMsg && !hasAudio && <p style={{ fontSize: 11, color: C.lavender, marginTop: 5, fontStyle: 'italic' }}>Audio playback coming soon.</p>}
+      {audioError && <p style={{ fontSize: 11, color: '#E85A5A', marginTop: 5, fontFamily: '"JetBrains Mono",monospace' }}>{audioError}</p>}
 
       {/* ── actions ── */}
       <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
