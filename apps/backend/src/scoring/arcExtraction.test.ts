@@ -235,6 +235,83 @@ function near(actual: number, expected: number, tolerance: number, label: string
   assert("release > opening (partial resolution)", arc.release > arc.opening);
 }
 
+// ══ Genre coverage suite — one labeled scene per major genre ═════════════════
+// Locks the characteristic SHAPE + SIGNALS + VALENCE DIRECTION of each genre.
+// Magnitudes are asserted as invariants (peak location, monotonic direction),
+// not exact values, so calibration can drift within tolerance without breakage.
+
+// ── Fixture 15: Romance — rises to a bright peak at release ──────────────────
+{
+  console.log("\n── Fixture 15: romance ──");
+  const arc = extractSceneArc("They meet at the party and barely speak. The tension simmers all night. He finally kisses her as the music swells. The scene ends in a warm embrace.");
+  assert("kiss fires", arc.signals.includes("kiss"));
+  assert("release = peak phase", arc.release === Math.max(arc.opening, arc.heldBreath, arc.turn, arc.release));
+  assert("release valence bright (> 40)", arc.valenceCurve[3] > 40);
+}
+
+// ── Fixture 16: Triumph / sports — climax at turn, bright release ────────────
+{
+  console.log("\n── Fixture 16: triumph ──");
+  const arc = extractSceneArc("The underdog team trains in the cold. Doubt creeps in before the final match. They fight back in the last minute. They win the championship in glory.");
+  assert("victory fires", arc.signals.includes("victory"));
+  assert("turn & release > opening (build then win)", arc.turn > arc.opening && arc.release > arc.opening);
+  assert("release valence bright (> 40)", arc.valenceCurve[3] > 40);
+}
+
+// ── Fixture 17: Horror — turn peak, dark throughout, no bright resolution ────
+{
+  console.log("\n── Fixture 17: horror ──");
+  const arc = extractSceneArc("The family settles into the quiet house. Something feels wrong in the dark. A monstrous figure attacks. Terror and bloodshed fill the room.");
+  assert("horror fires", arc.signals.includes("horror"));
+  assert("turn = peak phase (the attack)", arc.turn === Math.max(arc.opening, arc.heldBreath, arc.turn, arc.release));
+  assert("held-breath & turn valence dark (≤ -40)", arc.valenceCurve[1] <= -40 && arc.valenceCurve[2] <= -40);
+  assert("no false-positive bright release", arc.valenceCurve[3] < 0); // 'settles' must not read as resolution
+}
+
+// ── Fixture 18: Sacrifice — fires on 'throws himself', climax at turn ────────
+{
+  console.log("\n── Fixture 18: sacrifice ──");
+  const arc = extractSceneArc("The soldier sees the grenade. He hesitates for a heartbeat. He throws himself onto it to save the others. He dies so they can live.");
+  assert("sacrifice fires ('throws himself')", arc.signals.includes("sacrifice"));
+  assert("turn = peak phase (the sacrifice)", arc.turn === Math.max(arc.opening, arc.heldBreath, arc.turn, arc.release));
+  assert("release valence not bright (bittersweet death)", arc.valenceCurve[3] <= 0);
+}
+
+// ── Fixture 19: Redemption — dark→light, bright peak at release ──────────────
+{
+  console.log("\n── Fixture 19: redemption ──");
+  const arc = extractSceneArc("The fallen man drinks alone, haunted by his past. He doubts he can change. He confronts the people he hurt and atones. He finds redemption at last.");
+  assert("redemption fires", arc.signals.includes("redemption"));
+  assert("release = peak phase", arc.release === Math.max(arc.opening, arc.heldBreath, arc.turn, arc.release));
+  assert("valence travels dark→light (opening < release)", arc.valenceCurve[0] < arc.valenceCurve[3]);
+}
+
+// ── Fixture 20: Comedy — fires, moderate certainty (shape is genre-soft) ─────
+{
+  console.log("\n── Fixture 20: comedy ──");
+  const arc = extractSceneArc("The intern arrives late and flustered. Awkward tension fills the meeting. A hilarious mix-up unfolds. The whole room erupts in laughter.");
+  assert("comedy fires", arc.signals.includes("comedy"));
+  assert("certainty moderate (> 0.4)", arc.narrativeCertainty > 0.4);
+}
+
+// ── Fixture 21: Homecoming — gentle rise, bright release ─────────────────────
+{
+  console.log("\n── Fixture 21: homecoming ──");
+  const arc = extractSceneArc("The traveler returns home after years away. The streets feel strange and quiet. She knocks on the old door. She is finally home, where she belongs.");
+  assert("homecoming fires", arc.signals.includes("homecoming"));
+  assert("release ≥ opening", arc.release >= arc.opening);
+  assert("release valence bright (> 40)", arc.valenceCurve[3] > 40);
+}
+
+// ── Fixture 22: Montage — no signals, flat neutral, near-zero certainty ──────
+{
+  console.log("\n── Fixture 22: montage / low-signal ──");
+  const arc = extractSceneArc("A montage of the city at dawn. People commute. Time passes.");
+  assert("no signals", arc.signals.length === 0);
+  assert("near-flat (all phases within 6 of each other)", Math.max(arc.opening, arc.heldBreath, arc.turn, arc.release) - Math.min(arc.opening, arc.heldBreath, arc.turn, arc.release) <= 6);
+  assert("certainty near zero (< 0.15)", arc.narrativeCertainty < 0.15);
+}
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 console.log(`\n${"─".repeat(50)}`);
 console.log(`Results: ${passed} passed, ${failed} failed`);
