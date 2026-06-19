@@ -249,6 +249,9 @@ interface AnalysisResult {
     inputHash: string;
     // Arc Match — present when a sceneArc was submitted with the job
     arcMatch?: ArcMatchResult;
+    // Song arc shape (for the Story Match graph in the UI)
+    songArcCurve?: number[];
+    songArcValenceCurve?: number[];
   };
   rightsProfile: {
     isOneStop: boolean | null;
@@ -467,6 +470,8 @@ async function processJob(jobId: string): Promise<void> {
           vector,
           inputHash: ranked.inputHash,
           arcMatch,
+          songArcCurve: songArc?.curve,
+          songArcValenceCurve: songArc?.valenceCurve,
         },
         rightsProfile: track.rightsProfile
           ? {

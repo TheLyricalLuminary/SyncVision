@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { API_BASE, type AnalysisResult, type SceneParams } from '../utils/apiClient';
+import { API_BASE, type AnalysisResult, type SceneParams, type SceneArc } from '../utils/apiClient';
 import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
+import { ArcMatchGraph } from '../components/ArcMatchGraph';
 
 // ── design tokens ────────────────────────────────────────────
 const C = {
@@ -449,12 +450,14 @@ type LocalRightsOverride = NonNullable<AnalysisResult['rightsProfile']> & { bloc
 function LeadCard({
   result,
   briefId: _briefId,
+  sceneArc,
   onRightsSaved,
   onShare,
   onMoveToConsidered,
 }: {
   result: AnalysisResult;
   briefId: BriefId;
+  sceneArc?: SceneArc | null;
   onRightsSaved?: (trackId: string, override: LocalRightsOverride) => void;
   onShare?: () => void;
   onMoveToConsidered?: (trackId: string) => void;
@@ -619,6 +622,19 @@ function LeadCard({
         </div>
       </div>
 
+      {/* ── Story Match graph ── */}
+      {sceneArc &&
+        result.confidenceScore.arcMatch &&
+        result.confidenceScore.songArcCurve &&
+        result.confidenceScore.songArcValenceCurve && (
+        <ArcMatchGraph
+          sceneArc={sceneArc}
+          songArcCurve={result.confidenceScore.songArcCurve}
+          songArcValenceCurve={result.confidenceScore.songArcValenceCurve}
+          arcMatch={result.confidenceScore.arcMatch}
+        />
+      )}
+
       {/* ── rights block ── */}
       {!rightsPanel ? (
         <RightsTable rp={localRightsProfile} trackId={result.track.id} onEditRights={() => setRightsPanel(true)} />
@@ -754,6 +770,11 @@ function MiniCard({
         <div style={{ fontFamily: SERIF, fontSize: 22, color: C.silver, lineHeight: 1, letterSpacing: '-0.01em' }}>{score}</div>
         {delta > 0 && (
           <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 9, color: 'rgba(167,139,250,0.6)', letterSpacing: '0.04em', marginTop: 3 }}>&minus;{delta}</div>
+        )}
+        {result.confidenceScore.arcMatch != null && (
+          <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 9, letterSpacing: '0.06em', marginTop: 4, color: result.confidenceScore.arcMatch.combinedScore >= 75 ? C.good : result.confidenceScore.arcMatch.combinedScore >= 50 ? C.amber : C.lavender }}>
+            arc {result.confidenceScore.arcMatch.combinedScore}
+          </div>
         )}
       </div>
     </div>
@@ -1058,12 +1079,13 @@ type ResultsScreenProps = {
   briefText: string;
   briefId: BriefId;
   sceneParams: SceneParams;
+  sceneArc?: SceneArc | null;
   results: AnalysisResult[];
   readOnly?: boolean;
   onBack?: () => void;
 };
 
-export function ResultsScreen({ briefText, briefId, sceneParams, results, readOnly, onBack }: ResultsScreenProps) {
+export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, results, readOnly, onBack }: ResultsScreenProps) {
   const [toast,                setToast]        = useState<string | null>(null);
   const [compareOpen,          setCompareOpen]  = useState(false);
   const [activeTab,            setActiveTab]    = useState<'shortlist' | 'considered' | 'archive'>('shortlist');
@@ -1353,6 +1375,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
               <LeadCard
                 result={lead}
                 briefId={briefId}
+                sceneArc={sceneArc}
                 onRightsSaved={(id, ov) => setLocalRightsOverrides(m => ({ ...m, [id]: ov }))}
                 onShare={() => void onCopyShareLink()}
                 onMoveToConsidered={() => setActiveTab('considered')}

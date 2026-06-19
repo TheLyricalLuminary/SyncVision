@@ -27,6 +27,8 @@ export type AnalysisResult = {
     vector: { scene: number; lyrics: number; audioSignal: number; rightsClarity: number };
     inputHash: string;
     arcMatch?: ArcMatchResult;
+    songArcCurve?: number[];
+    songArcValenceCurve?: number[];
   };
   rightsProfile: {
     isrc?: string | null;
