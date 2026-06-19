@@ -72,12 +72,19 @@ export async function startConsumer(signal?: AbortSignal): Promise<void> {
     return;
   }
 
-  // Create consumer group (MKSTREAM creates the stream if absent)
+  // Create consumer group (MKSTREAM creates the stream if absent).
+  // Swallow BUSYGROUP (group already exists) and any Redis command rejection
+  // (e.g. Upstash free-tier limit exceeded) — the consumer will simply not
+  // process messages, which is safe.
   try {
     await redis.xgroup("CREATE", STREAM, GROUP, "$", "MKSTREAM");
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (!msg.includes("BUSYGROUP")) throw e;
+    if (!msg.includes("BUSYGROUP")) {
+      console.warn(`[consumer] XGROUP CREATE skipped: ${msg}`);
+      redis.disconnect();
+      return;
+    }
   }
 
   try {
