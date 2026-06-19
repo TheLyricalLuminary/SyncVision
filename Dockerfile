@@ -46,7 +46,7 @@ RUN cd apps/backend && npm run build
 
 # ── Runtime ────────────────────────────────────────────────────────────────────
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=8080
 ENV AUDIO_STORAGE_PATH=/var/audio
 
 RUN mkdir -p /var/audio
@@ -54,7 +54,7 @@ RUN mkdir -p /var/audio
 COPY apps/backend/start.sh /app/apps/backend/start.sh
 RUN chmod +x /app/apps/backend/start.sh
 
-EXPOSE 3000
+EXPOSE 8080
 # start.sh runs `prisma migrate deploy` then starts the server.
 # Migrations run at container startup so DATABASE_URL is available.
 CMD ["/app/apps/backend/start.sh"]
