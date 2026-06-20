@@ -211,20 +211,93 @@ export function isUsingSeedEngine(): boolean {
   return USE_SEED_ENGINE;
 }
 
+// ── Client-side arc fallback ──────────────────────────────────────────────────
+
+// Canonical arc shapes per scene type (opening / held-breath / turn / release)
+// and a 4-point valence curve (negative = dark, positive = bright).
+const BRIEF_ARC_SHAPES: Record<string, {
+  opening: number; heldBreath: number; turn: number; release: number;
+  valence: [number, number, number, number];
+}> = {
+  'chase-tension':            { opening: 55, heldBreath: 68, turn: 82, release: 70, valence: [-8, -18, -30, -22] },
+  'action-combat':            { opening: 62, heldBreath: 76, turn: 90, release: 72, valence: [-5, -12, -25, -10] },
+  'heartbreak-separation':    { opening: 50, heldBreath: 38, turn: 24, release: 32, valence: [-15, -30, -50, -40] },
+  'romance-intimacy':         { opening: 35, heldBreath: 48, turn: 62, release: 58, valence: [20, 35, 55, 50] },
+  'emotional-resolution':     { opening: 30, heldBreath: 42, turn: 65, release: 75, valence: [-10, 5, 30, 45] },
+  'drama-confrontation':      { opening: 45, heldBreath: 60, turn: 75, release: 52, valence: [-5, -15, -28, -12] },
+  'suspense-dread':           { opening: 38, heldBreath: 52, turn: 68, release: 60, valence: [-18, -28, -40, -32] },
+  'horror-psychological':     { opening: 32, heldBreath: 42, turn: 58, release: 40, valence: [-30, -45, -55, -42] },
+  'quirky-offbeat':           { opening: 42, heldBreath: 48, turn: 55, release: 52, valence: [10, 18, 25, 22] },
+  'comedy-light':             { opening: 52, heldBreath: 60, turn: 68, release: 65, valence: [22, 32, 42, 38] },
+  'opening-closing-title':    { opening: 45, heldBreath: 52, turn: 58, release: 50, valence: [5, 10, 15, 10] },
+  'euphoria-celebration':     { opening: 62, heldBreath: 74, turn: 88, release: 82, valence: [30, 48, 65, 58] },
+  'cinematic-epic':           { opening: 55, heldBreath: 66, turn: 82, release: 76, valence: [10, 18, 28, 22] },
+  'corporate-aspirational':   { opening: 45, heldBreath: 56, turn: 70, release: 74, valence: [15, 25, 38, 42] },
+  'nature-pastoral':          { opening: 38, heldBreath: 42, turn: 44, release: 40, valence: [20, 25, 28, 24] },
+  'montage-transition':       { opening: 42, heldBreath: 52, turn: 62, release: 55, valence: [5, 12, 20, 15] },
+  'triumph-victory':          { opening: 48, heldBreath: 62, turn: 82, release: 90, valence: [10, 25, 52, 68] },
+  'grief-loss':               { opening: 45, heldBreath: 32, turn: 20, release: 28, valence: [-20, -38, -55, -45] },
+  'contemplative-reflective': { opening: 35, heldBreath: 40, turn: 42, release: 38, valence: [-5, 0, 5, 2] },
+  'urban-gritty':             { opening: 52, heldBreath: 62, turn: 70, release: 64, valence: [-10, -15, -20, -14] },
+  'sports-highlight':         { opening: 55, heldBreath: 70, turn: 84, release: 88, valence: [15, 28, 50, 62] },
+  'true-crime-investigative': { opening: 40, heldBreath: 52, turn: 68, release: 58, valence: [-12, -20, -32, -22] },
+  'faith-inspirational':      { opening: 42, heldBreath: 56, turn: 72, release: 82, valence: [15, 28, 48, 62] },
+  'kids-family':              { opening: 52, heldBreath: 60, turn: 70, release: 74, valence: [25, 35, 48, 52] },
+  'trailer-promo':            { opening: 58, heldBreath: 72, turn: 86, release: 80, valence: [5, 15, 28, 22] },
+  'period-historical':        { opening: 45, heldBreath: 56, turn: 66, release: 60, valence: [0, 8, 14, 10] },
+};
+
+const DEFAULT_SHAPE = BRIEF_ARC_SHAPES['montage-transition'];
+
+function clientFallbackArc(sceneText: string): SceneArc {
+  // Classify the brief text to pick the closest canonical arc shape.
+  const lower = sceneText.toLowerCase();
+  let bestId = 'montage-transition';
+  let bestHits = 0;
+
+  for (const [id, shape] of Object.entries(BRIEF_ARC_SHAPES)) {
+    // Simple keyword heuristic: count overlapping words from the brief id tokens.
+    const tokens = id.split('-');
+    const hits = tokens.filter(t => lower.includes(t) && t.length > 3).length;
+    if (hits > bestHits) { bestHits = hits; bestId = id; }
+  }
+
+  const s = BRIEF_ARC_SHAPES[bestId] ?? DEFAULT_SHAPE;
+  return {
+    opening: s.opening,
+    heldBreath: s.heldBreath,
+    turn: s.turn,
+    release: s.release,
+    curve: [s.opening, s.heldBreath, s.turn, s.release],
+    valenceCurve: [...s.valence],
+    phaseCount: 4,
+    narrativeCertainty: 0.38,
+    signals: [],
+    events: [],
+    category: bestId,
+    inputHash: `client-fallback-${bestId}`,
+    lexiconVersion: 'fallback-1.0',
+  };
+}
+
 /**
  * Extract a deterministic Scene Arc from a scene description.
- * Always hits the backend (deterministic engine, server-authoritative) — never
- * the seed engine. In dev the Vite proxy forwards /api to the backend.
+ * Tries the backend first; falls back to a client-side canonical arc shape
+ * so the Story Match graph always renders even without the backend.
  */
 export async function extractSceneArc(
   sceneText: string,
   sceneParams?: SceneParams,
 ): Promise<SceneArc> {
-  const res = await fetch(`${API_BASE}/api/arc/extract`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sceneText, sceneParams }),
-  });
-  if (!res.ok) throw new Error(`extractSceneArc failed: ${res.status}`);
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE}/api/arc/extract`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sceneText, sceneParams }),
+    });
+    if (!res.ok) throw new Error(`extractSceneArc failed: ${res.status}`);
+    return res.json() as Promise<SceneArc>;
+  } catch {
+    return clientFallbackArc(sceneText);
+  }
 }
