@@ -67,7 +67,7 @@ function rightsStateFromClearance(score: number, blockerSet: Set<string>): strin
   return 'BLOCKED';
 }
 
-function mapResponse(resp: DemoCheckResponse): AnalysisResult[] {
+function mapResponse(resp: DemoCheckResponse, briefId: string): AnalysisResult[] {
   const blockers = new Set(resp.clearance.blockers);
   const masterVerifiedAt = blockers.has('MASTER_PCT_UNSET')
     ? null
@@ -75,54 +75,53 @@ function mapResponse(resp: DemoCheckResponse): AnalysisResult[] {
   const audioFilePath = `/api/tracks/${resp.track.id}/audio`;
   const rightsState = rightsStateFromClearance(resp.clearance.score, blockers);
 
-  const results: AnalysisResult[] = resp.sceneFit.map((row) => {
-    const score = Math.round(row.matchScore);
-    return {
-      rank: 0,
-      track: {
-        id: resp.track.id,
-        title: resp.track.title,
-        artistName: null,
-        isrc: resp.track.isrc,
-        tempo: null,
-        tonalCharacter: null,
-        energyCharacter: null,
-        rmsEnergy: null,
-        spectralCentroid: null,
-        audioFilePath,
-      },
-      confidenceScore: {
-        score,
-        confidenceLabel: confidenceLabelFor(score),
-        explanation: row.narrative,
-        sceneFitBreakdown: score,
-        clearanceBreakdown: score,
-        lyricsBreakdown:   50,
-        signalBreakdown:   Math.round(score * 0.6),
-        dataConfidence: 50,
-        dataConfidenceVerified: 4,
-        dataConfidenceTotal: 8,
-        vector: { scene: score / 100, lyrics: 0.5, audioSignal: (score / 100) * 0.6, rightsClarity: 0.5 },
-        inputHash: '',
-      },
-      rightsProfile: {
-        isOneStop: null,
-        proAffiliation: null,
-        masterVerifiedAt,
-        masterOwnedBy: null,
-        publisherName: null,
-        writerName: null,
-        blockers: resp.clearance.blockers ?? [],
-        rightsState,
-      },
-    };
-  });
+  // Pick the sceneFit row that matches the user's brief, else take the best score.
+  const row =
+    resp.sceneFit.find(r => r.briefId === briefId) ??
+    resp.sceneFit.reduce((best, r) => (r.matchScore > best.matchScore ? r : best), resp.sceneFit[0]);
 
-  results.sort((a, b) => b.confidenceScore.score - a.confidenceScore.score);
-  results.forEach((r, i) => {
-    r.rank = i + 1;
-  });
-  return results;
+  if (!row) return [];
+
+  const score = Math.round(row.matchScore);
+  return [{
+    rank: 1,
+    track: {
+      id: resp.track.id,
+      title: resp.track.title,
+      artistName: null,
+      isrc: resp.track.isrc,
+      tempo: null,
+      tonalCharacter: null,
+      energyCharacter: null,
+      rmsEnergy: null,
+      spectralCentroid: null,
+      audioFilePath,
+    },
+    confidenceScore: {
+      score,
+      confidenceLabel: confidenceLabelFor(score),
+      explanation: row.narrative,
+      sceneFitBreakdown: score,
+      clearanceBreakdown: score,
+      lyricsBreakdown:   50,
+      signalBreakdown:   Math.round(score * 0.6),
+      dataConfidence: 50,
+      dataConfidenceVerified: 4,
+      dataConfidenceTotal: 8,
+      vector: { scene: score / 100, lyrics: 0.5, audioSignal: (score / 100) * 0.6, rightsClarity: 0.5 },
+      inputHash: '',
+    },
+    rightsProfile: {
+      isOneStop: null,
+      proAffiliation: null,
+      masterVerifiedAt,
+      masterOwnedBy: null,
+      publisherName: null,
+      writerName: null,
+      blockers: resp.clearance.blockers ?? [],
+      rightsState,
+    },
+  }];
 }
 
 // Deterministic hash for reproducible synthetic arcs (djb2 variant).
@@ -215,8 +214,9 @@ export const seedEngine = {
         job.error = `demo/check failed: ${res.status} ${bodyText.slice(0, 200)}`;
       } else {
         const data = (await res.json()) as DemoCheckResponse;
-        job.results = mapResponse(data).map(result => ({
+        job.results = mapResponse(data, args.briefId).map((result, i) => ({
           ...result,
+          rank: i + 1,
           confidenceScore: {
             ...result.confidenceScore,
             ...syntheticArcData(result.track.id, sceneArc, result.confidenceScore.score),
