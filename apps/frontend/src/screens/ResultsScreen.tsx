@@ -678,7 +678,8 @@ function LeadCard({
             mode="inspect"
             trackTitle={cleanTrackTitle(result.track.title)}
             artist={result.track.artistName ?? undefined}
-            sceneLabel="Arc Match™ — hover to inspect"
+            sceneLabel={isPlaying ? 'Arc Match™ — live sync' : 'Arc Match™ — play to sync · hover to inspect'}
+            playheadFraction={duration > 0 ? currentTime / duration : undefined}
           />
         </div>
       )}

@@ -420,7 +420,6 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                   scene={{ opening: adjustedPhases?.opening ?? sceneArc.opening, heldBreath: adjustedPhases?.heldBreath ?? sceneArc.heldBreath, turn: adjustedPhases?.turn ?? sceneArc.turn, release: adjustedPhases?.release ?? sceneArc.release }}
                   song={NEUTRAL_ARC}
                   mode="inspect"
-                  animate={false}
                   sceneLabel="Scene Arc — hover to inspect"
                 />
               </div>
