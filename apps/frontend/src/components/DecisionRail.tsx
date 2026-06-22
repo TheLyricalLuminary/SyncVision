@@ -107,32 +107,56 @@ function computeReplacementRisk(result: AnalysisResult, allResults: AnalysisResu
     const b = r.rightsProfile?.blockers?.length ?? 0;
     return s >= thisScore - 5 && b <= thisBlockers;
   }).length;
-  if (count === 0) return { label: 'LOW', count, sentence: 'No comparable alternatives in this search.' };
-  if (count <= 3)  return { label: 'MEDIUM', count, sentence: `${count} track${count > 1 ? 's' : ''} could substitute at similar fit.` };
-  return { label: 'HIGH', count, sentence: `${count} alternatives exist — this track is replaceable.` };
+  if (count === 0) return { label: 'LOW', count, sentence: 'No comparable tracks within 5 match points were identified in this search.' };
+  if (count <= 3)  return { label: 'MEDIUM', count, sentence: `${count} track${count > 1 ? 's' : ''} found within 5 match points with equal or better clearance.` };
+  return { label: 'HIGH', count, sentence: `${count} alternatives exist at similar fit — this track is replaceable.` };
 }
 
-type ActionTier = 'pursue' | 'fight' | 'alternative' | 'backup' | 'deprioritize';
+type ActionTier = 'pursue' | 'fight' | 'escalate' | 'alternative' | 'backup' | 'deprioritize';
 type ActionResult = { tier: ActionTier; label: string; sentence: string };
 
 function buildRecommendedAction(fitScore: number, clearScore: number, repLabel: ReplacementLabel): ActionResult {
+  const irreplaceable = repLabel === 'LOW';
+
   if (fitScore >= 75 && clearScore >= 70) {
     return { tier: 'pursue', label: 'Pursue', sentence: 'Strong fit, rights look workable — lead with this one.' };
   }
   if (fitScore >= 75 && clearScore >= 45) {
-    return repLabel === 'LOW'
-      ? { tier: 'fight', label: 'Fight for it', sentence: 'Best fit available. Clear the rights — there is no substitute.' }
+    return irreplaceable
+      ? { tier: 'fight', label: 'Fight for it', sentence: 'Best fit in the search. No substitute exists — clear the rights.' }
       : { tier: 'alternative', label: 'Find an alternative', sentence: 'Rights are shaky and alternatives exist — pressure-test a backup.' };
   }
   if (fitScore >= 55 && clearScore >= 70) {
     return { tier: 'backup', label: 'Keep as backup', sentence: 'Easy to clear but not the creative first choice — hold in reserve.' };
   }
+  // Low clearability — irreplaceable tracks deserve escalation, not abandonment
+  if (irreplaceable && fitScore >= 55) {
+    return { tier: 'escalate', label: 'Escalate rights', sentence: 'No comparable alternatives found. Investigate clearance before moving on.' };
+  }
+  if (fitScore >= 75) {
+    return { tier: 'alternative', label: 'Find an alternative', sentence: 'Rights are blocking this — comparable options exist in this search.' };
+  }
   return { tier: 'deprioritize', label: 'Deprioritise', sentence: 'Neither fit nor clearability justify the effort right now.' };
+}
+
+/** What specific steps would improve clearability — used to guide the supervisor. */
+function buildClearabilityActions(rp: AnalysisResult['rightsProfile']): string[] {
+  if (!rp) return ['Research track ownership and rights holders'];
+  const steps: string[] = [];
+  if (!rp.isrc)    steps.push('Resolve track fingerprint to get ISRC');
+  if (!rp.publisherName) steps.push('Identify publisher');
+  if (!rp.writerName)    steps.push('Confirm writer ownership');
+  if (!rp.isOneStop)     steps.push('Determine one-stop status');
+  if (!rp.workId)        steps.push('Match to music database (MusicBrainz)');
+  const blockers = rp.blockers ?? [];
+  if (blockers.length > 0) steps.push(`Resolve ${blockers.length} clearance blocker${blockers.length > 1 ? 's' : ''}: ${blockers.slice(0, 2).join(', ')}${blockers.length > 2 ? '…' : ''}`);
+  return steps;
 }
 
 const ACTION_COLOR: Record<ActionTier, string> = {
   pursue: '#4CAF82',
   fight: '#F5B544',
+  escalate: '#F5B544',
   alternative: '#F5A623',
   backup: '#9B93C4',
   deprioritize: '#E85A5A',
@@ -176,6 +200,7 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
   const [localRights,     setLocalRights]     = useState(result.rightsProfile);
   const [pendingAutoFill, setPendingAutoFill] = useState<AutoFill | undefined>(undefined);
   const [evidenceOpen,    setEvidenceOpen]    = useState(!hasArcData);
+  const [clearabilityOpen, setClearabilityOpen] = useState(false);
   const [audioError,      setAudioError]      = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -207,6 +232,7 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
     setRightsPanel(false);
     setLocalRights(result.rightsProfile);
     setEvidenceOpen(!hasArcData);
+    setClearabilityOpen(false);
   }, [result.track.id]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -266,13 +292,23 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
       border: `1px solid ${C.hairline}`,
     }}>
 
+      {/* ── rights unclear warning — shown prominently when blockers exist ── */}
+      {(localRights?.blockers?.length ?? 0) > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', marginBottom: 14, borderRadius: 10, background: 'rgba(232,90,90,0.10)', border: '1px solid rgba(232,90,90,0.35)' }}>
+          <span style={{ fontSize: 16, lineHeight: 1 }}>🔴</span>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.bad }}>Rights Unclear</div>
+            <div style={{ fontSize: 11, color: 'rgba(244,242,250,0.65)', marginTop: 2, fontFamily: SERIF, fontStyle: 'italic' }}>
+              {localRights?.blockers?.slice(0, 2).join(' · ')}{(localRights?.blockers?.length ?? 0) > 2 ? '…' : ''}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── track head ── */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.magenta }}>#{result.rank}</span>
-          {(localRights?.blockers?.length ?? 0) > 0 && (
-            <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 999, background: 'rgba(245,181,68,0.12)', border: '1px solid rgba(245,181,68,0.28)', color: C.amber }}>Rights unclear</span>
-          )}
         </div>
         <div style={{ fontFamily: SERIF, fontSize: 'clamp(18px,2.2vw,24px)', lineHeight: 1.1, letterSpacing: '-0.015em', color: C.silver }}>{title}</div>
         <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, color: C.lavender, marginTop: 3 }}>
@@ -452,51 +488,87 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
         const action       = buildRecommendedAction(fitScore, clearability.score, replacement.label);
         const actionColor  = ACTION_COLOR[action.tier];
         const dimStyle = (color: string): React.CSSProperties => ({
-          flex: 1, padding: '10px 12px', borderRadius: 10,
+          flex: 1, padding: '12px 14px', borderRadius: 12,
           background: `color-mix(in srgb, ${color} 8%, transparent)`,
           border: `1px solid color-mix(in srgb, ${color} 28%, transparent)`,
         });
+        const clearabilityActions = buildClearabilityActions(localRights);
         return (
           <div style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 8 }}>Decision Dimensions</div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 10 }}>Decision Dimensions</div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
               {/* Creative Fit */}
               <div style={dimStyle(C.magenta)}>
-                <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 4 }}>Creative Fit</div>
-                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 20, fontWeight: 700, color: C.silver, lineHeight: 1 }}>{fitScore}</div>
-                <div style={{ fontSize: 10, color: C.lavender, marginTop: 3 }}>/100 arc match</div>
+                <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Creative Fit</div>
+                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 24, fontWeight: 700, color: C.silver, lineHeight: 1 }}>{fitScore}</div>
+                <div style={{ fontSize: 10, color: C.lavender, marginTop: 4 }}>/100 arc match</div>
               </div>
               {/* Clearability */}
               <div style={dimStyle(CLEARABILITY_COLOR[clearability.band])}>
-                <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 4 }}>Clearability</div>
-                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 20, fontWeight: 700, color: CLEARABILITY_COLOR[clearability.band], lineHeight: 1 }}>{clearability.score}</div>
-                <div style={{ fontSize: 10, color: CLEARABILITY_COLOR[clearability.band], marginTop: 3, fontWeight: 600 }}>{clearability.band.toUpperCase()} confidence</div>
+                <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Clearability</div>
+                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 24, fontWeight: 700, color: CLEARABILITY_COLOR[clearability.band], lineHeight: 1 }}>{clearability.score}</div>
+                <div style={{ fontSize: 10, color: CLEARABILITY_COLOR[clearability.band], marginTop: 4, fontWeight: 600 }}>{clearability.band.toUpperCase()} confidence</div>
               </div>
               {/* Replacement Risk */}
               <div style={dimStyle(REPLACEMENT_COLOR[replacement.label])}>
-                <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 4 }}>Alternatives</div>
-                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 20, fontWeight: 700, color: REPLACEMENT_COLOR[replacement.label], lineHeight: 1 }}>{replacement.count}</div>
-                <div style={{ fontSize: 10, color: REPLACEMENT_COLOR[replacement.label], marginTop: 3, fontWeight: 600 }}>{replacement.label} risk</div>
+                <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Alternatives</div>
+                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 24, fontWeight: 700, color: REPLACEMENT_COLOR[replacement.label], lineHeight: 1 }}>{replacement.count}</div>
+                <div style={{ fontSize: 10, color: REPLACEMENT_COLOR[replacement.label], marginTop: 4, fontWeight: 600 }}>{replacement.label} risk</div>
               </div>
             </div>
-            {/* Recommended Action */}
-            <div style={{ padding: '11px 14px', borderRadius: 10, background: `color-mix(in srgb, ${actionColor} 10%, rgba(0,0,0,0.3))`, border: `1px solid color-mix(in srgb, ${actionColor} 35%, transparent)`, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 11, fontWeight: 700, color: actionColor, whiteSpace: 'nowrap' }}>{action.label}</div>
-              <div style={{ width: 1, height: 24, background: `color-mix(in srgb, ${actionColor} 25%, transparent)`, flexShrink: 0 }} />
-              <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, lineHeight: 1.4, color: C.silver }}>{action.sentence}</div>
+
+            {/* Recommended Action — prominent */}
+            <div style={{ padding: '14px 16px', borderRadius: 12, background: `color-mix(in srgb, ${actionColor} 12%, rgba(0,0,0,0.35))`, border: `1.5px solid color-mix(in srgb, ${actionColor} 40%, transparent)`, marginBottom: 8 }}>
+              <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 13, fontWeight: 700, color: actionColor, letterSpacing: '0.06em', marginBottom: 5 }}>{action.label.toUpperCase()}</div>
+              <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: C.silver }}>{action.sentence}</div>
             </div>
-            {/* Clearability rationale */}
-            <div style={{ marginTop: 7, fontFamily: SERIF, fontStyle: 'italic', fontSize: 11, color: 'rgba(155,147,196,0.6)', lineHeight: 1.4 }}>
-              {clearability.rationale} {replacement.sentence}
+
+            {/* Alternatives + clearability sentences */}
+            <div style={{ marginBottom: 12, fontFamily: SERIF, fontStyle: 'italic', fontSize: 11, color: 'rgba(155,147,196,0.65)', lineHeight: 1.55 }}>
+              {replacement.sentence}
             </div>
+
+            {/* "What would change this?" — shown when clearability is medium or low */}
+            {clearabilityActions.length > 0 && (
+              <div style={{ borderRadius: 10, border: `1px solid ${C.hairline}`, overflow: 'hidden' }}>
+                <button
+                  type="button"
+                  onClick={() => setClearabilityOpen(v => !v)}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(7,4,26,0.45)', border: 'none', cursor: 'pointer', color: C.lavender }}
+                >
+                  <span style={{ fontSize: 11, fontStyle: 'italic', fontFamily: SERIF, color: 'rgba(155,147,196,0.85)' }}>
+                    Why is clearability only {clearability.score}%?
+                  </span>
+                  <span style={{ fontSize: 13, transition: 'transform 0.2s', display: 'inline-block', transform: clearabilityOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
+                </button>
+                {clearabilityOpen && (
+                  <div style={{ padding: '12px 14px 14px', background: 'rgba(7,4,26,0.35)' }}>
+                    <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 10 }}>What would change this recommendation?</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                      {clearabilityActions.map((step, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+                          <div style={{ width: 18, height: 18, borderRadius: 5, border: '1.5px solid rgba(123,112,178,0.35)', flexShrink: 0, marginTop: 1 }} />
+                          <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: C.silver, lineHeight: 1.4 }}>{step}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRightsPanel(true)}
+                      style={{ marginTop: 12, width: '100%', padding: '9px', borderRadius: 8, background: 'rgba(123,112,178,0.10)', border: `1px solid ${C.hairlineStrong}`, color: C.lavender, fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em' }}
+                    >
+                      Update rights data →
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       })()}
 
-      {/* ── rights block ── */}
-      {!rightsPanel ? (
-        <RightsTable rp={localRights} trackId={result.track.id} onEditRights={() => setRightsPanel(true)} />
-      ) : (
+      {/* ── rights form (only shown when editing) ── */}
+      {rightsPanel && (
         <RightsPanel
           trackId={result.track.id}
           isrc={localRights?.isrc ?? result.track.isrc}
