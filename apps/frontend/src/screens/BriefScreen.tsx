@@ -2,6 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { classifyBrief, BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
 import { extractSceneArc, type SceneParams, type SceneArc, type ArcPhases } from '../utils/apiClient';
 import { SceneArcInspector } from '../components/SceneArcInspector';
+import { ArcMatch } from '../components/ArcMatch';
+import type { ArcSegments } from '../engine/arcMatch';
+
+const NEUTRAL_ARC: ArcSegments = { opening: 50, heldBreath: 50, turn: 50, release: 50 };
 
 const C = {
   purple:        '#F5A623',
@@ -410,6 +414,16 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
           {/* Scene Arc inspector — the deterministic emotional shape */}
           <div className="sv-arc">
             <SceneArcInspector arc={sceneArc} loading={arcLoading} onAdjustedChange={setAdjustedPhases} />
+            {sceneArc && (
+              <div style={{ marginTop: 12 }}>
+                <ArcMatch
+                  scene={{ opening: adjustedPhases?.opening ?? sceneArc.opening, heldBreath: adjustedPhases?.heldBreath ?? sceneArc.heldBreath, turn: adjustedPhases?.turn ?? sceneArc.turn, release: adjustedPhases?.release ?? sceneArc.release }}
+                  song={NEUTRAL_ARC}
+                  mode="inspect"
+                  sceneLabel="Scene Arc — hover to inspect"
+                />
+              </div>
+            )}
           </div>
 
           {/* Pacing */}

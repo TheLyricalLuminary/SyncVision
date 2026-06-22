@@ -47,6 +47,12 @@ export interface ArcMatchProps {
   sceneLabel?: string;
   /** Play the draw-in + count-up on mount. @default true */
   animate?: boolean;
+  /**
+   * Audio-driven playhead position, 0–1.
+   * When provided the playhead scrubs in real-time with the audio;
+   * hover interaction is suppressed while this is set.
+   */
+  playheadFraction?: number;
   className?: string;
 }
 
@@ -124,6 +130,7 @@ export function ArcMatch({
   artist,
   sceneLabel,
   animate = true,
+  playheadFraction,
   className,
 }: ArcMatchProps) {
   const uid = useId().replace(/:/g, '');
@@ -183,9 +190,12 @@ export function ArcMatch({
   const shownScore = Math.round(finalScore * progress);
 
   // ── Inspect playhead ────────────────────────────────────────────────────────
+  // Audio-driven (playheadFraction prop) takes priority over hover.
   const svgRef = useRef<SVGSVGElement>(null);
-  const [head, setHead] = useState<number | null>(null); // fraction 0..1, null = rest
-  const headFrac = head ?? 0.62; // rests near the turn
+  const [hoverHead, setHoverHead] = useState<number | null>(null);
+  // When audio drives the playhead, suppress hover; otherwise use hover or rest near the turn.
+  const headFrac = playheadFraction != null ? playheadFraction : (hoverHead ?? 0.62);
+  const showPlayhead = isInspect || playheadFraction != null;
   const headIdx = Math.round(headFrac * SAMPLES);
   const headScene = scenePts[headIdx];
   const headSong = songPts[headIdx];
@@ -199,11 +209,12 @@ export function ArcMatch({
   }, [headFrac, scene, song]);
 
   const onPointer = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isInspect || !svgRef.current) return;
+    // Hover is suppressed when audio drives the playhead
+    if (playheadFraction != null || !isInspect || !svgRef.current) return;
     const r = svgRef.current.getBoundingClientRect();
     const xView = ((e.clientX - r.left) / r.width) * VW;
     const f = (xView - PAD.left) / PLOT_W;
-    setHead(Math.max(0, Math.min(1, f)));
+    setHoverHead(Math.max(0, Math.min(1, f)));
   };
 
   return (
@@ -277,7 +288,7 @@ export function ArcMatch({
         aria-label={`Arc match ${finalScore} of 100 — ${ARC_BAND_LABEL[band]}. ${ARC_BAND_SENTENCE[band]}`}
         style={{ display: 'block', cursor: isInspect ? 'col-resize' : 'default', touchAction: 'none' }}
         onPointerMove={onPointer}
-        onPointerLeave={() => setHead(null)}
+        onPointerLeave={() => setHoverHead(null)}
       >
         <defs>
           <linearGradient id={`scene-${uid}`} x1="0" y1="0" x2="1" y2="0">
@@ -361,8 +372,8 @@ export function ArcMatch({
           );
         })}
 
-        {/* inspect playhead */}
-        {isInspect && headScene && headSong && (
+        {/* inspect / audio-driven playhead */}
+        {showPlayhead && headScene && headSong && (
           <g>
             <line
               x1={headScene.x}

@@ -115,9 +115,11 @@ type Props = {
   songArcCurve: number[];      // [0–100] × 4
   songArcValenceCurve: number[]; // [−100…+100] × 4
   arcMatch: ArcMatchResult;
+  /** 0–1 audio-driven playhead; when set a vertical scrub line is shown */
+  playheadFraction?: number;
 };
 
-export function ArcMatchGraph({ sceneArc, songArcCurve, arcMatch }: Props) {
+export function ArcMatchGraph({ sceneArc, songArcCurve, arcMatch, playheadFraction }: Props) {
   const sceneYs = [sceneArc.opening, sceneArc.heldBreath, sceneArc.turn, sceneArc.release].map(mapY);
   const songYs  = songArcCurve.slice(0, 4).map(mapY);
 
@@ -217,6 +219,24 @@ export function ArcMatchGraph({ sceneArc, songArcCurve, arcMatch }: Props) {
             <circle cx={mapX(i)} cy={songYs[i]}  r="3" fill={C.amber}   />
           </g>
         ))}
+
+        {/* audio-driven playhead */}
+        {playheadFraction != null && (() => {
+          const px = PAD_L + playheadFraction * PLOT_W;
+          // interpolate Y on each curve at this fraction (piecewise linear between phases)
+          const seg = playheadFraction * 3; // 0..3
+          const idx = Math.min(Math.floor(seg), 2);
+          const t = seg - idx;
+          const sceneY = sceneYs[idx] + (sceneYs[idx + 1] - sceneYs[idx]) * t;
+          const songY  = songYs[idx]  + (songYs[idx + 1]  - songYs[idx])  * t;
+          return (
+            <g>
+              <line x1={px} y1={PAD_T} x2={px} y2={H - PAD_B} stroke="rgba(245,181,68,0.55)" strokeWidth="1.5" />
+              <circle cx={px} cy={sceneY} r="3.5" fill={C.magenta} />
+              <circle cx={px} cy={songY}  r="3.5" fill={C.amber}   />
+            </g>
+          );
+        })()}
       </svg>
 
       {/* phase labels */}

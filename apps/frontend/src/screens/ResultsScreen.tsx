@@ -1097,6 +1097,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
               {selectedResult && (
                 <DecisionRail
                   result={selectedResult}
+                  allResults={results}
                   sceneArc={sceneArc}
                   onShare={() => void onCopyShareLink()}
                   onRightsSaved={(id, ov) => setLocalRightsOverrides(m => ({ ...m, [id]: ov }))}
