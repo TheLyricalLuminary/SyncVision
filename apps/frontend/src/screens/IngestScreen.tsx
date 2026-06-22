@@ -5,13 +5,11 @@ export type IngestedTrack = {
   id: string;
   filename: string;
   serverFilename?: string;
-  source: 'file' | 'url' | 'isrc';
+  source: 'file' | 'url';
   status: 'uploading' | 'resolving' | 'ready' | 'error';
   progress: number;
   errorMessage?: string;
 };
-
-const ISRC_FORMAT = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
 type IngestScreenProps = {
   creditBalance: number;
@@ -47,9 +45,7 @@ const BG    = `radial-gradient(900px 600px at 12% 8%, rgba(245,166,35,0.14), tra
 
 export function IngestScreen({ creditBalance, onBack, onAnalyze }: IngestScreenProps) {
   const [tracks, setTracks]         = useState<IngestedTrack[]>([]);
-  const [isrcValue, setIsrcValue]   = useState('');
   const [dropError, setDropError]   = useState<string | null>(null);
-  const [isrcError, setIsrcError]   = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef    = useRef<HTMLInputElement>(null);
   const animationFrames = useRef<Map<string, number>>(new Map());
@@ -123,16 +119,6 @@ const uploadFile = (trackId: string, file: File) => {
     });
   };
 
-const handleAddIsrc = () => {
-    const value = isrcValue.trim().toUpperCase();
-    if (!ISRC_FORMAT.test(value)) { setIsrcError('Not a valid ISRC format.'); return; }
-    if (tracks.some(t => t.filename === value)) { setIsrcError('This ISRC is already in the queue.'); return; }
-    setIsrcError(null);
-    const id = `isrc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    setTracks(prev => [...prev, { id, filename: value, source: 'isrc', status: 'ready', progress: 100 }]);
-    setIsrcValue('');
-  };
-
   const removeTrack = (id: string) => {
     const handle = animationFrames.current.get(id);
     if (handle != null) { window.clearTimeout(handle); animationFrames.current.delete(id); }
@@ -150,13 +136,6 @@ const handleAddIsrc = () => {
   const readyCount = tracks.filter(t => t.status === 'ready').length;
   const canAnalyze = readyCount > 0 && creditBalance >= readyCount;
   const insufficientCredits = readyCount > 0 && creditBalance < readyCount;
-
-  const addBtnStyle: React.CSSProperties = {
-    padding: '0 14px', borderRadius: 11,
-    background: `rgba(123,112,178,0.10)`, border: `1px solid ${C.hairlineStrong}`,
-    color: C.silver, fontSize: 11, fontWeight: 700, letterSpacing: '0.12em',
-    whiteSpace: 'nowrap', cursor: 'pointer', fontFamily: SANS,
-  };
 
   return (
     <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: BG }}>
@@ -239,7 +218,7 @@ const handleAddIsrc = () => {
             </h1>
           </div>
           <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(13px,1.3vw,16px)', color: 'rgba(123,112,178,0.7)', marginLeft: 'auto' }}>
-            Audio files or ISRCs — we'll handle the rest.
+            Audio files — we'll handle the rest.
           </div>
         </div>
 
@@ -276,32 +255,12 @@ const handleAddIsrc = () => {
                 or <span style={{ color: C.silver, textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: C.magenta }}>browse</span> from your device
               </div>
               <div style={{ marginTop: 14, fontSize: 9, letterSpacing: '0.22em', color: 'rgba(123,112,178,0.55)', textTransform: 'uppercase', fontFamily: '"JetBrains Mono", monospace' }}>
-                MP3 · ISRC
+                MP3
               </div>
               <input ref={fileInputRef} type="file" accept={ACCEPTED_TYPES.join(',')} multiple style={{ display: 'none' }} onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
             </div>
             {dropError && <div style={{ fontSize: 11, color: C.amber, marginTop: 8 }}>{dropError}</div>}
 
-            {/* divider-or */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '18px 0 14px', fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(123,112,178,0.55)' }}>
-              <div style={{ flex: 1, height: 1, background: C.hairline }} />
-              <span>Or paste an ISRC</span>
-              <div style={{ flex: 1, height: 1, background: C.hairline }} />
-            </div>
-
-            {/* ISRC input */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(0,0,0,0.28)', border: `1px solid ${C.hairline}`, borderRadius: 14, padding: '4px 4px 4px 14px' }}>
-              <input
-                type="text"
-                value={isrcValue}
-                onChange={e => setIsrcValue(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleAddIsrc(); }}
-                placeholder="e.g. QZRP52418558"
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: C.silver, fontFamily: '"JetBrains Mono", monospace', fontSize: 12, letterSpacing: '0.04em', padding: '10px 0', minWidth: 0 }}
-              />
-              <button type="button" onClick={handleAddIsrc} style={{ ...addBtnStyle, borderRadius: 10, padding: '9px 14px', minHeight: 44 }}>ADD</button>
-            </div>
-            {isrcError && <div style={{ fontSize: 11, color: C.amber, marginTop: 6 }}>{isrcError}</div>}
           </section>
 
           {/* Queue card */}
@@ -314,12 +273,12 @@ const handleAddIsrc = () => {
               <div className="sv-ing-track-list">
                 {tracks.map(t => {
                   const isUrl = t.source === 'url';
-                  const iconBg = t.source === 'isrc' ? 'rgba(52,211,153,0.16)' : isUrl ? 'rgba(219,39,119,0.20)' : 'rgba(245,166,35,0.20)';
-                  const iconColor = t.source === 'isrc' ? C.good : isUrl ? '#f9a8d4' : C.lavender;
+                  const iconBg = isUrl ? 'rgba(219,39,119,0.20)' : 'rgba(245,166,35,0.20)';
+                  const iconColor = isUrl ? '#f9a8d4' : C.lavender;
                   return (
                     <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, background: 'rgba(123,112,178,0.05)', border: `1px solid ${C.hairline}` }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: iconBg, display: 'grid', placeItems: 'center', fontSize: 9, letterSpacing: '0.06em', fontWeight: 700, color: iconColor, fontFamily: '"JetBrains Mono", monospace', flexShrink: 0 }}>
-                        {t.source === 'isrc' ? 'ISRC' : isUrl ? 'URL' : 'MP3'}
+                        {isUrl ? 'URL' : 'MP3'}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, color: C.silver, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.005em' }}>{t.filename}</div>
