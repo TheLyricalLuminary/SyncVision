@@ -298,35 +298,85 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
         </div>
       </div>
 
-      {/* ── arc match hero ── */}
-      {arcMatch && (
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 4 }}>
-          <div style={{ fontFamily: SERIF, fontSize: 'clamp(52px,7vw,72px)', lineHeight: 0.85, letterSpacing: '-0.04em', color: matchColor }}>
-            {arcMatch.combinedScore}
-            <span style={{ fontSize: '0.28em', color: 'rgba(167,139,250,0.5)', letterSpacing: '-0.01em', marginLeft: 4, verticalAlign: '0.6em' }}>/100</span>
-          </div>
-          <div>
-            <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender }}>Arc Match</div>
-            <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 10, color: 'rgba(155,147,196,0.6)', marginTop: 3 }}>
-              shape {arcMatch.magnitudeScore} · val {arcMatch.valenceScore}
-            </div>
-          </div>
+      {/* ── player ── */}
+      <div className="no-print" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderRadius: hasArcData && sceneArc ? '12px 12px 0 0' : 12, background: 'rgba(0,0,0,0.32)', border: `1px solid ${C.hairline}`, borderBottom: hasArcData && sceneArc ? 'none' : `1px solid ${C.hairline}` }}>
+        <button type="button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause' : 'Play'} style={{ width: 36, height: 36, borderRadius: '50%', background: `linear-gradient(135deg,${C.purple},${C.magenta})`, border: 0, color: 'white', display: 'grid', placeItems: 'center', cursor: 'pointer', boxShadow: `0 8px 18px -8px rgba(245,166,35,0.55)${isPlaying ? ', 0 0 0 3px rgba(245,166,35,0.22)' : ''}`, flexShrink: 0, transition: 'box-shadow 0.2s' }}>
+          {isPlaying
+            ? <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect x="1.5" y="1" width="2.5" height="8"/><rect x="6" y="1" width="2.5" height="8"/></svg>
+            : <svg width="12" height="12" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1 L8 5 L2 9 Z"/></svg>
+          }
+        </button>
+        <div
+          style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, height: 32, cursor: 'pointer' }}
+          onPointerDown={e => {
+            const el = e.currentTarget;
+            const seek = (ev: PointerEvent) => {
+              const r = el.getBoundingClientRect();
+              const ratio = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+              if (audioRef.current) audioRef.current.currentTime = ratio * (audioRef.current.duration || 0);
+            };
+            seek(e.nativeEvent);
+            const move = (ev: PointerEvent) => seek(ev);
+            const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+            window.addEventListener('pointermove', move);
+            window.addEventListener('pointerup', up);
+          }}
+        >
+          {WAVE.map((h, i) => {
+            const played = duration > 0 && (i / WAVE.length) < (currentTime / duration);
+            return <span key={i} style={{ display: 'block', flex: 1, minWidth: 2, height: `${h}%`, borderRadius: 2, background: played ? `linear-gradient(180deg,${C.magenta},${C.purple})` : 'rgba(167,139,250,0.28)', transition: 'background 0.1s' }} />;
+          })}
         </div>
-      )}
+        <span style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 10, color: C.lavender, letterSpacing: '0.04em', flexShrink: 0 }}>{timeLabel}</span>
+      </div>
+      {playbackMsg && !hasAudio && <p style={{ fontSize: 11, color: C.lavender, marginTop: 5, fontStyle: 'italic' }}>Audio playback coming soon.</p>}
+      {audioError && <p style={{ fontSize: 11, color: '#E85A5A', marginTop: 5, fontFamily: '"JetBrains Mono",monospace' }}>{audioError}</p>}
 
-      {/* ── Story Match graph ── */}
+      {/* ── arc match hero + Story Match graph (directly below player) ── */}
       {hasArcData && sceneArc ? (
-        <ArcMatchGraph
-          sceneArc={sceneArc}
-          songArcCurve={result.confidenceScore.songArcCurve!}
-          songArcValenceCurve={result.confidenceScore.songArcValenceCurve!}
-          arcMatch={arcMatch!}
-          playheadFraction={duration > 0 ? currentTime / duration : undefined}
-        />
+        <div style={{ border: `1px solid ${C.hairline}`, borderRadius: '0 0 14px 14px', overflow: 'hidden', marginBottom: 4 }}>
+          {arcMatch && (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '10px 16px 0', background: 'rgba(7,4,26,0.45)' }}>
+              <div style={{ fontFamily: SERIF, fontSize: 'clamp(36px,5vw,52px)', lineHeight: 0.85, letterSpacing: '-0.04em', color: matchColor }}>
+                {arcMatch.combinedScore}
+                <span style={{ fontSize: '0.28em', color: 'rgba(167,139,250,0.5)', letterSpacing: '-0.01em', marginLeft: 4, verticalAlign: '0.6em' }}>/100</span>
+              </div>
+              <div>
+                <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender }}>Arc Match {isPlaying && <span style={{ color: C.good, marginLeft: 4 }}>● live</span>}</div>
+                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 10, color: 'rgba(155,147,196,0.6)', marginTop: 3 }}>
+                  shape {arcMatch.magnitudeScore} · val {arcMatch.valenceScore}
+                </div>
+              </div>
+            </div>
+          )}
+          <ArcMatchGraph
+            sceneArc={sceneArc}
+            songArcCurve={result.confidenceScore.songArcCurve!}
+            songArcValenceCurve={result.confidenceScore.songArcValenceCurve!}
+            arcMatch={arcMatch!}
+            playheadFraction={duration > 0 ? currentTime / duration : undefined}
+          />
+        </div>
       ) : (
-        <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: 'rgba(155,147,196,0.4)', margin: '12px 0' }}>
-          {sceneArc ? 'No timeline data for this track.' : 'Extract a scene arc to see the Story Match overlay.'}
-        </p>
+        <>
+          {arcMatch && (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 4, marginTop: 12 }}>
+              <div style={{ fontFamily: SERIF, fontSize: 'clamp(52px,7vw,72px)', lineHeight: 0.85, letterSpacing: '-0.04em', color: matchColor }}>
+                {arcMatch.combinedScore}
+                <span style={{ fontSize: '0.28em', color: 'rgba(167,139,250,0.5)', letterSpacing: '-0.01em', marginLeft: 4, verticalAlign: '0.6em' }}>/100</span>
+              </div>
+              <div>
+                <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender }}>Arc Match</div>
+                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 10, color: 'rgba(155,147,196,0.6)', marginTop: 3 }}>
+                  shape {arcMatch.magnitudeScore} · val {arcMatch.valenceScore}
+                </div>
+              </div>
+            </div>
+          )}
+          <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: 'rgba(155,147,196,0.4)', margin: '12px 0' }}>
+            {sceneArc ? 'No timeline data for this track.' : 'Extract a scene arc to see the Story Match overlay.'}
+          </p>
+        </>
       )}
 
       {/* ── supporting evidence (collapsible) ── */}
@@ -469,40 +519,6 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
           onClose={() => { setRightsPanel(false); setPendingAutoFill(undefined); }}
         />
       )}
-
-      {/* ── player ── */}
-      <div className="no-print" style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderRadius: 12, background: 'rgba(0,0,0,0.32)', border: `1px solid ${C.hairline}` }}>
-        <button type="button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause' : 'Play'} style={{ width: 36, height: 36, borderRadius: '50%', background: `linear-gradient(135deg,${C.purple},${C.magenta})`, border: 0, color: 'white', display: 'grid', placeItems: 'center', cursor: 'pointer', boxShadow: `0 8px 18px -8px rgba(245,166,35,0.55)${isPlaying ? ', 0 0 0 3px rgba(245,166,35,0.22)' : ''}`, flexShrink: 0, transition: 'box-shadow 0.2s' }}>
-          {isPlaying
-            ? <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect x="1.5" y="1" width="2.5" height="8"/><rect x="6" y="1" width="2.5" height="8"/></svg>
-            : <svg width="12" height="12" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1 L8 5 L2 9 Z"/></svg>
-          }
-        </button>
-        <div
-          style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, height: 32, cursor: 'pointer' }}
-          onPointerDown={e => {
-            const el = e.currentTarget;
-            const seek = (ev: PointerEvent) => {
-              const r = el.getBoundingClientRect();
-              const ratio = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
-              if (audioRef.current) audioRef.current.currentTime = ratio * (audioRef.current.duration || 0);
-            };
-            seek(e.nativeEvent);
-            const move = (ev: PointerEvent) => seek(ev);
-            const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-            window.addEventListener('pointermove', move);
-            window.addEventListener('pointerup', up);
-          }}
-        >
-          {WAVE.map((h, i) => {
-            const played = duration > 0 && (i / WAVE.length) < (currentTime / duration);
-            return <span key={i} style={{ display: 'block', flex: 1, minWidth: 2, height: `${h}%`, borderRadius: 2, background: played ? `linear-gradient(180deg,${C.magenta},${C.purple})` : 'rgba(167,139,250,0.28)', transition: 'background 0.1s' }} />;
-          })}
-        </div>
-        <span style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 10, color: C.lavender, letterSpacing: '0.04em', flexShrink: 0 }}>{timeLabel}</span>
-      </div>
-      {playbackMsg && !hasAudio && <p style={{ fontSize: 11, color: C.lavender, marginTop: 5, fontStyle: 'italic' }}>Audio playback coming soon.</p>}
-      {audioError && <p style={{ fontSize: 11, color: '#E85A5A', marginTop: 5, fontFamily: '"JetBrains Mono",monospace' }}>{audioError}</p>}
 
       {/* ── actions ── */}
       <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
