@@ -71,7 +71,8 @@ export function SceneArcInspector({ arc, loading, onAdjustedChange }: Props) {
   }, [adjusted]);
 
   const certaintyPct = arc ? Math.round(arc.narrativeCertainty * 100) : 0;
-  const hasArc = !!arc && arc.signals.length > 0;
+  const hasArc = !!arc;
+  const hasSignals = !!arc && arc.events.length > 0;
 
   return (
     <div
@@ -161,32 +162,34 @@ export function SceneArcInspector({ arc, loading, onAdjustedChange }: Props) {
             </button>
           )}
 
-          {/* detected signals */}
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.hairline}` }}>
-            <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(123,112,178,0.7)', marginBottom: 8 }}>
-              Detected Signals
+          {/* detected signals — only when backend-sourced signals exist */}
+          {hasSignals && (
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.hairline}` }}>
+              <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(123,112,178,0.7)', marginBottom: 8 }}>
+                Detected Signals
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {arc!.events.map((ev) => (
+                  <span
+                    key={ev.id}
+                    title={`matched “${ev.matched}” · sentence ${ev.sentence}`}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px',
+                      borderRadius: 999, fontSize: 11, fontWeight: 600, letterSpacing: '0.01em',
+                      color: C.silver, background: 'rgba(76,175,130,0.10)', border: '1px solid rgba(76,175,130,0.22)',
+                      cursor: 'default',
+                    }}
+                  >
+                    <span style={{ color: C.good, fontSize: 11 }}>✓</span>
+                    {ev.label}
+                  </span>
+                ))}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 10, fontStyle: 'italic', fontFamily: SERIF, color: 'rgba(123,112,178,0.55)' }}>
+                Every value traces to a rule. Hover a signal to see what matched.
+              </div>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {arc!.events.map((ev) => (
-                <span
-                  key={ev.id}
-                  title={`matched “${ev.matched}” · sentence ${ev.sentence}`}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px',
-                    borderRadius: 999, fontSize: 11, fontWeight: 600, letterSpacing: '0.01em',
-                    color: C.silver, background: 'rgba(76,175,130,0.10)', border: '1px solid rgba(76,175,130,0.22)',
-                    cursor: 'default',
-                  }}
-                >
-                  <span style={{ color: C.good, fontSize: 11 }}>✓</span>
-                  {ev.label}
-                </span>
-              ))}
-            </div>
-            <div style={{ marginTop: 8, fontSize: 10, fontStyle: 'italic', fontFamily: SERIF, color: 'rgba(123,112,178,0.55)' }}>
-              Every value traces to a rule. Hover a signal to see what matched.
-            </div>
-          </div>
+          )}
         </>
       )}
     </div>

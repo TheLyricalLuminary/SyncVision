@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
 import { LockScreen, isAuthenticated } from './components/LockScreen';
+import { NavRail } from './components/NavRail';
+import { MobileTopBar } from './components/MobileTopBar';
+import { MobileTabBar } from './components/MobileTabBar';
+import type { MobileTab } from './components/MobileTabBar';
 import { BriefScreen } from './screens/BriefScreen';
 import { IngestScreen } from './screens/IngestScreen';
 import { AnalyzingScreen } from './screens/AnalyzingScreen';
@@ -7,6 +11,9 @@ import {
   ResultsScreen,
   decodeSharePayload,
 } from './screens/ResultsScreen';
+import { ShortlistsScreen } from './screens/ShortlistsScreen';
+import { RightsScreen }     from './screens/RightsScreen';
+import { LibraryScreen }    from './screens/LibraryScreen';
 import ShareView from './pages/ShareView';
 import DesignSystemShowcase from './screens/DesignSystemShowcase';
 import { useAnalysisJob } from './hooks/useAnalysisJob';
@@ -16,10 +23,11 @@ import type { AnalysisResult, SceneParams, SceneArc } from './utils/apiClient';
 import { API_BASE } from './utils/apiClient';
 import type { DecisionPacket } from './pages/ShareView';
 
-type View = 'brief' | 'ingest' | 'analyzing' | 'results';
+// The flow sub-view (brief → ingest → analyzing → results) lives under the
+// "brief" rail item while in-flight, then moves to "workspace" on completion.
+type FlowStep = 'brief' | 'ingest' | 'analyzing' | 'results';
+type NavView  = 'workspace' | 'brief' | 'shortlists' | 'rights' | 'library' | 'director';
 
-// A cuid2/cuid looks like: starts with a letter, 24–26 alphanum chars, no '=' padding.
-// Legacy base64 payloads are always 100+ chars and contain '+', '/', '='.
 function isPacketId(s: string): boolean {
   return s.length < 60 && /^[a-z][a-z0-9]+$/.test(s);
 }
@@ -37,15 +45,8 @@ const DEFAULT_SCENE_PARAMS: SceneParams = {
   sceneLengthSec: null,
 };
 
-// Share links bypass the lock screen — supervisors receive them without accounts.
-function isShareRoute(): boolean {
-  return /^#share=/.test(window.location.hash);
-}
-
-// The Design System 2.0 reference surface — a non-sensitive showcase at #design.
-function isDesignRoute(): boolean {
-  return /^#\/?design\b/.test(window.location.hash);
-}
+function isShareRoute(): boolean  { return /^#share=/.test(window.location.hash); }
+function isDesignRoute(): boolean { return /^#\/?design\b/.test(window.location.hash); }
 
 function App() {
   const [shareRoute, setShareRoute] = useState<ShareRoute>({ type: 'none' });
@@ -53,11 +54,12 @@ function App() {
     isShareRoute() || isAuthenticated(),
   );
 
-  const [view, setView] = useState<View>('brief');
+  const [navView,   setNavView]   = useState<NavView>('brief');
+  const [flowStep,  setFlowStep]  = useState<FlowStep>('brief');
   const [briefText, setBriefText] = useState('');
-  const [briefId, setBriefId] = useState<BriefId>('montage-transition');
+  const [briefId,   setBriefId]   = useState<BriefId>('montage-transition');
   const [sceneParams, setSceneParams] = useState<SceneParams>(DEFAULT_SCENE_PARAMS);
-  const [sceneArc, setSceneArc] = useState<SceneArc | null>(null);
+  const [sceneArc,    setSceneArc]    = useState<SceneArc | null>(null);
   const [trackFilenames, setTrackFilenames] = useState<string[]>([]);
 
   const job     = useAnalysisJob();
@@ -67,7 +69,6 @@ function App() {
     const match = window.location.hash.match(/^#share=(.+)$/);
     if (!match) return;
     const value = match[1];
-
     if (isPacketId(value)) {
       setShareRoute({ type: 'loading' });
       fetch(`${API_BASE}/api/share/${value}`)
@@ -79,28 +80,23 @@ function App() {
         .then(packet => setShareRoute({ type: 'packet', packet }))
         .catch(e => setShareRoute({ type: 'error', message: e instanceof Error ? e.message : 'Failed to load.' }));
     } else {
-      // Legacy base64 payload — read-only fallback
       const payload = decodeSharePayload(value);
-      if (payload) {
-        setShareRoute({ type: 'legacy', ...payload });
-      } else {
-        setShareRoute({ type: 'error', message: 'Unrecognised share link.' });
-      }
+      if (payload) setShareRoute({ type: 'legacy', ...payload });
+      else          setShareRoute({ type: 'error', message: 'Unrecognised share link.' });
     }
   }, []);
 
   useEffect(() => {
-    if (job.phase === 'complete') setView('results');
+    if (job.phase === 'complete') {
+      setFlowStep('results');
+      setNavView('workspace');
+    }
   }, [job.phase]);
 
-  // The design system reference is public — it carries no user data.
-  if (isDesignRoute()) {
-    return <DesignSystemShowcase />;
-  }
+  // ── special routes (share, design) ──────────────────────────
+  if (isDesignRoute()) return <DesignSystemShowcase />;
 
-  if (!unlocked) {
-    return <LockScreen onUnlock={() => setUnlocked(true)} />;
-  }
+  if (!unlocked) return <LockScreen onUnlock={() => setUnlocked(true)} />;
 
   if (shareRoute.type === 'loading') {
     return (
@@ -109,7 +105,6 @@ function App() {
       </div>
     );
   }
-
   if (shareRoute.type === 'error') {
     return (
       <div style={{ minHeight: '100vh', background: '#0F0823', display: 'grid', placeItems: 'center', color: '#F87171', fontFamily: 'Manrope, system-ui, sans-serif', fontSize: 14 }}>
@@ -117,13 +112,8 @@ function App() {
       </div>
     );
   }
-
-  if (shareRoute.type === 'packet') {
-    return <ShareView packet={shareRoute.packet} />;
-  }
-
+  if (shareRoute.type === 'packet') return <ShareView packet={shareRoute.packet} />;
   if (shareRoute.type === 'legacy') {
-    // Render the old ShareView via ResultsScreen read-only prop
     return (
       <ResultsScreen
         briefText={shareRoute.briefText}
@@ -135,56 +125,138 @@ function App() {
     );
   }
 
-  return (
-    <>
-      {view === 'brief' && (
-        <BriefScreen
-          initialBriefText={briefText}
-          initialSceneParams={sceneParams}
-          onContinue={({ briefText: bt, briefId: bid, sceneParams: sp, sceneArc: sa }) => {
-            setBriefText(bt);
-            setBriefId(bid);
-            setSceneParams(sp);
-            setSceneArc(sa);
-            setView('ingest');
-          }}
-        />
-      )}
+  // ── which content panel to show ──────────────────────────────
+  // navView drives top-level; flowStep drives sub-steps within brief/workspace
+  function handleNav(v: NavView) {
+    setNavView(v);
+    // entering brief nav resets to the brief step if workspace has results
+    if (v === 'brief') {
+      job.reset();
+      setFlowStep('brief');
+    }
+  }
 
-      {view === 'ingest' && (
-        <IngestScreen
-          creditBalance={credits.balance}
-          onBack={() => setView('brief')}
-          onAnalyze={(filenames) => {
-            setTrackFilenames(filenames);
-            setView('analyzing');
-            void job.start({ briefText, briefId, sceneParams, trackFilenames: filenames });
-          }}
-        />
-      )}
+  // The active rail item: brief/ingest/analyzing all highlight "brief"
+  const railActive: NavView =
+    navView === 'workspace' && flowStep !== 'results'
+      ? 'brief'
+      : navView;
 
-      {view === 'analyzing' && (
-        <AnalyzingScreen
-          phase={job.phase}
-          warning={job.warning}
-          error={job.error}
-          elapsedMs={job.elapsedMs}
-          onRetry={() => void job.start({ briefText, briefId, sceneParams, trackFilenames })}
-          onBackToIngest={() => { job.reset(); setView('ingest'); }}
-        />
-      )}
+  // Mobile tab — collapses 6 rail items into 3
+  const mobileTab: MobileTab =
+    navView === 'shortlists' ? 'short' :
+    navView === 'workspace' && flowStep === 'results' ? 'stack' :
+    'match';
 
-      {view === 'results' && job.results && (
+  function handleMobileTab(t: MobileTab) {
+    if (t === 'match') { handleNav('brief'); }
+    else if (t === 'stack') { job.results ? handleNav('workspace') : handleNav('brief'); }
+    else { handleNav('shortlists'); }
+  }
+
+  const isMatchActive = flowStep !== 'brief' || !!briefText;
+
+  function renderContent() {
+    // brief flow
+    if (navView === 'brief' || (navView === 'workspace' && flowStep !== 'results')) {
+      if (flowStep === 'brief') {
+        return (
+          <BriefScreen
+            initialBriefText={briefText}
+            initialSceneParams={sceneParams}
+            onContinue={({ briefText: bt, briefId: bid, sceneParams: sp, sceneArc: sa }) => {
+              setBriefText(bt); setBriefId(bid); setSceneParams(sp); setSceneArc(sa);
+              setFlowStep('ingest');
+            }}
+          />
+        );
+      }
+      if (flowStep === 'ingest') {
+        return (
+          <IngestScreen
+            creditBalance={credits.balance}
+            onBack={() => setFlowStep('brief')}
+            onAnalyze={(filenames) => {
+              setTrackFilenames(filenames);
+              setFlowStep('analyzing');
+              void job.start({ briefText, briefId, sceneParams, sceneArc, trackFilenames: filenames });
+            }}
+          />
+        );
+      }
+      if (flowStep === 'analyzing') {
+        return (
+          <AnalyzingScreen
+            phase={job.phase}
+            warning={job.warning}
+            error={job.error}
+            elapsedMs={job.elapsedMs}
+            onRetry={() => void job.start({ briefText, briefId, sceneParams, trackFilenames })}
+            onBackToIngest={() => { job.reset(); setFlowStep('ingest'); }}
+          />
+        );
+      }
+    }
+
+    // workspace / results
+    if (navView === 'workspace' && flowStep === 'results' && job.results) {
+      return (
         <ResultsScreen
           briefText={briefText}
           briefId={briefId}
           sceneParams={sceneParams}
-          results={job.results}
           sceneArc={sceneArc}
-          onBack={() => { job.reset(); setView('brief'); }}
+          results={job.results}
+          onBack={() => { job.reset(); setFlowStep('brief'); setNavView('brief'); }}
         />
-      )}
-    </>
+      );
+    }
+
+    // management screens
+    if (navView === 'shortlists') return <ShortlistsScreen />;
+    if (navView === 'rights')     return <RightsScreen />;
+    if (navView === 'library')    return <LibraryScreen />;
+
+    // director
+    if (navView === 'director') {
+      // DirectorView needs results — fall back gracefully if none
+      if (job.results) {
+        // TODO: wire DirectorView when workspace has a selected track
+      }
+      return (
+        <div className="stub-screen">
+          <div className="sv-eyebrow amber" style={{ marginBottom: 10 }}>Director Review</div>
+          <h2 className="sv-display">Director <em>review.</em></h2>
+          <p className="sv-narrative" style={{ marginTop: 12 }}>
+            Run a Story Match first, then send a track to Director Review from the workspace.
+          </p>
+        </div>
+      );
+    }
+
+    // default — go to brief
+    return (
+      <BriefScreen
+        initialBriefText={briefText}
+        initialSceneParams={sceneParams}
+        onContinue={({ briefText: bt, briefId: bid, sceneParams: sp, sceneArc: sa }) => {
+          setBriefText(bt); setBriefId(bid); setSceneParams(sp); setSceneArc(sa);
+          setFlowStep('ingest');
+          setNavView('brief');
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="sv-app">
+      <NavRail active={railActive} onNav={handleNav} />
+      <MobileTopBar briefText={briefText || undefined} isActive={isMatchActive} />
+      <div className="sv-screen-host">
+        {renderContent()}
+      </div>
+      <MobileTabBar active={mobileTab} onTab={handleMobileTab} hasResults={!!job.results} />
+    </div>
   );
 }
 

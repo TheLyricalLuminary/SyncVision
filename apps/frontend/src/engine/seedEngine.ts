@@ -1,6 +1,8 @@
 import type {
   AnalysisResult,
+  ArcMatchResult,
   JobStatus,
+  SceneArc,
   SceneParams,
   SubmitResponse,
 } from '../utils/apiClient';
@@ -65,7 +67,7 @@ function rightsStateFromClearance(score: number, blockerSet: Set<string>): strin
   return 'BLOCKED';
 }
 
-function mapResponse(resp: DemoCheckResponse): AnalysisResult[] {
+function mapResponse(resp: DemoCheckResponse, briefId: string): AnalysisResult[] {
   const blockers = new Set(resp.clearance.blockers);
   const masterVerifiedAt = blockers.has('MASTER_PCT_UNSET')
     ? null
@@ -73,54 +75,102 @@ function mapResponse(resp: DemoCheckResponse): AnalysisResult[] {
   const audioFilePath = `/api/tracks/${resp.track.id}/audio`;
   const rightsState = rightsStateFromClearance(resp.clearance.score, blockers);
 
-  const results: AnalysisResult[] = resp.sceneFit.map((row) => {
-    const score = Math.round(row.matchScore);
-    return {
-      rank: 0,
-      track: {
-        id: resp.track.id,
-        title: resp.track.title,
-        artistName: null,
-        isrc: resp.track.isrc,
-        tempo: null,
-        tonalCharacter: null,
-        energyCharacter: null,
-        rmsEnergy: null,
-        spectralCentroid: null,
-        audioFilePath,
-      },
-      confidenceScore: {
-        score,
-        confidenceLabel: confidenceLabelFor(score),
-        explanation: row.narrative,
-        sceneFitBreakdown: score,
-        clearanceBreakdown: score,
-        lyricsBreakdown:   50,
-        signalBreakdown:   Math.round(score * 0.6),
-        dataConfidence: 50,
-        dataConfidenceVerified: 4,
-        dataConfidenceTotal: 8,
-        vector: { scene: score / 100, lyrics: 0.5, audioSignal: (score / 100) * 0.6, rightsClarity: 0.5 },
-        inputHash: '',
-      },
-      rightsProfile: {
-        isOneStop: null,
-        proAffiliation: null,
-        masterVerifiedAt,
-        masterOwnedBy: null,
-        publisherName: null,
-        writerName: null,
-        blockers: resp.clearance.blockers ?? [],
-        rightsState,
-      },
-    };
+  // Pick the sceneFit row that matches the user's brief, else take the best score.
+  const row =
+    resp.sceneFit.find(r => r.briefId === briefId) ??
+    resp.sceneFit.reduce((best, r) => (r.matchScore > best.matchScore ? r : best), resp.sceneFit[0]);
+
+  if (!row) return [];
+
+  const score = Math.round(row.matchScore);
+  return [{
+    rank: 1,
+    track: {
+      id: resp.track.id,
+      title: resp.track.title,
+      artistName: null,
+      isrc: resp.track.isrc,
+      tempo: null,
+      tonalCharacter: null,
+      energyCharacter: null,
+      rmsEnergy: null,
+      spectralCentroid: null,
+      audioFilePath,
+    },
+    confidenceScore: {
+      score,
+      confidenceLabel: confidenceLabelFor(score),
+      explanation: row.narrative,
+      sceneFitBreakdown: score,
+      clearanceBreakdown: score,
+      lyricsBreakdown:   50,
+      signalBreakdown:   Math.round(score * 0.6),
+      dataConfidence: 50,
+      dataConfidenceVerified: 4,
+      dataConfidenceTotal: 8,
+      vector: { scene: score / 100, lyrics: 0.5, audioSignal: (score / 100) * 0.6, rightsClarity: 0.5 },
+      inputHash: '',
+    },
+    rightsProfile: {
+      isOneStop: null,
+      proAffiliation: null,
+      masterVerifiedAt,
+      masterOwnedBy: null,
+      publisherName: null,
+      writerName: null,
+      blockers: resp.clearance.blockers ?? [],
+      rightsState,
+    },
+  }];
+}
+
+// Deterministic hash for reproducible synthetic arcs (djb2 variant).
+function hashCode(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+// Generate plausible song arc data from the scene arc and the track's scene-fit score.
+// Higher scene-fit → arc stays close to the scene arc → high arc match score.
+function syntheticArcData(
+  trackId: string,
+  sceneArc: SceneArc | null,
+  sceneFitScore: number,
+): { songArcCurve: number[]; songArcValenceCurve: number[]; arcMatch: ArcMatchResult } {
+  const phases = ['opening', 'heldBreath', 'turn', 'release'] as const;
+  const maxDev = (1 - sceneFitScore / 100) * 36 + 4; // 4–40 pts deviation range
+
+  const sceneVals = sceneArc
+    ? phases.map(p => sceneArc[p])
+    : [40, 55, 72, 60]; // neutral fallback when no arc is set
+
+  const songArcCurve = phases.map((_, i) => {
+    const h = hashCode(`${trackId}:mag:${i}`);
+    const sign = h % 2 === 0 ? 1 : -1;
+    const dev = ((h % 1000) / 1000) * maxDev * sign;
+    return Math.max(5, Math.min(95, Math.round(sceneVals[i] + dev)));
   });
 
-  results.sort((a, b) => b.confidenceScore.score - a.confidenceScore.score);
-  results.forEach((r, i) => {
-    r.rank = i + 1;
+  const sceneValence = sceneArc?.valenceCurve ?? [0, 0, 0, 0];
+  const songArcValenceCurve = phases.map((_, i) => {
+    const h = hashCode(`${trackId}:val:${i}`);
+    const sign = h % 2 === 0 ? 1 : -1;
+    const dev = ((h % 1000) / 1000) * maxDev * sign;
+    return Math.max(-100, Math.min(100, Math.round((sceneValence[i] ?? 0) + dev)));
   });
-  return results;
+
+  const meanMagGap = phases.reduce((sum, _, i) =>
+    sum + Math.abs(sceneVals[i] - songArcCurve[i]), 0) / 4;
+  const magnitudeScore = Math.max(0, Math.min(100, Math.round(100 - 2 * meanMagGap)));
+
+  const meanValGap = songArcValenceCurve.reduce((sum, v, i) =>
+    sum + Math.abs(v - (sceneValence[i] ?? 0)), 0) / 4;
+  const valenceScore = Math.max(0, Math.min(100, Math.round(100 - meanValGap)));
+
+  const combinedScore = Math.round(magnitudeScore * 0.65 + valenceScore * 0.35);
+
+  return { songArcCurve, songArcValenceCurve, arcMatch: { magnitudeScore, valenceScore, combinedScore } };
 }
 
 type SeedJob = {
@@ -136,6 +186,7 @@ export const seedEngine = {
     briefText: string;
     briefId: string;
     sceneParams: SceneParams;
+    sceneArc?: SceneArc | null;
     trackFilenames: string[];
   }): Promise<SubmitResponse> {
     const jobId = `demo-job-${Date.now()}-${Math.random()
@@ -150,6 +201,8 @@ export const seedEngine = {
 
     const isrc = extractIsrc(args.trackFilenames);
 
+    const sceneArc = args.sceneArc ?? null;
+
     try {
       const res = await fetch(`${API_BASE}/api/demo/check`, {
         method: 'POST',
@@ -161,7 +214,31 @@ export const seedEngine = {
         job.error = `demo/check failed: ${res.status} ${bodyText.slice(0, 200)}`;
       } else {
         const data = (await res.json()) as DemoCheckResponse;
-        job.results = mapResponse(data);
+        const base = mapResponse(data, args.briefId)[0];
+        if (!base) {
+          job.results = [];
+        } else {
+          // One result per uploaded file, scored independently using filename hash
+          const perFile = args.trackFilenames.map((filename, i) => {
+            const trackId = `${base.track.id}-f${i}`;
+            const title = filename.replace(/\.[^/.]+$/, '');
+            const h = hashCode(filename);
+            const variation = (h % 31) - 15; // ±15 pts
+            const score = Math.max(5, Math.min(95, base.confidenceScore.score + variation));
+            return {
+              ...base,
+              track: { ...base.track, id: trackId, title, audioFilePath: `/api/tracks/${trackId}/audio` },
+              confidenceScore: {
+                ...base.confidenceScore,
+                score,
+                confidenceLabel: confidenceLabelFor(score),
+                ...syntheticArcData(trackId, sceneArc, score),
+              },
+            };
+          });
+          perFile.sort((a, b) => b.confidenceScore.score - a.confidenceScore.score);
+          job.results = perFile.map((r, i) => ({ ...r, rank: i + 1 }));
+        }
       }
     } catch (e) {
       job.error = e instanceof Error ? e.message : String(e);

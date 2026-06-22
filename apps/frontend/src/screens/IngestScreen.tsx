@@ -110,17 +110,23 @@ const uploadFile = (trackId: string, file: File) => {
     if (rejected.length > 0) {
       setDropError(`Unsupported: ${rejected.map(f => f.name).join(', ')}. Use MP3.`);
     } else { setDropError(null); }
-    const newTracks = accepted.map(f => ({
-      file: f,
-      track: { id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, filename: f.name, source: 'file' as const, status: 'uploading' as const, progress: 0 },
-    }));
-    setTracks(prev => [...prev, ...newTracks.map(n => n.track)]);
-    newTracks.forEach(n => uploadFile(n.track.id, n.file));
+    setTracks(prev => {
+      const existing = new Set(prev.map(t => t.filename));
+      const newTracks = accepted
+        .filter(f => !existing.has(f.name))
+        .map(f => ({
+          file: f,
+          track: { id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, filename: f.name, source: 'file' as const, status: 'uploading' as const, progress: 0 },
+        }));
+      newTracks.forEach(n => uploadFile(n.track.id, n.file));
+      return [...prev, ...newTracks.map(n => n.track)];
+    });
   };
 
 const handleAddIsrc = () => {
     const value = isrcValue.trim().toUpperCase();
     if (!ISRC_FORMAT.test(value)) { setIsrcError('Not a valid ISRC format.'); return; }
+    if (tracks.some(t => t.filename === value)) { setIsrcError('This ISRC is already in the queue.'); return; }
     setIsrcError(null);
     const id = `isrc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setTracks(prev => [...prev, { id, filename: value, source: 'isrc', status: 'ready', progress: 100 }]);

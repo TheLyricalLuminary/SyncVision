@@ -80,13 +80,13 @@ export const NARRATIVE_EVENTS: NarrativeEvent[] = [
 
   // ── Spanning / terminal beats ─────────────────────────────────────────────
   { id: "death", triggers: ["death", "dies", "dying", "killed", "passes away"], intensity: 3, affinity: [0.0, 0.2, 0.45, 0.35], valence: -0.8 },
-  { id: "sacrifice", triggers: ["sacrifice", "sacrifices", "gives everything", "lays down"], intensity: 3, affinity: [0.0, 0.1, 0.45, 0.45], valence: 0.2 },
+  { id: "sacrifice", triggers: ["sacrifice", "sacrifices", "gives everything", "lays down", "throws himself", "throws herself", "takes the bullet", "shields them", "gives his life", "gives her life"], intensity: 3, affinity: [0.0, 0.1, 0.45, 0.45], valence: 0.2 },
   { id: "escape", triggers: ["escape", "escapes", "breaks free", "gets away"], intensity: 2, affinity: [0.0, 0.1, 0.7, 0.2], valence: 0.3 },
 
   // ── Release-weighted beats (resolution / payoff) ──────────────────────────
   { id: "victory", triggers: ["victory", "triumph", "triumphant", "wins", "prevails", "overcomes", "glory"], intensity: 3, affinity: [0.0, 0.0, 0.3, 0.7], valence: 0.9 },
   { id: "forgiveness", triggers: ["forgiveness", "forgive", "forgives", "forgave"], intensity: 3, affinity: [0.0, 0.0, 0.15, 0.85], valence: 0.9 },
-  { id: "resolution", triggers: ["resolution", "resolves", "at peace", "settles"], intensity: 2, affinity: [0.0, 0.05, 0.2, 0.75], valence: 0.6 },
+  { id: "resolution", triggers: ["resolution", "resolves", "at peace", "settles their differences", "comes to rest"], intensity: 2, affinity: [0.0, 0.05, 0.2, 0.75], valence: 0.6 },
   { id: "acceptance", triggers: ["acceptance", "accepts", "lets go", "makes peace"], intensity: 2, affinity: [0.0, 0.1, 0.2, 0.7], valence: 0.5 },
   { id: "redemption", triggers: ["redemption", "redeemed", "redeems", "atones"], intensity: 3, affinity: [0.0, 0.05, 0.25, 0.7], valence: 0.8 },
   { id: "farewell", triggers: ["farewell", "goodbye", "leaves for the last time", "parting", "walks out", "storms off"], intensity: 2, affinity: [0.05, 0.2, 0.15, 0.6], valence: -0.3 },

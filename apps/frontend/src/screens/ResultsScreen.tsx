@@ -1,123 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE, type AnalysisResult, type SceneParams, type SceneArc } from '../utils/apiClient';
 import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
-import { ArcMatch } from '../components/ArcMatch';
-import type { ArcSegments } from '../engine/arcMatch';
-
-function deriveSongArc(track: AnalysisResult['track']): ArcSegments {
-  const energyBase =
-    track.energyCharacter === 'high' ? 72 :
-    track.energyCharacter === 'low'  ? 28 : 50;
-  const bpm = track.tempo ?? 100;
-  const tempoBoost = bpm > 140 ? 10 : bpm > 100 ? 3 : -6;
-  const base = Math.min(84, Math.max(16, energyBase + tempoBoost));
-  const isMajor = track.tonalCharacter === 'major';
-  const isMinor = track.tonalCharacter === 'minor';
-  if (isMajor) return { opening: base - 8, heldBreath: base - 4, turn: base + 6, release: base + 14 };
-  if (isMinor) return { opening: base + 2, heldBreath: base + 12, turn: base - 4, release: base - 10 };
-  return { opening: base, heldBreath: base, turn: base + 4, release: base };
-}
-
-// ── Decision-support scoring ──────────────────────────────────
-
-type ClearabilityResult = { score: number; band: 'low' | 'medium' | 'high'; rationale: string };
-
-function computeClearabilityConfidence(rp: AnalysisResult['rightsProfile'], track: AnalysisResult['track']): ClearabilityResult {
-  if (!rp) {
-    return {
-      score: 35, band: 'high',
-      rationale: 'No rights metadata on record. Run fingerprint lookup to begin clearance assessment.',
-    };
-  }
-  let score = 50;
-  const positives: string[] = [];
-  const negatives: string[] = [];
-
-  if (rp.isOneStop === true)                           { score += 20; positives.push('One-stop licensing available'); }
-  if (rp.isrc ?? track.isrc)                          { score += 10; positives.push('ISRC verified'); }
-  if (rp.publisherName)                               { score += 10; positives.push('Publisher identified'); }
-  if (rp.writerName)                                  { score +=  8; positives.push('Writer on record'); }
-  if ((rp.enrichmentSources ?? []).length > 0)        { score +=  5; positives.push('Metadata verified via ' + rp.enrichmentSources![0]); }
-  if (rp.rightsState === 'clear')                     { score += 12; positives.push('Rights state clear'); }
-  if (rp.workId)                                      { score +=  5; positives.push('MusicBrainz match found'); }
-
-  if (rp.rightsState === 'blocked')                   { score -= 50; negatives.push('Rights state blocked'); }
-  if (rp.splitPct != null && rp.splitPct < 100)       { score -= 15; negatives.push('Split ownership detected'); }
-  const blockerCount = rp.blockers?.length ?? 0;
-  if (blockerCount > 0) {
-    score -= Math.min(30, blockerCount * 15);
-    negatives.push(blockerCount === 1 ? '1 rights blocker on record' : `${blockerCount} rights blockers on record`);
-  }
-  if (!rp.publisherName && !rp.writerName)            { score -= 10; negatives.push('No publisher or writer on record'); }
-
-  score = Math.max(5, Math.min(100, Math.round(score)));
-  const band: ClearabilityResult['band'] = score >= 70 ? 'low' : score >= 45 ? 'medium' : 'high';
-
-  const all = [...positives, ...negatives];
-  const rationale = all.length > 0
-    ? all.join('. ') + '.'
-    : 'Insufficient metadata to assess clearance risk. Manual verification required.';
-
-  return { score, band, rationale };
-}
-
-type ReplacementResult = { label: 'LOW' | 'MEDIUM' | 'HIGH'; count: number; sentence: string };
-
-function computeReplacementRisk(result: AnalysisResult, allResults: AnalysisResult[]): ReplacementResult {
-  const thisScore    = result.confidenceScore.score;
-  const thisBlockers = result.rightsProfile?.blockers?.length ?? 0;
-
-  const comparable = allResults.filter(r =>
-    r.track.id !== result.track.id &&
-    r.confidenceScore.score >= thisScore - 5 &&
-    (r.rightsProfile?.blockers?.length ?? 0) <= thisBlockers,
-  );
-  const count = comparable.length;
-
-  if (count >= 5) return { label: 'LOW',    count, sentence: `${count} comparable tracks score within 5 points and appear easier to clear.` };
-  if (count >= 2) return { label: 'MEDIUM', count, sentence: `${count} comparable tracks available with similar fit and lower clearance risk.` };
-  if (count === 0) return { label: 'HIGH',  count, sentence: 'No comparable alternatives found. This track may be worth pursuing despite clearance complexity.' };
-  return             { label: 'HIGH',  count, sentence: `Only ${count} comparable alternative found.` };
-}
-
-type ActionTier = 'pursue' | 'fight' | 'alternative' | 'backup' | 'deprioritize';
-type ActionResult = { tier: ActionTier; label: string; sentence: string };
-
-function buildRecommendedAction(fitScore: number, clearScore: number, repLabel: ReplacementResult['label']): ActionResult {
-  const highFit    = fitScore >= 70;
-  const goodClear  = clearScore >= 65;
-  const manyAlts   = repLabel === 'LOW';
-
-  if (highFit && goodClear)              return { tier: 'pursue',      label: 'Pursue Clearance',    sentence: 'Strong creative fit with manageable rights complexity.' };
-  if (highFit && !goodClear && !manyAlts) return { tier: 'fight',       label: 'Fight for It',        sentence: 'Strong fit with no comparable alternatives — clearance complexity may be worth it.' };
-  if (highFit && !goodClear && manyAlts)  return { tier: 'alternative', label: 'Pursue Alternative',  sentence: 'Comparable creative fit available with lower clearance risk.' };
-  if (!highFit && goodClear)              return { tier: 'backup',      label: 'Keep as Backup',      sentence: 'Decent fit with clean rights — useful if lead option falls through.' };
-  return                                         { tier: 'deprioritize', label: 'Consider Replacing', sentence: 'Moderate fit and clearance complexity with alternatives available.' };
-}
-
-const ACTION_COLORS: Record<ActionTier, { bg: string; border: string; text: string }> = {
-  pursue:       { bg: 'rgba(76,175,130,0.12)',  border: 'rgba(76,175,130,0.35)',  text: '#4CAF82' },
-  fight:        { bg: 'rgba(245,181,68,0.12)',  border: 'rgba(245,181,68,0.35)',  text: '#F5B544' },
-  alternative:  { bg: 'rgba(123,112,178,0.12)', border: 'rgba(123,112,178,0.35)', text: '#9B93C4' },
-  backup:       { bg: 'rgba(123,112,178,0.10)', border: 'rgba(123,112,178,0.30)', text: '#9B93C4' },
-  deprioritize: { bg: 'rgba(232,90,90,0.10)',   border: 'rgba(232,90,90,0.30)',   text: '#E85A5A' },
-};
-
-const CLEAR_BAND_COLOR: Record<ClearabilityResult['band'], string> = {
-  low:    '#4CAF82',
-  medium: '#F5B544',
-  high:   '#E85A5A',
-};
-const CLEAR_BAND_LABEL: Record<ClearabilityResult['band'], string> = {
-  low:    'Low Risk',
-  medium: 'Medium Risk',
-  high:   'High Risk',
-};
-const REP_COLOR: Record<ReplacementResult['label'], string> = {
-  LOW:    '#4CAF82',
-  MEDIUM: '#F5B544',
-  HIGH:   '#E85A5A',
-};
+import { SceneArcInspector } from '../components/SceneArcInspector';
+import { ArcCandidateRow }    from '../components/ArcCandidateRow';
+import { DecisionRail }       from '../components/DecisionRail';
 
 // ── design tokens ────────────────────────────────────────────
 const C = {
@@ -562,391 +448,6 @@ function RightsTable({
 // ── LocalRightsOverride type ──────────────────────────────────
 type LocalRightsOverride = NonNullable<AnalysisResult['rightsProfile']> & { blockers?: string[] };
 
-// ── LeadCard ───────────────────────────────────────────────────
-function LeadCard({
-  result,
-  allResults,
-  briefId: _briefId,
-  sceneArc,
-  onRightsSaved,
-  onShare,
-  onMoveToConsidered,
-}: {
-  result: AnalysisResult;
-  allResults: AnalysisResult[];
-  briefId: BriefId;
-  sceneArc?: SceneArc | null;
-  onRightsSaved?: (trackId: string, override: LocalRightsOverride) => void;
-  onShare?: () => void;
-  onMoveToConsidered?: (trackId: string) => void;
-}) {
-  const [isPlaying, setIsPlaying]           = useState(false);
-  const [currentTime, setCurrentTime]       = useState(0);
-  const [duration, setDuration]             = useState(0);
-  const [rightsPanel, setRightsPanel]       = useState(false);
-  const [playbackMsg, setPlaybackMsg]       = useState(false);
-  const [noteOpen, setNoteOpen]             = useState(false);
-  const [noteText, setNoteText]             = useState('');
-  const [localRightsProfile, setLocalRights] = useState(result.rightsProfile);
-  const [pendingAutoFill, setPendingAutoFill] = useState<AutoFill | undefined>(undefined);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const vec     = result.confidenceScore.vector;
-  const WEIGHTS = { scene: 0.45, lyrics: 0.25, audioSignal: 0.20, rightsClarity: 0.10 };
-  const liveScore = Math.round(
-    (vec.scene * WEIGHTS.scene + vec.lyrics * WEIGHTS.lyrics +
-     vec.audioSignal * WEIGHTS.audioSignal + vec.rightsClarity * WEIGHTS.rightsClarity) * 100
-  );
-
-  // ── Decision-support ──────────────────────────────────────────
-  const clearability = computeClearabilityConfidence(result.rightsProfile, result.track);
-  const replacement  = computeReplacementRisk(result, allResults);
-  const action       = buildRecommendedAction(liveScore, clearability.score, replacement.label);
-  const actionColors = ACTION_COLORS[action.tier];
-
-  const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
-  const hasAudio      = audioFilePath !== null;
-  const title         = cleanTrackTitle(result.track.title);
-  const timeLabel     = duration > 0 ? `${formatTime(currentTime)} / ${formatTime(duration)}` : formatTime(currentTime);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const onTime  = () => setCurrentTime(audio.currentTime);
-    const onMeta  = () => setDuration(audio.duration);
-    const onPlay  = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
-    const onEnded = () => setIsPlaying(false);
-    audio.addEventListener('timeupdate', onTime);
-    audio.addEventListener('loadedmetadata', onMeta);
-    audio.addEventListener('durationchange', onMeta);
-    audio.addEventListener('play', onPlay);
-    audio.addEventListener('pause', onPause);
-    audio.addEventListener('ended', onEnded);
-    return () => {
-      audio.removeEventListener('timeupdate', onTime);
-      audio.removeEventListener('loadedmetadata', onMeta);
-      audio.removeEventListener('durationchange', onMeta);
-      audio.removeEventListener('play', onPlay);
-      audio.removeEventListener('pause', onPause);
-      audio.removeEventListener('ended', onEnded);
-      if (currentAudio.el === audio) currentAudio.el = null;
-      audio.pause();
-    };
-  }, [audioFilePath]);
-
-  const togglePlayback = () => {
-    if (!hasAudio) { setPlaybackMsg(true); return; }
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (!audio.paused) { audio.pause(); return; }
-    if (currentAudio.el && currentAudio.el !== audio) currentAudio.el.pause();
-    currentAudio.el = audio;
-    void audio.play().catch(() => setIsPlaying(false));
-  };
-
-  const MAX_W = 0.45;
-  const AXES = [
-    { key: 'scene',         label: 'Scene',  weight: 0.45, value: vec.scene,         fixed: true  },
-    { key: 'lyrics',        label: 'Lyrics', weight: 0.25, value: vec.lyrics,        fixed: false },
-    { key: 'audioSignal',   label: 'Signal', weight: 0.20, value: vec.audioSignal,   fixed: true  },
-    { key: 'rightsClarity', label: 'Rights', weight: 0.10, value: vec.rightsClarity, fixed: false },
-  ];
-
-  const WAVE = [30,55,40,72,50,90,60,35,65,48,78,42,62,38,55,80,45,60,30,70,42,55,36,50,65,40,58,32,48,55];
-
-  return (
-    <article className="sv-lead-card" style={{
-      position: 'relative', borderRadius: 22, padding: 28,
-      background: 'linear-gradient(180deg, rgba(26,22,48,0.60), rgba(16,12,32,0.78))',
-      border: `1px solid ${C.hairline}`, overflow: 'hidden',
-    }}>
-
-      {/* ── Recommended Action ── */}
-      <div style={{ marginBottom: 20, padding: '14px 16px', borderRadius: 14, background: actionColors.bg, border: `1px solid ${actionColors.border}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: actionColors.text, opacity: 0.7 }}>Recommended Action</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: actionColors.text, letterSpacing: '0.01em' }}>{action.label}</span>
-          </div>
-          <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.silver, opacity: 0.8 }}>{action.sentence}</span>
-        </div>
-      </div>
-
-      {/* ── Three-metric summary ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 22 }}>
-        {/* Creative Fit */}
-        <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(7,4,26,0.55)', border: `1px solid ${C.hairline}` }}>
-          <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Creative Fit</div>
-          <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 26, fontWeight: 600, color: C.silver, lineHeight: 1 }}>{liveScore}</div>
-          <div style={{ fontSize: 10, color: C.lavender, marginTop: 4 }}>Story Match</div>
-        </div>
-        {/* Clearability */}
-        <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(7,4,26,0.55)', border: `1px solid ${C.hairline}` }}>
-          <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Clearability</div>
-          <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 26, fontWeight: 600, color: CLEAR_BAND_COLOR[clearability.band], lineHeight: 1 }}>{clearability.score}%</div>
-          <div style={{ fontSize: 10, color: CLEAR_BAND_COLOR[clearability.band], marginTop: 4 }}>{CLEAR_BAND_LABEL[clearability.band]}</div>
-        </div>
-        {/* Replacement Risk */}
-        <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(7,4,26,0.55)', border: `1px solid ${C.hairline}` }}>
-          <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Replacement Risk</div>
-          <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 20, fontWeight: 600, color: REP_COLOR[replacement.label], lineHeight: 1, marginTop: 2 }}>{replacement.label}</div>
-          <div style={{ fontSize: 10, color: C.lavender, marginTop: 4 }}>{replacement.count} alternative{replacement.count !== 1 ? 's' : ''}</div>
-        </div>
-      </div>
-
-      {/* ── Clearability rationale ── */}
-      <div style={{ marginBottom: 20, padding: '10px 14px', borderRadius: 10, background: 'rgba(0,0,0,0.22)', borderLeft: `2px solid ${CLEAR_BAND_COLOR[clearability.band]}` }}>
-        <span style={{ fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: CLEAR_BAND_COLOR[clearability.band], marginRight: 8 }}>Clearability</span>
-        <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.lavender }}>{clearability.rationale}</span>
-      </div>
-
-      {/* ── Replacement sentence ── */}
-      <div style={{ marginBottom: 22, padding: '10px 14px', borderRadius: 10, background: 'rgba(0,0,0,0.22)', borderLeft: `2px solid ${REP_COLOR[replacement.label]}` }}>
-        <span style={{ fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: REP_COLOR[replacement.label], marginRight: 8 }}>Replacement Risk</span>
-        <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.lavender }}>{replacement.sentence}</span>
-      </div>
-
-      {/* ── lead head ── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 18 }}>
-        <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(48px,7vw,76px)', lineHeight: 0.85, letterSpacing: '-0.03em', flexShrink: 0, background: 'linear-gradient(180deg,#F472B6 0%,#DB2777 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-          {result.rank}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.magenta, background: 'rgba(219,39,119,0.14)', border: '1px solid rgba(219,39,119,0.34)', padding: '4px 9px', borderRadius: 999, marginBottom: 8 }}>
-            &mdash; Leader &mdash;
-          </span>
-          <div style={{ fontFamily: SERIF, fontSize: 'clamp(26px,3.4vw,38px)', lineHeight: 1.05, letterSpacing: '-0.015em', color: C.silver }}>{title}</div>
-          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 16, color: C.lavender, marginTop: 4 }}>
-            {result.track.artistName ? `by ${result.track.artistName}` : 'Unknown artist'}
-            {duration > 0 && ` · ${formatTime(duration)}`}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
-            {result.track.tempo != null && <Chip variant="bpm">{result.track.tempo} BPM</Chip>}
-            {result.track.tonalCharacter && <Chip>{result.track.tonalCharacter}</Chip>}
-            {result.track.energyCharacter && <Chip>{result.track.energyCharacter}</Chip>}
-            {(localRightsProfile?.blockers?.length ?? 0) > 0 && <Chip variant="warn">Rights unclear</Chip>}
-          </div>
-        </div>
-      </div>
-
-      {/* ── score block ── */}
-      <div style={{ marginTop: 22, padding: '20px 22px', borderRadius: 16, background: 'rgba(7,4,26,0.55)', border: `1px solid ${C.hairline}` }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, marginBottom: 18, flexWrap: 'wrap' }}>
-          <div style={{ fontFamily: SERIF, fontSize: 'clamp(64px,8vw,96px)', lineHeight: 0.85, letterSpacing: '-0.04em', color: C.silver }}>
-            {liveScore}
-            <span style={{ fontSize: '0.3em', color: 'rgba(167,139,250,0.55)', letterSpacing: '-0.01em', marginLeft: 4, verticalAlign: '0.55em' }}>/100</span>
-          </div>
-          <p style={{ flex: 1, minWidth: 200, fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(15px,1.5vw,18px)', lineHeight: 1.35, color: 'rgba(226,232,240,0.78)', maxWidth: '38ch', margin: 0 }}>
-            {buildScoreCaption(vec)}
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(167,139,250,0.6)', padding: '0 2px 6px', borderBottom: `1px dashed ${C.hairline}`, marginBottom: 2 }}>
-            <span>Axis</span>
-            <span style={{ color: 'rgba(167,139,250,0.45)', letterSpacing: '0.06em', textTransform: 'none', fontFamily: SERIF, fontStyle: 'italic', fontSize: 12 }}>bar width = weight &middot; fill = value</span>
-          </div>
-
-          {AXES.map(axis => {
-            const barW     = (axis.weight / MAX_W) * 100;
-            const fillPct  = Math.round(axis.value * 100);
-            const unscored = axis.value === 0 && !axis.fixed;
-
-            return (
-              <div key={axis.key} className="sv-axis-row" style={{ display: 'grid', gridTemplateColumns: '56px minmax(0,1fr) 38px 22px', alignItems: 'center', gap: 10, padding: '4px 0', borderRadius: 8 }}>
-                {/* label */}
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.silver }}>
-                  {axis.label}
-                  <span style={{ display: 'block', fontFamily: '"JetBrains Mono",monospace', fontSize: 9, letterSpacing: '0.04em', fontWeight: 500, color: 'rgba(167,139,250,0.55)', textTransform: 'none', marginTop: 1 }}>
-                    {Math.round(axis.weight * 100)}% wt
-                  </span>
-                </div>
-                {/* bar */}
-                <div style={{ position: 'relative', height: 22, display: 'flex', alignItems: 'center' }}>
-                  <div style={{ height: 14, borderRadius: 7, background: 'linear-gradient(90deg,rgba(167,139,250,0.05),rgba(167,139,250,0.10))', border: `1px solid ${C.hairline}`, position: 'relative', overflow: 'hidden', width: `${barW}%`, transition: 'width 0.4s cubic-bezier(0.2,0.7,0.2,1)' }}>
-                    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: unscored ? '0%' : `${fillPct}%`, background: axis.fixed ? 'linear-gradient(90deg,rgba(219,39,119,0.55),rgba(219,39,119,0.85))' : 'linear-gradient(90deg,#C2410C,#F5A623)', borderRadius: 6, boxShadow: axis.fixed ? '0 0 12px rgba(219,39,119,0.35)' : '0 0 12px rgba(245,166,35,0.4)', transition: 'width 0.6s cubic-bezier(0.2,0.7,0.2,1)' }} />
-                    <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 1, background: C.hairlineStrong }} />
-                  </div>
-                </div>
-                {/* value */}
-                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 13, fontWeight: 600, color: unscored ? 'rgba(167,139,250,0.4)' : C.silver, textAlign: 'right', letterSpacing: '-0.01em' }}>
-                  {unscored ? '—' : fillPct}
-                </div>
-                {/* action */}
-                {!axis.fixed ? (
-                  <button type="button" onClick={() => setRightsPanel(true)} style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, fontFamily: '"JetBrains Mono",monospace', fontSize: 11, fontWeight: 700, color: C.magenta, background: 'rgba(221,122,58,0.10)', border: '1px solid rgba(221,122,58,0.35)', cursor: 'pointer' }} title="Improve this axis">↑</button>
-                ) : (
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', color: 'rgba(167,139,250,0.4)', border: `1px dashed rgba(167,139,250,0.25)`, fontFamily: '"JetBrains Mono",monospace', fontSize: 11 }}>—</div>
-                )}
-                {/* hint */}
-                {!axis.fixed && (
-                  <div style={{ gridColumn: '2 / -1', fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: unscored ? 'rgba(167,139,250,0.40)' : 'rgba(167,139,250,0.55)', lineHeight: 1.2, marginTop: 2 }}>
-                    {axis.key === 'lyrics' ? 'Add lyrics to score this axis.' : 'Add writer + publisher to clear this axis.'}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── rights block ── */}
-      {!rightsPanel ? (
-        <RightsTable rp={localRightsProfile} trackId={result.track.id} onEditRights={() => setRightsPanel(true)} />
-      ) : (
-        <RightsPanel
-          trackId={result.track.id}
-          isrc={localRightsProfile?.isrc ?? result.track.isrc}
-          existing={localRightsProfile}
-          autoFill={pendingAutoFill}
-          onSaved={saved => {
-            const newRp: LocalRightsOverride = {
-              isrc: saved.isrc, isOneStop: saved.isOneStop, proAffiliation: saved.proAffiliation,
-              masterVerifiedAt: saved.masterVerifiedAt, masterOwnedBy: saved.masterOwnedBy,
-              publisherName: saved.publisherName, writerName: saved.writerName,
-              workId: saved.workId, blockers: saved.blockers, rightsState: saved.rightsState,
-              syncLicenseStatus: saved.syncLicenseStatus, syncLicensedBy: saved.syncLicensedBy,
-              lyricLicenseStatus: saved.lyricLicenseStatus, lyricLicensedBy: saved.lyricLicensedBy,
-              splitPct: saved.splitPct,
-            };
-            setLocalRights(newRp);
-            onRightsSaved?.(result.track.id, newRp);
-            setRightsPanel(false);
-          }}
-          onClose={() => { setRightsPanel(false); setPendingAutoFill(undefined); }}
-        />
-      )}
-
-      {/* ── narrative ── */}
-      <div style={{ marginTop: 20, padding: '16px 18px', borderRadius: 14, background: 'rgba(167,139,250,0.05)', borderLeft: `2px solid ${C.magenta}`, fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(15px,1.5vw,18px)', lineHeight: 1.45, color: C.silver, maxWidth: '56ch' }}>
-        {result.confidenceScore.explanation}
-      </div>
-
-      {/* ── arc match ── */}
-      {sceneArc && (
-        <div style={{ marginTop: 20 }}>
-          <ArcMatch
-            scene={{ opening: sceneArc.opening, heldBreath: sceneArc.heldBreath, turn: sceneArc.turn, release: sceneArc.release }}
-            song={deriveSongArc(result.track)}
-            mode="inspect"
-            trackTitle={cleanTrackTitle(result.track.title)}
-            artist={result.track.artistName ?? undefined}
-            sceneLabel={isPlaying ? 'Arc Match™ — live sync' : 'Arc Match™ — play to sync · hover to inspect'}
-            playheadFraction={duration > 0 ? currentTime / duration : undefined}
-          />
-        </div>
-      )}
-
-      {/* ── player ── */}
-      <div className="no-print" style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', borderRadius: 14, background: 'rgba(0,0,0,0.32)', border: `1px solid ${C.hairline}` }}>
-        <button type="button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause' : 'Play'} style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg,${C.purple},${C.magenta})`, border: 0, color: 'white', display: 'grid', placeItems: 'center', cursor: 'pointer', boxShadow: `0 10px 22px -10px rgba(245,166,35,0.6)${isPlaying ? ', 0 0 0 4px rgba(245,166,35,0.25)' : ''}`, flexShrink: 0, transition: 'box-shadow 0.2s ease' }}>
-          {isPlaying
-            ? <svg width="11" height="11" viewBox="0 0 10 10" fill="currentColor"><rect x="1.5" y="1" width="2.5" height="8"/><rect x="6" y="1" width="2.5" height="8"/></svg>
-            : <svg width="13" height="13" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1 L8 5 L2 9 Z"/></svg>
-          }
-        </button>
-        <div
-          style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, height: 36, cursor: 'pointer' }}
-          onPointerDown={e => {
-            const el = e.currentTarget;
-            const seek = (ev: PointerEvent) => {
-              const r = el.getBoundingClientRect();
-              const ratio = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
-              if (audioRef.current) audioRef.current.currentTime = ratio * (audioRef.current.duration || 0);
-            };
-            seek(e.nativeEvent);
-            const move = (ev: PointerEvent) => seek(ev);
-            const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-            window.addEventListener('pointermove', move);
-            window.addEventListener('pointerup', up);
-          }}
-        >
-          {WAVE.map((h, i) => {
-            const played = duration > 0 && (i / WAVE.length) < (currentTime / duration);
-            return <span key={i} style={{ display: 'block', flex: 1, minWidth: 2, height: `${h}%`, borderRadius: 2, background: played ? `linear-gradient(180deg,${C.magenta},${C.purple})` : 'rgba(167,139,250,0.32)', transition: 'background 0.1s' }} />;
-          })}
-        </div>
-        <span style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 11, color: C.lavender, letterSpacing: '0.04em', flexShrink: 0 }}>{timeLabel}</span>
-      </div>
-      {playbackMsg && !hasAudio && <p style={{ fontSize: 11, color: C.lavender, marginTop: 6, fontStyle: 'italic' }}>Audio playback coming soon.</p>}
-
-      {/* ── lead actions ── */}
-      <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <button type="button" onClick={onShare} style={{ flex: 1, minWidth: 130, padding: '12px 16px', borderRadius: 12, border: 0, background: `linear-gradient(135deg,${C.purple},${C.magenta})`, color: 'white', fontSize: 13, fontWeight: 600, letterSpacing: '0.01em', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 14px 30px -14px rgba(221,122,58,0.55)', transition: 'transform 0.1s ease' }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 12 L10 18 L20 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          Pitch to director
-        </button>
-        <button type="button" onClick={() => onMoveToConsidered?.(result.track.id)} style={{ flex: 1, minWidth: 130, padding: '12px 16px', borderRadius: 12, border: `1px solid ${C.hairlineStrong}`, background: 'rgba(167,139,250,0.06)', color: C.silver, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.15s ease' }}>
-          Move to considered
-        </button>
-        <button type="button" onClick={() => setNoteOpen(v => !v)} style={{ flex: 1, minWidth: 130, padding: '12px 16px', borderRadius: 12, border: `1px solid ${noteOpen ? 'rgba(219,39,119,0.3)' : C.hairlineStrong}`, background: noteOpen ? 'rgba(219,39,119,0.08)' : 'rgba(167,139,250,0.06)', color: C.silver, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-          Notes
-        </button>
-      </div>
-
-      {/* notes */}
-      {noteOpen && (
-        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 12, background: noteText ? 'linear-gradient(180deg,rgba(219,39,119,0.08),transparent)' : 'rgba(0,0,0,0.28)', border: `1px solid ${noteText ? 'rgba(219,39,119,0.3)' : C.hairline}` }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color: C.magenta, flexShrink: 0 }}><path d="M4 5 H20 V17 H10 L6 21 V17 H4 Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>
-          <input type="text" placeholder="Add a note for the director…" value={noteText} onChange={e => setNoteText(e.target.value)} style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', color: C.silver, fontFamily: SANS, fontSize: 13 }} />
-        </div>
-      )}
-
-      {hasAudio && <audio ref={audioRef} src={audioFilePath!} preload="metadata" />}
-    </article>
-  );
-}
-
-// ── MiniCard ───────────────────────────────────────────────────
-function MiniCard({
-  result,
-  topScore,
-  dimmed,
-}: {
-  result: AnalysisResult;
-  topScore: number;
-  dimmed?: boolean;
-}) {
-  const title = cleanTrackTitle(result.track.title);
-  const score = result.confidenceScore.score;
-  const delta = topScore - score;
-
-  return (
-    <div className="sv-mini-card" style={{
-      display: 'grid', gridTemplateColumns: '36px 1fr auto', gap: 14,
-      alignItems: 'center', padding: '14px 16px', borderRadius: 14,
-      background: 'rgba(15,8,35,0.55)', border: `1px solid ${C.hairline}`,
-      cursor: 'pointer', position: 'relative',
-      opacity: dimmed ? 0.62 : 1,
-      transition: 'transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease',
-    }}>
-      <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 26, color: '#DB2777', lineHeight: 1, textAlign: 'center' }}>
-        {result.rank}
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: C.silver, letterSpacing: '-0.005em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {title}
-        </div>
-        <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.lavender, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>
-          {result.confidenceScore.explanation}
-        </div>
-        <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 9, color: 'rgba(245,166,35,0.72)', letterSpacing: '0.06em', marginTop: 5, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {result.track.tempo != null && <span>{result.track.tempo} BPM</span>}
-          {result.track.tonalCharacter && <><span>&middot;</span><span style={{ textTransform: 'uppercase' }}>{result.track.tonalCharacter}</span></>}
-          {result.track.energyCharacter && <><span>&middot;</span><span style={{ textTransform: 'uppercase' }}>{result.track.energyCharacter}</span></>}
-        </div>
-      </div>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontFamily: SERIF, fontSize: 22, color: C.silver, lineHeight: 1, letterSpacing: '-0.01em' }}>{score}</div>
-        {delta > 0 && (
-          <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 9, color: 'rgba(167,139,250,0.6)', letterSpacing: '0.04em', marginTop: 3 }}>&minus;{delta}</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Verdict builder ───────────────────────────────────────────
 function buildVerdict(
   winner: AnalysisResult,
@@ -1245,17 +746,19 @@ type ResultsScreenProps = {
   briefText: string;
   briefId: BriefId;
   sceneParams: SceneParams;
-  results: AnalysisResult[];
   sceneArc?: SceneArc | null;
+  results: AnalysisResult[];
   readOnly?: boolean;
   onBack?: () => void;
 };
 
-export function ResultsScreen({ briefText, briefId, sceneParams, results, sceneArc, readOnly, onBack }: ResultsScreenProps) {
+export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, results, readOnly, onBack }: ResultsScreenProps) {
   const [toast,                setToast]        = useState<string | null>(null);
   const [compareOpen,          setCompareOpen]  = useState(false);
   const [activeTab,            setActiveTab]    = useState<'shortlist' | 'considered' | 'archive'>('shortlist');
   const [localRightsOverrides, setLocalRightsOverrides] = useState<Record<string, LocalRightsOverride>>({});
+  const [selectedTrackId, setSelectedTrackId]           = useState<string | null>(results[0]?.track.id ?? null);
+  const selectedResult = results.find(r => r.track.id === selectedTrackId) ?? results[0];
 
   const onExportPdf = () => {
     try { window.print(); } catch (e) { setToast(e instanceof Error ? e.message : 'Print failed.'); }
@@ -1313,9 +816,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, sceneA
     }
   };
 
-  const topScore    = results[0]?.confidenceScore.score ?? 100;
-  const lead        = results[0];
-  const sideResults = results.slice(1);
+  const topScore = results[0]?.confidenceScore.score ?? 100;
 
   // toolbar stats
   const rightsBlockerCount = results.filter(r => (r.rightsProfile?.blockers?.length ?? 0) > 0).length;
@@ -1348,17 +849,19 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, sceneA
         @media (min-width: 880px) { .sv-rs-stepper { display: inline-flex; } .sv-rs-step-badge { display: none; } }
 
         /* results stage grid */
-        .sv-results-stage { display: grid; grid-template-columns: 1fr; gap: 24px; }
-        @media (min-width: 1000px) {
-          .sv-results-stage { grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap: 32px; align-items: start; }
+        .sv-results-stage { display: grid; grid-template-columns: 1fr; gap: 16px; }
+        @media (min-width: 800px) {
+          .sv-results-stage { grid-template-columns: 280px minmax(0,1fr) 340px; gap: 24px; align-items: start; }
         }
 
-        /* side list */
-        .sv-side-list { display: flex; flex-direction: column; gap: 12px; }
-        @media (min-width: 1000px) { .sv-side-list { position: sticky; top: 72px; } }
+        /* scene panel (left col) */
+        @media (min-width: 800px) { .sv-scene-panel { position: sticky; top: 72px; } }
 
-        /* toolbar spans full width */
-        .sv-toolbar { grid-column: 1 / -1; }
+        /* candidate list (center col) */
+        .sv-candidate-list { display: flex; flex-direction: column; gap: 8px; }
+
+        /* decision rail (right col) */
+        @media (min-width: 800px) { .sv-decision-rail { position: sticky; top: 72px; } }
 
         /* lead card gradient border */
         .sv-lead-card::before { content: ""; position: absolute; inset: -1px; border-radius: 22px; padding: 1.5px; background: linear-gradient(180deg, rgba(245,166,35,0.55), rgba(221,122,58,0.45) 40%, transparent 80%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; }
@@ -1536,69 +1039,71 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, sceneA
         ) : (
           <section className="sv-results-stage">
 
-            {/* lead card */}
-            {lead && (
-              <LeadCard
-                result={lead}
-                allResults={results}
-                briefId={briefId}
-                sceneArc={sceneArc}
-                onRightsSaved={(id, ov) => setLocalRightsOverrides(m => ({ ...m, [id]: ov }))}
-                onShare={() => void onCopyShareLink()}
-                onMoveToConsidered={() => setActiveTab('considered')}
-              />
-            )}
-
-            {/* side list */}
-            <aside className="sv-side-list">
-              {sideResults.length > 0 && (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, padding: '4px 4px 8px' }}>
-                    <span style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.amber }}>Also in shortlist &middot; {sideResults.length}</span>
-                    {results.length >= 2 && (
-                      <span onClick={() => setCompareOpen(true)} style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: 'rgba(167,139,250,0.6)', cursor: 'pointer' }}>compare &darr;</span>
-                    )}
-                  </div>
-                  {sideResults.map((r, i) => (
-                    <MiniCard key={r.track.id} result={r} topScore={topScore} dimmed={i > 2} />
-                  ))}
-                </>
-              )}
-
-              {sideResults.length === 0 && (
-                <div style={{ padding: '24px 16px', textAlign: 'center', fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, color: 'rgba(155,147,196,0.5)' }}>
-                  Only one track in shortlist.
-                </div>
-              )}
+            {/* col 1 — scene panel */}
+            <aside className="sv-scene-panel">
+              {sceneArc
+                ? <SceneArcInspector arc={sceneArc} />
+                : <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.lavender, margin: 0, padding: '16px 0' }}>
+                    No scene arc — go back to Brief to extract one.
+                  </p>
+              }
             </aside>
 
-            {/* toolbar */}
-            <div className="sv-toolbar no-print" style={{ padding: '14px 18px', borderRadius: 14, background: 'rgba(15,8,35,0.7)', border: `1px solid ${C.hairline}`, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.amber }}>
-                <b style={{ color: C.silver, fontWeight: 700, fontFamily: SANS, fontSize: 13, letterSpacing: '-0.01em', marginRight: 3 }}>{results.length}</b>
-                shortlisted
-              </span>
-              {rightsBlockerCount > 0 && (
+            {/* col 2 — candidate list */}
+            <div className="sv-candidate-list">
+              {results.map(r => (
+                <ArcCandidateRow
+                  key={r.track.id}
+                  result={r}
+                  sceneArc={sceneArc}
+                  selected={selectedTrackId === r.track.id}
+                  onSelect={() => setSelectedTrackId(r.track.id)}
+                  topScore={topScore}
+                />
+              ))}
+
+              {/* toolbar — lives below list in center column */}
+              <div className="no-print" style={{ marginTop: 8, padding: '12px 16px', borderRadius: 12, background: 'rgba(15,8,35,0.7)', border: `1px solid ${C.hairline}`, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.amber }}>
-                  <b style={{ color: C.silver, fontWeight: 700, fontFamily: SANS, fontSize: 13, letterSpacing: '-0.01em', marginRight: 3 }}>{rightsBlockerCount}</b>
-                  rights blocker{rightsBlockerCount > 1 ? 's' : ''}
+                  <b style={{ color: C.silver, fontWeight: 700, fontFamily: SANS, fontSize: 13, letterSpacing: '-0.01em', marginRight: 3 }}>{results.length}</b>
+                  shortlisted
                 </span>
+                {rightsBlockerCount > 0 && (
+                  <span style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.amber }}>
+                    <b style={{ color: C.silver, fontWeight: 700, fontFamily: SANS, fontSize: 13, letterSpacing: '-0.01em', marginRight: 3 }}>{rightsBlockerCount}</b>
+                    rights blocker{rightsBlockerCount > 1 ? 's' : ''}
+                  </span>
+                )}
+                {needLyricsCount > 0 && (
+                  <span style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.amber }}>
+                    <b style={{ color: C.silver, fontWeight: 700, fontFamily: SANS, fontSize: 13, letterSpacing: '-0.01em', marginRight: 3 }}>{needLyricsCount}</b>
+                    need lyrics
+                  </span>
+                )}
+                <div style={{ flex: 1 }} />
+                <button type="button" onClick={onExportPdf} style={{ padding: '8px 14px', borderRadius: 9, background: 'transparent', border: `1px solid ${C.hairlineStrong}`, color: C.silver, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M6 3 H18 V21 L12 16 L6 21 Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>
+                  PDF
+                </button>
+                <button type="button" onClick={() => void onCopyShareLink()} style={{ padding: '8px 14px', fontSize: 11, borderRadius: 9, border: 0, background: `linear-gradient(135deg,${C.purple},${C.magenta})`, color: '#fff', fontWeight: 700, letterSpacing: '0.02em', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  Share
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              </div>
+            </div>
+
+            {/* col 3 — decision rail */}
+            <div className="sv-decision-rail">
+              {selectedResult && (
+                <DecisionRail
+                  result={selectedResult}
+                  allResults={results}
+                  sceneArc={sceneArc}
+                  onShare={() => void onCopyShareLink()}
+                  onRightsSaved={(id, ov) => setLocalRightsOverrides(m => ({ ...m, [id]: ov }))}
+                  onMoveToConsidered={() => setActiveTab('considered')}
+                />
               )}
-              {needLyricsCount > 0 && (
-                <span style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.amber }}>
-                  <b style={{ color: C.silver, fontWeight: 700, fontFamily: SANS, fontSize: 13, letterSpacing: '-0.01em', marginRight: 3 }}>{needLyricsCount}</b>
-                  need lyrics
-                </span>
-              )}
-              <div style={{ flex: 1 }} />
-              <button type="button" onClick={onExportPdf} style={{ padding: '10px 16px', borderRadius: 10, background: 'transparent', border: `1px solid ${C.hairlineStrong}`, color: C.silver, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M6 3 H18 V21 L12 16 L6 21 Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>
-                Export PDF
-              </button>
-              <button type="button" onClick={() => void onCopyShareLink()} style={{ padding: '10px 18px', fontSize: 12, borderRadius: 10, border: 0, background: `linear-gradient(135deg,${C.purple},${C.magenta})`, color: '#fff', fontWeight: 700, letterSpacing: '0.02em', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                Share with director
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </button>
             </div>
 
           </section>
