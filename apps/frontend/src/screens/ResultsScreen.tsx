@@ -18,6 +18,107 @@ function deriveSongArc(track: AnalysisResult['track']): ArcSegments {
   return { opening: base, heldBreath: base, turn: base + 4, release: base };
 }
 
+// ── Decision-support scoring ──────────────────────────────────
+
+type ClearabilityResult = { score: number; band: 'low' | 'medium' | 'high'; rationale: string };
+
+function computeClearabilityConfidence(rp: AnalysisResult['rightsProfile'], track: AnalysisResult['track']): ClearabilityResult {
+  if (!rp) {
+    return {
+      score: 35, band: 'high',
+      rationale: 'No rights metadata on record. Run fingerprint lookup to begin clearance assessment.',
+    };
+  }
+  let score = 50;
+  const positives: string[] = [];
+  const negatives: string[] = [];
+
+  if (rp.isOneStop === true)                           { score += 20; positives.push('One-stop licensing available'); }
+  if (rp.isrc ?? track.isrc)                          { score += 10; positives.push('ISRC verified'); }
+  if (rp.publisherName)                               { score += 10; positives.push('Publisher identified'); }
+  if (rp.writerName)                                  { score +=  8; positives.push('Writer on record'); }
+  if ((rp.enrichmentSources ?? []).length > 0)        { score +=  5; positives.push('Metadata verified via ' + rp.enrichmentSources![0]); }
+  if (rp.rightsState === 'clear')                     { score += 12; positives.push('Rights state clear'); }
+  if (rp.workId)                                      { score +=  5; positives.push('MusicBrainz match found'); }
+
+  if (rp.rightsState === 'blocked')                   { score -= 50; negatives.push('Rights state blocked'); }
+  if (rp.splitPct != null && rp.splitPct < 100)       { score -= 15; negatives.push('Split ownership detected'); }
+  const blockerCount = rp.blockers?.length ?? 0;
+  if (blockerCount > 0) {
+    score -= Math.min(30, blockerCount * 15);
+    negatives.push(blockerCount === 1 ? '1 rights blocker on record' : `${blockerCount} rights blockers on record`);
+  }
+  if (!rp.publisherName && !rp.writerName)            { score -= 10; negatives.push('No publisher or writer on record'); }
+
+  score = Math.max(5, Math.min(100, Math.round(score)));
+  const band: ClearabilityResult['band'] = score >= 70 ? 'low' : score >= 45 ? 'medium' : 'high';
+
+  const all = [...positives, ...negatives];
+  const rationale = all.length > 0
+    ? all.join('. ') + '.'
+    : 'Insufficient metadata to assess clearance risk. Manual verification required.';
+
+  return { score, band, rationale };
+}
+
+type ReplacementResult = { label: 'LOW' | 'MEDIUM' | 'HIGH'; count: number; sentence: string };
+
+function computeReplacementRisk(result: AnalysisResult, allResults: AnalysisResult[]): ReplacementResult {
+  const thisScore    = result.confidenceScore.score;
+  const thisBlockers = result.rightsProfile?.blockers?.length ?? 0;
+
+  const comparable = allResults.filter(r =>
+    r.track.id !== result.track.id &&
+    r.confidenceScore.score >= thisScore - 5 &&
+    (r.rightsProfile?.blockers?.length ?? 0) <= thisBlockers,
+  );
+  const count = comparable.length;
+
+  if (count >= 5) return { label: 'LOW',    count, sentence: `${count} comparable tracks score within 5 points and appear easier to clear.` };
+  if (count >= 2) return { label: 'MEDIUM', count, sentence: `${count} comparable tracks available with similar fit and lower clearance risk.` };
+  if (count === 0) return { label: 'HIGH',  count, sentence: 'No comparable alternatives found. This track may be worth pursuing despite clearance complexity.' };
+  return             { label: 'HIGH',  count, sentence: `Only ${count} comparable alternative found.` };
+}
+
+type ActionTier = 'pursue' | 'fight' | 'alternative' | 'backup' | 'deprioritize';
+type ActionResult = { tier: ActionTier; label: string; sentence: string };
+
+function buildRecommendedAction(fitScore: number, clearScore: number, repLabel: ReplacementResult['label']): ActionResult {
+  const highFit    = fitScore >= 70;
+  const goodClear  = clearScore >= 65;
+  const manyAlts   = repLabel === 'LOW';
+
+  if (highFit && goodClear)              return { tier: 'pursue',      label: 'Pursue Clearance',    sentence: 'Strong creative fit with manageable rights complexity.' };
+  if (highFit && !goodClear && !manyAlts) return { tier: 'fight',       label: 'Fight for It',        sentence: 'Strong fit with no comparable alternatives — clearance complexity may be worth it.' };
+  if (highFit && !goodClear && manyAlts)  return { tier: 'alternative', label: 'Pursue Alternative',  sentence: 'Comparable creative fit available with lower clearance risk.' };
+  if (!highFit && goodClear)              return { tier: 'backup',      label: 'Keep as Backup',      sentence: 'Decent fit with clean rights — useful if lead option falls through.' };
+  return                                         { tier: 'deprioritize', label: 'Consider Replacing', sentence: 'Moderate fit and clearance complexity with alternatives available.' };
+}
+
+const ACTION_COLORS: Record<ActionTier, { bg: string; border: string; text: string }> = {
+  pursue:       { bg: 'rgba(76,175,130,0.12)',  border: 'rgba(76,175,130,0.35)',  text: '#4CAF82' },
+  fight:        { bg: 'rgba(245,181,68,0.12)',  border: 'rgba(245,181,68,0.35)',  text: '#F5B544' },
+  alternative:  { bg: 'rgba(123,112,178,0.12)', border: 'rgba(123,112,178,0.35)', text: '#9B93C4' },
+  backup:       { bg: 'rgba(123,112,178,0.10)', border: 'rgba(123,112,178,0.30)', text: '#9B93C4' },
+  deprioritize: { bg: 'rgba(232,90,90,0.10)',   border: 'rgba(232,90,90,0.30)',   text: '#E85A5A' },
+};
+
+const CLEAR_BAND_COLOR: Record<ClearabilityResult['band'], string> = {
+  low:    '#4CAF82',
+  medium: '#F5B544',
+  high:   '#E85A5A',
+};
+const CLEAR_BAND_LABEL: Record<ClearabilityResult['band'], string> = {
+  low:    'Low Risk',
+  medium: 'Medium Risk',
+  high:   'High Risk',
+};
+const REP_COLOR: Record<ReplacementResult['label'], string> = {
+  LOW:    '#4CAF82',
+  MEDIUM: '#F5B544',
+  HIGH:   '#E85A5A',
+};
+
 // ── design tokens ────────────────────────────────────────────
 const C = {
   purple:        '#F5A623',
@@ -464,6 +565,7 @@ type LocalRightsOverride = NonNullable<AnalysisResult['rightsProfile']> & { bloc
 // ── LeadCard ───────────────────────────────────────────────────
 function LeadCard({
   result,
+  allResults,
   briefId: _briefId,
   sceneArc,
   onRightsSaved,
@@ -471,6 +573,7 @@ function LeadCard({
   onMoveToConsidered,
 }: {
   result: AnalysisResult;
+  allResults: AnalysisResult[];
   briefId: BriefId;
   sceneArc?: SceneArc | null;
   onRightsSaved?: (trackId: string, override: LocalRightsOverride) => void;
@@ -494,6 +597,12 @@ function LeadCard({
     (vec.scene * WEIGHTS.scene + vec.lyrics * WEIGHTS.lyrics +
      vec.audioSignal * WEIGHTS.audioSignal + vec.rightsClarity * WEIGHTS.rightsClarity) * 100
   );
+
+  // ── Decision-support ──────────────────────────────────────────
+  const clearability = computeClearabilityConfidence(result.rightsProfile, result.track);
+  const replacement  = computeReplacementRisk(result, allResults);
+  const action       = buildRecommendedAction(liveScore, clearability.score, replacement.label);
+  const actionColors = ACTION_COLORS[action.tier];
 
   const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
   const hasAudio      = audioFilePath !== null;
@@ -552,6 +661,51 @@ function LeadCard({
       background: 'linear-gradient(180deg, rgba(26,22,48,0.60), rgba(16,12,32,0.78))',
       border: `1px solid ${C.hairline}`, overflow: 'hidden',
     }}>
+
+      {/* ── Recommended Action ── */}
+      <div style={{ marginBottom: 20, padding: '14px 16px', borderRadius: 14, background: actionColors.bg, border: `1px solid ${actionColors.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: actionColors.text, opacity: 0.7 }}>Recommended Action</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: actionColors.text, letterSpacing: '0.01em' }}>{action.label}</span>
+          </div>
+          <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.silver, opacity: 0.8 }}>{action.sentence}</span>
+        </div>
+      </div>
+
+      {/* ── Three-metric summary ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 22 }}>
+        {/* Creative Fit */}
+        <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(7,4,26,0.55)', border: `1px solid ${C.hairline}` }}>
+          <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Creative Fit</div>
+          <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 26, fontWeight: 600, color: C.silver, lineHeight: 1 }}>{liveScore}</div>
+          <div style={{ fontSize: 10, color: C.lavender, marginTop: 4 }}>Story Match</div>
+        </div>
+        {/* Clearability */}
+        <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(7,4,26,0.55)', border: `1px solid ${C.hairline}` }}>
+          <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Clearability</div>
+          <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 26, fontWeight: 600, color: CLEAR_BAND_COLOR[clearability.band], lineHeight: 1 }}>{clearability.score}%</div>
+          <div style={{ fontSize: 10, color: CLEAR_BAND_COLOR[clearability.band], marginTop: 4 }}>{CLEAR_BAND_LABEL[clearability.band]}</div>
+        </div>
+        {/* Replacement Risk */}
+        <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(7,4,26,0.55)', border: `1px solid ${C.hairline}` }}>
+          <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Replacement Risk</div>
+          <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 20, fontWeight: 600, color: REP_COLOR[replacement.label], lineHeight: 1, marginTop: 2 }}>{replacement.label}</div>
+          <div style={{ fontSize: 10, color: C.lavender, marginTop: 4 }}>{replacement.count} alternative{replacement.count !== 1 ? 's' : ''}</div>
+        </div>
+      </div>
+
+      {/* ── Clearability rationale ── */}
+      <div style={{ marginBottom: 20, padding: '10px 14px', borderRadius: 10, background: 'rgba(0,0,0,0.22)', borderLeft: `2px solid ${CLEAR_BAND_COLOR[clearability.band]}` }}>
+        <span style={{ fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: CLEAR_BAND_COLOR[clearability.band], marginRight: 8 }}>Clearability</span>
+        <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.lavender }}>{clearability.rationale}</span>
+      </div>
+
+      {/* ── Replacement sentence ── */}
+      <div style={{ marginBottom: 22, padding: '10px 14px', borderRadius: 10, background: 'rgba(0,0,0,0.22)', borderLeft: `2px solid ${REP_COLOR[replacement.label]}` }}>
+        <span style={{ fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: REP_COLOR[replacement.label], marginRight: 8 }}>Replacement Risk</span>
+        <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.lavender }}>{replacement.sentence}</span>
+      </div>
 
       {/* ── lead head ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 18 }}>
@@ -1386,6 +1540,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, sceneA
             {lead && (
               <LeadCard
                 result={lead}
+                allResults={results}
                 briefId={briefId}
                 sceneArc={sceneArc}
                 onRightsSaved={(id, ov) => setLocalRightsOverrides(m => ({ ...m, [id]: ov }))}
