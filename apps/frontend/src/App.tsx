@@ -180,6 +180,7 @@ function App() {
           briefId={briefId}
           sceneParams={sceneParams}
           results={job.results}
+          sceneArc={sceneArc}
           onBack={() => { job.reset(); setView('brief'); }}
         />
       )}

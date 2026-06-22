@@ -1,6 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { API_BASE, type AnalysisResult, type SceneParams } from '../utils/apiClient';
+import { API_BASE, type AnalysisResult, type SceneParams, type SceneArc } from '../utils/apiClient';
 import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
+import { ArcMatch } from '../components/ArcMatch';
+import type { ArcSegments } from '../engine/arcMatch';
+
+function deriveSongArc(track: AnalysisResult['track']): ArcSegments {
+  const energyBase =
+    track.energyCharacter === 'high' ? 72 :
+    track.energyCharacter === 'low'  ? 28 : 50;
+  const bpm = track.tempo ?? 100;
+  const tempoBoost = bpm > 140 ? 10 : bpm > 100 ? 3 : -6;
+  const base = Math.min(84, Math.max(16, energyBase + tempoBoost));
+  const isMajor = track.tonalCharacter === 'major';
+  const isMinor = track.tonalCharacter === 'minor';
+  if (isMajor) return { opening: base - 8, heldBreath: base - 4, turn: base + 6, release: base + 14 };
+  if (isMinor) return { opening: base + 2, heldBreath: base + 12, turn: base - 4, release: base - 10 };
+  return { opening: base, heldBreath: base, turn: base + 4, release: base };
+}
 
 // ── design tokens ────────────────────────────────────────────
 const C = {
@@ -449,12 +465,14 @@ type LocalRightsOverride = NonNullable<AnalysisResult['rightsProfile']> & { bloc
 function LeadCard({
   result,
   briefId: _briefId,
+  sceneArc,
   onRightsSaved,
   onShare,
   onMoveToConsidered,
 }: {
   result: AnalysisResult;
   briefId: BriefId;
+  sceneArc?: SceneArc | null;
   onRightsSaved?: (trackId: string, override: LocalRightsOverride) => void;
   onShare?: () => void;
   onMoveToConsidered?: (trackId: string) => void;
@@ -650,6 +668,20 @@ function LeadCard({
       <div style={{ marginTop: 20, padding: '16px 18px', borderRadius: 14, background: 'rgba(167,139,250,0.05)', borderLeft: `2px solid ${C.magenta}`, fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(15px,1.5vw,18px)', lineHeight: 1.45, color: C.silver, maxWidth: '56ch' }}>
         {result.confidenceScore.explanation}
       </div>
+
+      {/* ── arc match ── */}
+      {sceneArc && (
+        <div style={{ marginTop: 20 }}>
+          <ArcMatch
+            scene={{ opening: sceneArc.opening, heldBreath: sceneArc.heldBreath, turn: sceneArc.turn, release: sceneArc.release }}
+            song={deriveSongArc(result.track)}
+            mode="inspect"
+            trackTitle={cleanTrackTitle(result.track.title)}
+            artist={result.track.artistName ?? undefined}
+            sceneLabel="Arc Match™ — hover to inspect"
+          />
+        </div>
+      )}
 
       {/* ── player ── */}
       <div className="no-print" style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', borderRadius: 14, background: 'rgba(0,0,0,0.32)', border: `1px solid ${C.hairline}` }}>
@@ -1059,11 +1091,12 @@ type ResultsScreenProps = {
   briefId: BriefId;
   sceneParams: SceneParams;
   results: AnalysisResult[];
+  sceneArc?: SceneArc | null;
   readOnly?: boolean;
   onBack?: () => void;
 };
 
-export function ResultsScreen({ briefText, briefId, sceneParams, results, readOnly, onBack }: ResultsScreenProps) {
+export function ResultsScreen({ briefText, briefId, sceneParams, results, sceneArc, readOnly, onBack }: ResultsScreenProps) {
   const [toast,                setToast]        = useState<string | null>(null);
   const [compareOpen,          setCompareOpen]  = useState(false);
   const [activeTab,            setActiveTab]    = useState<'shortlist' | 'considered' | 'archive'>('shortlist');
@@ -1353,6 +1386,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, results, readOn
               <LeadCard
                 result={lead}
                 briefId={briefId}
+                sceneArc={sceneArc}
                 onRightsSaved={(id, ov) => setLocalRightsOverrides(m => ({ ...m, [id]: ov }))}
                 onShare={() => void onCopyShareLink()}
                 onMoveToConsidered={() => setActiveTab('considered')}
