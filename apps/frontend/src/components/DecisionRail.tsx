@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { API_BASE, type AnalysisResult, type SceneArc } from '../utils/apiClient';
 import { ArcMatchGraph } from './ArcMatchGraph';
-import { RightsTable, RightsPanel, type LocalRightsOverride, type AutoFill, type RightsSaveResult } from './RightsBlock';
+import { RightsPanel, type LocalRightsOverride, type AutoFill, type RightsSaveResult } from './RightsBlock';
 
 const C = {
   purple:         '#F5A623',
@@ -18,9 +18,9 @@ const C = {
 };
 const SERIF = '"Instrument Serif", Georgia, serif';
 const SANS  = '"Manrope", system-ui, sans-serif';
+const MONO  = '"JetBrains Mono", monospace';
 
 const currentAudio: { el: HTMLAudioElement | null } = { el: null };
-
 const WAVE = [30,55,40,72,50,90,60,35,65,48,78,42,62,38,55,80,45,60,30,70,42,55,36,50,65,40,58,32,48,55];
 
 function resolveAudioUrl(path: string | null): string | null {
@@ -95,10 +95,15 @@ function computeClearabilityConfidence(rp: AnalysisResult['rightsProfile']): Cle
   return { score, band, rationale };
 }
 
-type ReplacementLabel = 'LOW' | 'MEDIUM' | 'HIGH';
-type ReplacementResult = { label: ReplacementLabel; count: number; sentence: string };
+// Replaceability: how easily can this track be substituted?
+// HIGH = plenty of substitutes (track is dispensable)
+// MEDIUM = some substitutes
+// LOW = few substitutes (scarcity adds strategic value)
+// CRITICAL = no substitutes found (irreplaceable — escalation may be warranted)
+type ReplaceabilityLabel = 'HIGH' | 'MEDIUM' | 'LOW' | 'CRITICAL';
+type ReplaceabilityResult = { label: ReplaceabilityLabel; count: number; sentence: string };
 
-function computeReplacementRisk(result: AnalysisResult, allResults: AnalysisResult[]): ReplacementResult {
+function computeReplaceability(result: AnalysisResult, allResults: AnalysisResult[]): ReplaceabilityResult {
   const thisScore = result.confidenceScore.arcMatch?.combinedScore ?? 0;
   const thisBlockers = result.rightsProfile?.blockers?.length ?? 0;
   const count = allResults.filter(r => {
@@ -107,43 +112,98 @@ function computeReplacementRisk(result: AnalysisResult, allResults: AnalysisResu
     const b = r.rightsProfile?.blockers?.length ?? 0;
     return s >= thisScore - 5 && b <= thisBlockers;
   }).length;
-  if (count === 0) return { label: 'LOW', count, sentence: 'No comparable tracks within 5 match points were identified in this search.' };
-  if (count <= 3)  return { label: 'MEDIUM', count, sentence: `${count} track${count > 1 ? 's' : ''} found within 5 match points with equal or better clearance.` };
-  return { label: 'HIGH', count, sentence: `${count} alternatives exist at similar fit — this track is replaceable.` };
+  if (count === 0) return { label: 'CRITICAL', count, sentence: 'No substitutes found in this search — this track is irreplaceable.' };
+  if (count === 1) return { label: 'LOW',      count, sentence: '1 comparable track exists. Limited substitutes add strategic value.' };
+  if (count <= 3)  return { label: 'MEDIUM',   count, sentence: `${count} comparable tracks within 5 match points. Some substitutes available.` };
+  return                 { label: 'HIGH',      count, sentence: `${count} tracks at similar fit — this track is replaceable.` };
 }
 
-type ActionTier = 'pursue' | 'fight' | 'escalate' | 'alternative' | 'backup' | 'deprioritize';
-type ActionResult = { tier: ActionTier; label: string; sentence: string };
+// Effort to Green: how much work does it take to make this track licensable?
+type EffortLevel = 'easy' | 'medium' | 'hard' | 'very_hard';
+type EffortResult = { level: EffortLevel; label: string; description: string };
 
-function buildRecommendedAction(fitScore: number, clearScore: number, repLabel: ReplacementLabel): ActionResult {
-  const irreplaceable = repLabel === 'LOW';
+function computeEffortToGreen(rp: AnalysisResult['rightsProfile']): EffortResult {
+  if (!rp) return { level: 'hard', label: 'Hard', description: 'No rights data — full ownership research needed.' };
+  if (rp.rightsState === 'cleared') return { level: 'easy', label: 'None', description: 'Already cleared for sync.' };
+
+  const blockers = rp.blockers?.length ?? 0;
+  if (rp.rightsState === 'blocked' || blockers >= 2) {
+    return { level: 'very_hard', label: 'Very Hard', description: 'Active conflicts or multiple blockers — legal coordination required.' };
+  }
+  if (blockers === 1) {
+    return { level: 'hard', label: 'Hard', description: 'One clearance blocker to resolve before licensing can proceed.' };
+  }
+  const missing = [!rp.isrc, !rp.publisherName, !rp.writerName, !rp.isOneStop, !rp.workId].filter(Boolean).length;
+  if (missing >= 3) return { level: 'medium', label: 'Medium', description: 'Several ownership fields unconfirmed — research and outreach needed.' };
+  if (missing > 0)  return { level: 'easy',   label: 'Easy',   description: 'Minor data gaps — routine verification should resolve this quickly.' };
+  return                   { level: 'easy',   label: 'None',   description: 'Rights profile is complete — ready to proceed.' };
+}
+
+// Triage state: the unified recommendation
+type TriageState = 'ready' | 'investigate' | 'escalate' | 'abandon';
+type TriageResult = { state: TriageState; headline: string; sentence: string };
+
+function computeTriageState(
+  fitScore: number,
+  clearScore: number,
+  repLabel: ReplaceabilityLabel,
+  effortLevel: EffortLevel,
+): TriageResult {
+  const scarce = repLabel === 'CRITICAL' || repLabel === 'LOW';
 
   if (fitScore >= 75 && clearScore >= 70) {
-    return { tier: 'pursue', label: 'Pursue', sentence: 'Strong fit, rights look workable — lead with this one.' };
+    return {
+      state: 'ready',
+      headline: scarce ? 'Secure Immediately' : 'Pursue',
+      sentence: scarce
+        ? 'Strong fit, clear rights, and no substitutes — act before competing projects do.'
+        : 'Strong fit and rights look workable — lead with this one.',
+    };
   }
+
+  // Irreplaceable with rights uncertainty — escalation is worth the cost
+  if (scarce && fitScore >= 55) {
+    return {
+      state: 'escalate',
+      headline: 'Escalate Rights Investigation',
+      sentence: clearScore < 45
+        ? 'Strong creative match with unresolved ownership data. No substitutes found — investigation is worth the effort.'
+        : 'Good fit and limited substitutes. Rights need confirmation before committing.',
+    };
+  }
+
   if (fitScore >= 75 && clearScore >= 45) {
-    return irreplaceable
-      ? { tier: 'fight', label: 'Fight for it', sentence: 'Best fit in the search. No substitute exists — clear the rights.' }
-      : { tier: 'alternative', label: 'Find an alternative', sentence: 'Rights are shaky and alternatives exist — pressure-test a backup.' };
+    return {
+      state: 'investigate',
+      headline: 'Fight for It',
+      sentence: 'Top creative choice but rights are uncertain. Worth the investigation given the fit.',
+    };
   }
   if (fitScore >= 55 && clearScore >= 70) {
-    return { tier: 'backup', label: 'Keep as backup', sentence: 'Easy to clear but not the creative first choice — hold in reserve.' };
-  }
-  // Low clearability — irreplaceable tracks deserve escalation, not abandonment
-  if (irreplaceable && fitScore >= 55) {
-    return { tier: 'escalate', label: 'Escalate rights', sentence: 'No comparable alternatives found. Investigate clearance before moving on.' };
+    return {
+      state: 'investigate',
+      headline: 'Keep as Backup',
+      sentence: 'Easy to clear but not the strongest creative fit — hold in reserve.',
+    };
   }
   if (fitScore >= 75) {
-    return { tier: 'alternative', label: 'Find an alternative', sentence: 'Rights are blocking this — comparable options exist in this search.' };
+    return {
+      state: 'investigate',
+      headline: 'Find an Alternative',
+      sentence: 'Rights are blocking this and comparable options exist in this search.',
+    };
   }
-  return { tier: 'deprioritize', label: 'Deprioritise', sentence: 'Neither fit nor clearability justify the effort right now.' };
+  return {
+    state: 'abandon',
+    headline: 'Deprioritise',
+    sentence: 'Neither fit nor clearability justify the effort here.',
+  };
 }
 
-/** What specific steps would improve clearability — used to guide the supervisor. */
 function buildClearabilityActions(rp: AnalysisResult['rightsProfile']): string[] {
   if (!rp) return ['Research track ownership and rights holders'];
   const steps: string[] = [];
-  if (!rp.isrc)    steps.push('Resolve track fingerprint to get ISRC');
+  if (!rp.isrc)         steps.push('Resolve track fingerprint to get ISRC');
   if (!rp.publisherName) steps.push('Identify publisher');
   if (!rp.writerName)    steps.push('Confirm writer ownership');
   if (!rp.isOneStop)     steps.push('Determine one-stop status');
@@ -153,25 +213,45 @@ function buildClearabilityActions(rp: AnalysisResult['rightsProfile']): string[]
   return steps;
 }
 
-const ACTION_COLOR: Record<ActionTier, string> = {
-  pursue: '#4CAF82',
-  fight: '#F5B544',
-  escalate: '#F5B544',
-  alternative: '#F5A623',
-  backup: '#9B93C4',
-  deprioritize: '#E85A5A',
-};
-
 const CLEARABILITY_COLOR: Record<ClearabilityBand, string> = {
-  high: '#4CAF82',
+  high:   '#4CAF82',
   medium: '#F5B544',
-  low: '#E85A5A',
+  low:    '#E85A5A',
 };
 
-const REPLACEMENT_COLOR: Record<ReplacementLabel, string> = {
-  LOW: '#4CAF82',
-  MEDIUM: '#F5B544',
-  HIGH: '#E85A5A',
+const REPLACEABILITY_COLOR: Record<ReplaceabilityLabel, string> = {
+  CRITICAL: '#F5B544', // irreplaceable — amber urgency
+  LOW:      '#4CAF82', // scarcity = strategic value
+  MEDIUM:   '#F5B544',
+  HIGH:     '#9B93C4', // easily replaced — neutral
+};
+
+const REPLACEABILITY_SUBLABEL: Record<ReplaceabilityLabel, string> = {
+  CRITICAL: 'No substitutes',
+  LOW:      'Few substitutes',
+  MEDIUM:   'Some substitutes',
+  HIGH:     'Easily replaced',
+};
+
+const EFFORT_COLOR: Record<EffortLevel, string> = {
+  easy:      '#4CAF82',
+  medium:    '#F5B544',
+  hard:      '#F5A623',
+  very_hard: '#E85A5A',
+};
+
+const TRIAGE_COLOR: Record<TriageState, string> = {
+  ready:       '#4CAF82',
+  investigate: '#F5B544',
+  escalate:    '#F5A623',
+  abandon:     '#E85A5A',
+};
+
+const TRIAGE_EMOJI: Record<TriageState, string> = {
+  ready:       '🟢',
+  investigate: '🟡',
+  escalate:    '🟠',
+  abandon:     '🔴',
 };
 
 type Props = {
@@ -190,18 +270,18 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
     result.confidenceScore.songArcValenceCurve,
   );
 
-  const [isPlaying,       setIsPlaying]       = useState(false);
-  const [currentTime,     setCurrentTime]     = useState(0);
-  const [duration,        setDuration]        = useState(0);
-  const [rightsPanel,     setRightsPanel]     = useState(false);
-  const [playbackMsg,     setPlaybackMsg]     = useState(false);
-  const [noteOpen,        setNoteOpen]        = useState(false);
-  const [noteText,        setNoteText]        = useState('');
-  const [localRights,     setLocalRights]     = useState(result.rightsProfile);
-  const [pendingAutoFill, setPendingAutoFill] = useState<AutoFill | undefined>(undefined);
-  const [evidenceOpen,    setEvidenceOpen]    = useState(!hasArcData);
+  const [isPlaying,        setIsPlaying]        = useState(false);
+  const [currentTime,      setCurrentTime]      = useState(0);
+  const [duration,         setDuration]         = useState(0);
+  const [rightsPanel,      setRightsPanel]      = useState(false);
+  const [playbackMsg,      setPlaybackMsg]      = useState(false);
+  const [noteOpen,         setNoteOpen]         = useState(false);
+  const [noteText,         setNoteText]         = useState('');
+  const [localRights,      setLocalRights]      = useState(result.rightsProfile);
+  const [pendingAutoFill,  setPendingAutoFill]  = useState<AutoFill | undefined>(undefined);
+  const [evidenceOpen,     setEvidenceOpen]     = useState(!hasArcData);
   const [clearabilityOpen, setClearabilityOpen] = useState(false);
-  const [audioError,      setAudioError]      = useState<string | null>(null);
+  const [audioError,       setAudioError]       = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
@@ -284,6 +364,21 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
     ? arcMatch.combinedScore >= 75 ? C.good : arcMatch.combinedScore >= 50 ? C.amber : C.lavender
     : C.lavender;
 
+  // Compute all decision dimensions up front
+  const fitScore      = arcMatch?.combinedScore ?? Math.round((vec.scene * 0.45 + vec.lyrics * 0.25 + vec.audioSignal * 0.20) * 100 / 0.90);
+  const clearability  = computeClearabilityConfidence(localRights);
+  const replaceability = computeReplaceability(result, allResults);
+  const effort        = computeEffortToGreen(localRights);
+  const triage        = computeTriageState(fitScore, clearability.score, replaceability.label, effort.level);
+  const triageColor   = TRIAGE_COLOR[triage.state];
+  const clearabilityActions = buildClearabilityActions(localRights);
+
+  const dimStyle = (color: string): React.CSSProperties => ({
+    flex: 1, padding: '12px 14px', borderRadius: 12,
+    background: `color-mix(in srgb, ${color} 8%, transparent)`,
+    border: `1px solid color-mix(in srgb, ${color} 28%, transparent)`,
+  });
+
   return (
     <article style={{
       borderRadius: 20,
@@ -292,18 +387,39 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
       border: `1px solid ${C.hairline}`,
     }}>
 
-      {/* ── rights unclear warning — shown prominently when blockers exist ── */}
-      {(localRights?.blockers?.length ?? 0) > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', marginBottom: 14, borderRadius: 10, background: 'rgba(232,90,90,0.10)', border: '1px solid rgba(232,90,90,0.35)' }}>
-          <span style={{ fontSize: 16, lineHeight: 1 }}>🔴</span>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.bad }}>Rights Unclear</div>
-            <div style={{ fontSize: 11, color: 'rgba(244,242,250,0.65)', marginTop: 2, fontFamily: SERIF, fontStyle: 'italic' }}>
-              {localRights?.blockers?.slice(0, 2).join(' · ')}{(localRights?.blockers?.length ?? 0) > 2 ? '…' : ''}
-            </div>
+      {/* ── TRIAGE HERO — recommendation dominates ── */}
+      <div style={{
+        marginBottom: 20,
+        padding: '16px 18px',
+        borderRadius: 14,
+        background: `color-mix(in srgb, ${triageColor} 10%, rgba(0,0,0,0.40))`,
+        border: `1.5px solid color-mix(in srgb, ${triageColor} 38%, transparent)`,
+      }}>
+        <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 10 }}>
+          Recommended Action
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <span style={{ fontSize: 18, lineHeight: 1 }}>{TRIAGE_EMOJI[triage.state]}</span>
+          <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: triageColor, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+            {triage.headline}
+          </span>
+        </div>
+        <p style={{ margin: '0 0 12px', fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, lineHeight: 1.5, color: C.silver }}>
+          {triage.sentence}
+        </p>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', paddingTop: 10, borderTop: '1px solid rgba(123,112,178,0.14)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(155,147,196,0.6)' }}>Effort to clear</span>
+            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: EFFORT_COLOR[effort.level] }}>{effort.label}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(155,147,196,0.6)' }}>Replaceability</span>
+            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: REPLACEABILITY_COLOR[replaceability.label] }}>
+              {replaceability.label === 'CRITICAL' ? 'Critical' : replaceability.label === 'LOW' ? 'Low' : replaceability.label === 'MEDIUM' ? 'Medium' : 'High'}
+            </span>
           </div>
         </div>
-      )}
+      </div>
 
       {/* ── track head ── */}
       <div style={{ marginBottom: 16 }}>
@@ -317,7 +433,7 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
           {result.track.tempo != null && (
-            <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 999, background: C.bpmBg, border: `1px solid ${C.bpmBorder}`, color: C.silver, fontFamily: '"JetBrains Mono",monospace', letterSpacing: '0.04em' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 999, background: C.bpmBg, border: `1px solid ${C.bpmBorder}`, color: C.silver, fontFamily: MONO, letterSpacing: '0.04em' }}>
               {result.track.tempo} BPM
             </span>
           )}
@@ -363,10 +479,10 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
             return <span key={i} style={{ display: 'block', flex: 1, minWidth: 2, height: `${h}%`, borderRadius: 2, background: played ? `linear-gradient(180deg,${C.magenta},${C.purple})` : 'rgba(167,139,250,0.28)', transition: 'background 0.1s' }} />;
           })}
         </div>
-        <span style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 10, color: C.lavender, letterSpacing: '0.04em', flexShrink: 0 }}>{timeLabel}</span>
+        <span style={{ fontFamily: MONO, fontSize: 10, color: C.lavender, letterSpacing: '0.04em', flexShrink: 0 }}>{timeLabel}</span>
       </div>
       {playbackMsg && !hasAudio && <p style={{ fontSize: 11, color: C.lavender, marginTop: 5, fontStyle: 'italic' }}>Audio playback coming soon.</p>}
-      {audioError && <p style={{ fontSize: 11, color: '#E85A5A', marginTop: 5, fontFamily: '"JetBrains Mono",monospace' }}>{audioError}</p>}
+      {audioError && <p style={{ fontSize: 11, color: '#E85A5A', marginTop: 5, fontFamily: MONO }}>{audioError}</p>}
 
       {/* ── arc match hero + Story Match graph (directly below player) ── */}
       {hasArcData && sceneArc ? (
@@ -379,7 +495,7 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
               </div>
               <div>
                 <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender }}>Arc Match {isPlaying && <span style={{ color: C.good, marginLeft: 4 }}>● live</span>}</div>
-                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 10, color: 'rgba(155,147,196,0.6)', marginTop: 3 }}>
+                <div style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(155,147,196,0.6)', marginTop: 3 }}>
                   shape {arcMatch.magnitudeScore} · val {arcMatch.valenceScore}
                 </div>
               </div>
@@ -403,7 +519,7 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
               </div>
               <div>
                 <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender }}>Arc Match</div>
-                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 10, color: 'rgba(155,147,196,0.6)', marginTop: 3 }}>
+                <div style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(155,147,196,0.6)', marginTop: 3 }}>
                   shape {arcMatch.magnitudeScore} · val {arcMatch.valenceScore}
                 </div>
               </div>
@@ -414,6 +530,83 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
           </p>
         </>
       )}
+
+      {/* ── decision dimensions ── */}
+      <div style={{ marginTop: 16 }}>
+        <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 10 }}>Why this recommendation</div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+
+          {/* Creative Fit */}
+          <div style={dimStyle(C.magenta)}>
+            <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Creative Fit</div>
+            <div style={{ fontFamily: MONO, fontSize: 24, fontWeight: 700, color: C.silver, lineHeight: 1 }}>{fitScore}</div>
+            <div style={{ fontSize: 10, color: C.lavender, marginTop: 4 }}>/100 arc match</div>
+          </div>
+
+          {/* Rights Confidence */}
+          <div style={dimStyle(CLEARABILITY_COLOR[clearability.band])}>
+            <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Rights Conf.</div>
+            <div style={{ fontFamily: MONO, fontSize: 24, fontWeight: 700, color: CLEARABILITY_COLOR[clearability.band], lineHeight: 1 }}>{clearability.score}</div>
+            <div style={{ fontSize: 10, color: CLEARABILITY_COLOR[clearability.band], marginTop: 4, fontWeight: 600 }}>{clearability.band.toUpperCase()}</div>
+          </div>
+
+          {/* Replaceability */}
+          <div style={dimStyle(REPLACEABILITY_COLOR[replaceability.label])}>
+            <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Replaceability</div>
+            <div style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: REPLACEABILITY_COLOR[replaceability.label], lineHeight: 1.1, marginTop: 4 }}>
+              {replaceability.label === 'CRITICAL' ? 'Critical' : replaceability.label === 'LOW' ? 'Low' : replaceability.label === 'MEDIUM' ? 'Medium' : 'High'}
+            </div>
+            <div style={{ fontSize: 9, color: REPLACEABILITY_COLOR[replaceability.label], marginTop: 5, fontWeight: 600, letterSpacing: '0.06em' }}>
+              {REPLACEABILITY_SUBLABEL[replaceability.label]}
+            </div>
+          </div>
+
+        </div>
+
+        {/* Replaceability context sentence */}
+        <div style={{ marginBottom: 12, fontFamily: SERIF, fontStyle: 'italic', fontSize: 11, color: 'rgba(155,147,196,0.65)', lineHeight: 1.55 }}>
+          {replaceability.sentence}
+        </div>
+
+        {/* "What would change this recommendation?" — collapsible checklist */}
+        {clearabilityActions.length > 0 && (
+          <div style={{ borderRadius: 10, border: `1px solid ${C.hairline}`, overflow: 'hidden' }}>
+            <button
+              type="button"
+              onClick={() => setClearabilityOpen(v => !v)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(7,4,26,0.45)', border: 'none', cursor: 'pointer', color: C.lavender }}
+            >
+              <span style={{ fontSize: 11, fontStyle: 'italic', fontFamily: SERIF, color: 'rgba(155,147,196,0.85)' }}>
+                What would change this recommendation?
+              </span>
+              <span style={{ fontSize: 13, transition: 'transform 0.2s', display: 'inline-block', transform: clearabilityOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
+            </button>
+            {clearabilityOpen && (
+              <div style={{ padding: '12px 14px 14px', background: 'rgba(7,4,26,0.35)' }}>
+                <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 10 }}>
+                  Effort to green: <span style={{ color: EFFORT_COLOR[effort.level] }}>{effort.label}</span>
+                  <span style={{ fontSize: 9, fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'rgba(155,147,196,0.5)', marginLeft: 6 }}>— {effort.description}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {clearabilityActions.map((step, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+                      <div style={{ width: 18, height: 18, borderRadius: 5, border: '1.5px solid rgba(123,112,178,0.35)', flexShrink: 0, marginTop: 1 }} />
+                      <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: C.silver, lineHeight: 1.4 }}>{step}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRightsPanel(true)}
+                  style={{ marginTop: 12, width: '100%', padding: '9px', borderRadius: 8, background: 'rgba(123,112,178,0.10)', border: `1px solid ${C.hairlineStrong}`, color: C.lavender, fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em' }}
+                >
+                  Update rights data →
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* ── supporting evidence (collapsible) ── */}
       <div style={{ marginTop: 16, borderRadius: 12, border: `1px solid ${C.hairline}`, overflow: 'hidden' }}>
@@ -449,7 +642,7 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
                   <div key={axis.key} style={{ display: 'grid', gridTemplateColumns: '48px minmax(0,1fr) 32px 22px', alignItems: 'center', gap: 8 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.silver }}>
                       {axis.label}
-                      <span style={{ display: 'block', fontFamily: '"JetBrains Mono",monospace', fontSize: 8, fontWeight: 500, color: 'rgba(167,139,250,0.5)', marginTop: 1 }}>
+                      <span style={{ display: 'block', fontFamily: MONO, fontSize: 8, fontWeight: 500, color: 'rgba(167,139,250,0.5)', marginTop: 1 }}>
                         {Math.round(axis.weight * 100)}% wt
                       </span>
                     </div>
@@ -459,13 +652,13 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
                         <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 1, background: C.hairlineStrong }} />
                       </div>
                     </div>
-                    <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 11, fontWeight: 600, color: unscored ? 'rgba(167,139,250,0.4)' : C.silver, textAlign: 'right' }}>
+                    <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, color: unscored ? 'rgba(167,139,250,0.4)' : C.silver, textAlign: 'right' }}>
                       {unscored ? '—' : fillPct}
                     </div>
                     {!axis.fixed ? (
-                      <button type="button" onClick={() => setRightsPanel(true)} style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: '"JetBrains Mono",monospace', fontSize: 11, fontWeight: 700, color: C.magenta, background: 'rgba(221,122,58,0.10)', border: '1px solid rgba(221,122,58,0.35)', cursor: 'pointer', flexShrink: 0 }} title="Improve this axis">↑</button>
+                      <button type="button" onClick={() => setRightsPanel(true)} style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.magenta, background: 'rgba(221,122,58,0.10)', border: '1px solid rgba(221,122,58,0.35)', cursor: 'pointer', flexShrink: 0 }} title="Improve this axis">↑</button>
                     ) : (
-                      <div style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', color: 'rgba(167,139,250,0.3)', border: `1px dashed rgba(167,139,250,0.2)`, fontFamily: '"JetBrains Mono",monospace', fontSize: 11, flexShrink: 0 }}>—</div>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', color: 'rgba(167,139,250,0.3)', border: `1px dashed rgba(167,139,250,0.2)`, fontFamily: MONO, fontSize: 11, flexShrink: 0 }}>—</div>
                     )}
                   </div>
                 );
@@ -479,93 +672,6 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
       <div style={{ marginTop: 16, padding: '13px 15px', borderRadius: 12, background: 'rgba(167,139,250,0.05)', borderLeft: `2px solid ${C.magenta}`, fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(13px,1.3vw,15px)', lineHeight: 1.45, color: C.silver }}>
         {result.confidenceScore.explanation}
       </div>
-
-      {/* ── decision dimensions ── */}
-      {(() => {
-        const fitScore = result.confidenceScore.arcMatch?.combinedScore ?? Math.round((result.confidenceScore.vector.scene * 0.45 + result.confidenceScore.vector.lyrics * 0.25 + result.confidenceScore.vector.audioSignal * 0.20) * 100 / 0.90);
-        const clearability = computeClearabilityConfidence(localRights);
-        const replacement  = computeReplacementRisk(result, allResults);
-        const action       = buildRecommendedAction(fitScore, clearability.score, replacement.label);
-        const actionColor  = ACTION_COLOR[action.tier];
-        const dimStyle = (color: string): React.CSSProperties => ({
-          flex: 1, padding: '12px 14px', borderRadius: 12,
-          background: `color-mix(in srgb, ${color} 8%, transparent)`,
-          border: `1px solid color-mix(in srgb, ${color} 28%, transparent)`,
-        });
-        const clearabilityActions = buildClearabilityActions(localRights);
-        return (
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 10 }}>Decision Dimensions</div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              {/* Creative Fit */}
-              <div style={dimStyle(C.magenta)}>
-                <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Creative Fit</div>
-                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 24, fontWeight: 700, color: C.silver, lineHeight: 1 }}>{fitScore}</div>
-                <div style={{ fontSize: 10, color: C.lavender, marginTop: 4 }}>/100 arc match</div>
-              </div>
-              {/* Clearability */}
-              <div style={dimStyle(CLEARABILITY_COLOR[clearability.band])}>
-                <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Clearability</div>
-                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 24, fontWeight: 700, color: CLEARABILITY_COLOR[clearability.band], lineHeight: 1 }}>{clearability.score}</div>
-                <div style={{ fontSize: 10, color: CLEARABILITY_COLOR[clearability.band], marginTop: 4, fontWeight: 600 }}>{clearability.band.toUpperCase()} confidence</div>
-              </div>
-              {/* Replacement Risk */}
-              <div style={dimStyle(REPLACEMENT_COLOR[replacement.label])}>
-                <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Alternatives</div>
-                <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 24, fontWeight: 700, color: REPLACEMENT_COLOR[replacement.label], lineHeight: 1 }}>{replacement.count}</div>
-                <div style={{ fontSize: 10, color: REPLACEMENT_COLOR[replacement.label], marginTop: 4, fontWeight: 600 }}>{replacement.label} risk</div>
-              </div>
-            </div>
-
-            {/* Recommended Action — prominent */}
-            <div style={{ padding: '14px 16px', borderRadius: 12, background: `color-mix(in srgb, ${actionColor} 12%, rgba(0,0,0,0.35))`, border: `1.5px solid color-mix(in srgb, ${actionColor} 40%, transparent)`, marginBottom: 8 }}>
-              <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 13, fontWeight: 700, color: actionColor, letterSpacing: '0.06em', marginBottom: 5 }}>{action.label.toUpperCase()}</div>
-              <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: C.silver }}>{action.sentence}</div>
-            </div>
-
-            {/* Alternatives + clearability sentences */}
-            <div style={{ marginBottom: 12, fontFamily: SERIF, fontStyle: 'italic', fontSize: 11, color: 'rgba(155,147,196,0.65)', lineHeight: 1.55 }}>
-              {replacement.sentence}
-            </div>
-
-            {/* "What would change this?" — shown when clearability is medium or low */}
-            {clearabilityActions.length > 0 && (
-              <div style={{ borderRadius: 10, border: `1px solid ${C.hairline}`, overflow: 'hidden' }}>
-                <button
-                  type="button"
-                  onClick={() => setClearabilityOpen(v => !v)}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(7,4,26,0.45)', border: 'none', cursor: 'pointer', color: C.lavender }}
-                >
-                  <span style={{ fontSize: 11, fontStyle: 'italic', fontFamily: SERIF, color: 'rgba(155,147,196,0.85)' }}>
-                    Why is clearability only {clearability.score}%?
-                  </span>
-                  <span style={{ fontSize: 13, transition: 'transform 0.2s', display: 'inline-block', transform: clearabilityOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
-                </button>
-                {clearabilityOpen && (
-                  <div style={{ padding: '12px 14px 14px', background: 'rgba(7,4,26,0.35)' }}>
-                    <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 10 }}>What would change this recommendation?</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                      {clearabilityActions.map((step, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
-                          <div style={{ width: 18, height: 18, borderRadius: 5, border: '1.5px solid rgba(123,112,178,0.35)', flexShrink: 0, marginTop: 1 }} />
-                          <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: C.silver, lineHeight: 1.4 }}>{step}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setRightsPanel(true)}
-                      style={{ marginTop: 12, width: '100%', padding: '9px', borderRadius: 8, background: 'rgba(123,112,178,0.10)', border: `1px solid ${C.hairlineStrong}`, color: C.lavender, fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em' }}
-                    >
-                      Update rights data →
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })()}
 
       {/* ── rights form (only shown when editing) ── */}
       {rightsPanel && (
