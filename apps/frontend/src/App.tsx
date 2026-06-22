@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { LockScreen, isAuthenticated } from './components/LockScreen';
 import { NavRail } from './components/NavRail';
+import { MobileTopBar } from './components/MobileTopBar';
+import { MobileTabBar } from './components/MobileTabBar';
+import type { MobileTab } from './components/MobileTabBar';
 import { BriefScreen } from './screens/BriefScreen';
 import { IngestScreen } from './screens/IngestScreen';
 import { AnalyzingScreen } from './screens/AnalyzingScreen';
@@ -139,6 +142,20 @@ function App() {
       ? 'brief'
       : navView;
 
+  // Mobile tab — collapses 6 rail items into 3
+  const mobileTab: MobileTab =
+    navView === 'shortlists' ? 'short' :
+    navView === 'workspace' && flowStep === 'results' ? 'stack' :
+    'match';
+
+  function handleMobileTab(t: MobileTab) {
+    if (t === 'match') { handleNav('brief'); }
+    else if (t === 'stack') { job.results ? handleNav('workspace') : handleNav('brief'); }
+    else { handleNav('shortlists'); }
+  }
+
+  const isMatchActive = flowStep !== 'brief' || !!briefText;
+
   function renderContent() {
     // brief flow
     if (navView === 'brief' || (navView === 'workspace' && flowStep !== 'results')) {
@@ -234,9 +251,11 @@ function App() {
   return (
     <div className="sv-app">
       <NavRail active={railActive} onNav={handleNav} />
+      <MobileTopBar briefText={briefText || undefined} isActive={isMatchActive} />
       <div className="sv-screen-host">
         {renderContent()}
       </div>
+      <MobileTabBar active={mobileTab} onTab={handleMobileTab} hasResults={!!job.results} />
     </div>
   );
 }

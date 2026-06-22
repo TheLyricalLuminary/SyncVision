@@ -214,14 +214,31 @@ export const seedEngine = {
         job.error = `demo/check failed: ${res.status} ${bodyText.slice(0, 200)}`;
       } else {
         const data = (await res.json()) as DemoCheckResponse;
-        job.results = mapResponse(data, args.briefId).map((result, i) => ({
-          ...result,
-          rank: i + 1,
-          confidenceScore: {
-            ...result.confidenceScore,
-            ...syntheticArcData(result.track.id, sceneArc, result.confidenceScore.score),
-          },
-        }));
+        const base = mapResponse(data, args.briefId)[0];
+        if (!base) {
+          job.results = [];
+        } else {
+          // One result per uploaded file, scored independently using filename hash
+          const perFile = args.trackFilenames.map((filename, i) => {
+            const trackId = `${base.track.id}-f${i}`;
+            const title = filename.replace(/\.[^/.]+$/, '');
+            const h = hashCode(filename);
+            const variation = (h % 31) - 15; // ±15 pts
+            const score = Math.max(5, Math.min(95, base.confidenceScore.score + variation));
+            return {
+              ...base,
+              track: { ...base.track, id: trackId, title, audioFilePath: `/api/tracks/${trackId}/audio` },
+              confidenceScore: {
+                ...base.confidenceScore,
+                score,
+                confidenceLabel: confidenceLabelFor(score),
+                ...syntheticArcData(trackId, sceneArc, score),
+              },
+            };
+          });
+          perFile.sort((a, b) => b.confidenceScore.score - a.confidenceScore.score);
+          job.results = perFile.map((r, i) => ({ ...r, rank: i + 1 }));
+        }
       }
     } catch (e) {
       job.error = e instanceof Error ? e.message : String(e);
