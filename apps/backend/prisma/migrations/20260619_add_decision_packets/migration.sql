@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "scoring"."decision_packets" (
+CREATE TABLE IF NOT EXISTS "scoring"."decision_packets" (
     "id" TEXT NOT NULL,
     "packetVersion" TEXT NOT NULL DEFAULT '1',
     "scoringVersion" TEXT NOT NULL,
