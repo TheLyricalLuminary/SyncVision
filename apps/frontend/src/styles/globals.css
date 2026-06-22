@@ -509,3 +509,145 @@ input, select, textarea { font-family: inherit; outline: none; color: inherit; b
 .stub-screen { max-width: 1280px; margin: 0 auto; padding: 60px clamp(24px,4vw,56px); }
 .stub-screen h2 { font-family: var(--font-display); font-size: 36px; font-weight: 400; margin-bottom: 12px; }
 .stub-screen p { color: var(--text-tertiary); font-size: 14px; line-height: 1.6; max-width: 52ch; }
+
+/* ============================================================================
+   MOBILE SHELL (≤680px)
+   ========================================================================== */
+
+/* Top bar — hidden on desktop */
+.m-top {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
+  background: rgba(9, 7, 22, 0.94);
+  border-bottom: 1px solid var(--hairline);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  flex-shrink: 0;
+}
+
+/* Bottom tab bar — hidden on desktop */
+.m-nav {
+  display: none;
+  align-items: stretch;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: rgba(9, 7, 22, 0.96);
+  border-top: 1px solid var(--hairline);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  z-index: 50;
+}
+
+@media (max-width: 680px) {
+  /* Switch app from side-rail grid to flex column */
+  .sv-app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+
+  /* Hide desktop rail */
+  .sv-rail { display: none; }
+
+  /* Screen host fills remaining space, scrolls, avoids tab bar */
+  .sv-screen-host {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Reveal mobile chrome */
+  .m-top { display: flex; }
+  .m-nav { display: flex; }
+
+  /* Scene button in top bar */
+  .m-scene-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .m-pulse {
+    flex-shrink: 0;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(155, 147, 196, 0.5);
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  .m-pulse.live {
+    background: var(--accent-secondary);
+    box-shadow: 0 0 10px var(--accent-secondary), 0 0 0 3px rgba(219, 39, 119, 0.18);
+    animation: railpulse 2.4s ease-in-out infinite;
+  }
+
+  .m-scene-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .m-scene-k {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .m-scene-t {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 14px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .m-menu-btn {
+    flex-shrink: 0;
+    width: 36px; height: 36px;
+    display: grid; place-items: center;
+    border-radius: var(--radius-sm);
+    color: var(--text-tertiary);
+    transition: color var(--dur-fast), background var(--dur-fast);
+  }
+  .m-menu-btn:hover { color: var(--text-primary); background: var(--surface-hover); }
+
+  /* Mobile tabs */
+  .m-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 8px 0 10px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+    transition: color var(--dur-fast);
+  }
+  .m-tab svg {
+    width: 22px; height: 22px;
+    transition: stroke var(--dur-fast);
+  }
+  .m-tab.on {
+    color: var(--accent-primary);
+  }
+  .m-tab.dim {
+    opacity: 0.45;
+  }
+}
