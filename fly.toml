@@ -9,7 +9,7 @@ primary_region = 'ord'
 [build]
 
 [deploy]
-  release_command = "sh -c 'cd /app/apps/backend && npx prisma migrate deploy'"
+  release_command = "sh -c 'cd /app/apps/backend && npx prisma migrate deploy --schema=./prisma/schema.prisma 2>&1; CODE=$?; sleep 10; exit $CODE'"
 
 [env]
   PORT = "8080"
