@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { API_BASE, type AnalysisResult, type SceneArc } from '../utils/apiClient';
-import { ArcMatchGraph } from './ArcMatchGraph';
+import { ArcTimeline } from './ArcTimeline';
 import { RightsPanel, type LocalRightsOverride, type AutoFill, type RightsSaveResult } from './RightsBlock';
 
 const C = {
@@ -21,7 +21,6 @@ const SANS  = '"Manrope", system-ui, sans-serif';
 const MONO  = '"JetBrains Mono", monospace';
 
 const currentAudio: { el: HTMLAudioElement | null } = { el: null };
-const WAVE = [30,55,40,72,50,90,60,35,65,48,78,42,62,38,55,80,45,60,30,70,42,55,36,50,65,40,58,32,48,55];
 
 function resolveAudioUrl(path: string | null): string | null {
   if (!path) return null;
@@ -31,8 +30,8 @@ function resolveAudioUrl(path: string | null): string | null {
 }
 
 function formatTime(s: number): string {
-  if (!Number.isFinite(s) || s < 0) return '00:00';
-  return `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+  if (!Number.isFinite(s) || s < 0) return '0:00';
+  return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
 }
 
 function cleanTitle(raw: string): string {
@@ -56,203 +55,8 @@ function buildScoreCaption(vec: { scene: number; lyrics: number; audioSignal: nu
   else if (vec.lyrics < 0.4)          rest.push('Lyrics are below target.');
   if (vec.audioSignal >= 0.6)         rest.push('Signal is decent.');
   else if (vec.audioSignal < 0.35)    rest.push('Signal is thin.');
-  return `${scenePart} — that's most of the score.${rest.length ? ' ' + rest.join(' ') : ''}`;
+  return `${scenePart}.${rest.length ? ' ' + rest.join(' ') : ''}`;
 }
-
-// ── Decision-support scoring ─────────────────────────────────────────────────
-
-type ClearabilityBand = 'low' | 'medium' | 'high';
-type ClearabilityResult = { score: number; band: ClearabilityBand; rationale: string };
-
-function computeClearabilityConfidence(rp: AnalysisResult['rightsProfile']): ClearabilityResult {
-  let score = 50;
-  const notes: string[] = [];
-
-  if (!rp) {
-    return { score: 20, band: 'low', rationale: 'No rights data on file — needs research before pitching.' };
-  }
-
-  if (rp.rightsState === 'cleared')     { score += 30; notes.push('already cleared for sync'); }
-  else if (rp.rightsState === 'blocked') { score -= 40; notes.push('blocked flag set'); }
-
-  if (rp.isOneStop)           { score += 25; notes.push('one-stop shop'); }
-  if (rp.isrc)                { score +=  8; notes.push('ISRC registered'); }
-  if (rp.publisherName)       { score += 10; notes.push('publisher identified'); }
-  if (rp.writerName)          { score +=  5; notes.push('writer on file'); }
-  if (rp.workId)              { score +=  8; notes.push('work ID matched'); }
-  if (rp.splitPct != null && rp.splitPct < 100) { score -= 10; notes.push('partial rights only'); }
-
-  const blockerCount = rp.blockers?.length ?? 0;
-  if (blockerCount > 0) {
-    const penalty = Math.min(40, blockerCount * 15);
-    score -= penalty;
-    notes.push(`${blockerCount} clearance blocker${blockerCount > 1 ? 's' : ''}`);
-  }
-
-  score = Math.max(0, Math.min(100, score));
-  const band: ClearabilityBand = score >= 70 ? 'high' : score >= 45 ? 'medium' : 'low';
-  const rationale = notes.length > 0 ? notes.join(' · ') + '.' : 'Limited rights data available.';
-  return { score, band, rationale };
-}
-
-// Replaceability: how easily can this track be substituted?
-// HIGH = plenty of substitutes (track is dispensable)
-// MEDIUM = some substitutes
-// LOW = few substitutes (scarcity adds strategic value)
-// CRITICAL = no substitutes found (irreplaceable — escalation may be warranted)
-type ReplaceabilityLabel = 'HIGH' | 'MEDIUM' | 'LOW' | 'CRITICAL';
-type ReplaceabilityResult = { label: ReplaceabilityLabel; count: number; sentence: string };
-
-function computeReplaceability(result: AnalysisResult, allResults: AnalysisResult[]): ReplaceabilityResult {
-  const thisScore = result.confidenceScore.arcMatch?.combinedScore ?? 0;
-  const thisBlockers = result.rightsProfile?.blockers?.length ?? 0;
-  const count = allResults.filter(r => {
-    if (r.track.id === result.track.id) return false;
-    const s = r.confidenceScore.arcMatch?.combinedScore ?? 0;
-    const b = r.rightsProfile?.blockers?.length ?? 0;
-    return s >= thisScore - 5 && b <= thisBlockers;
-  }).length;
-  if (count === 0) return { label: 'CRITICAL', count, sentence: 'No substitutes found in this search — this track is irreplaceable.' };
-  if (count === 1) return { label: 'LOW',      count, sentence: '1 comparable track exists. Limited substitutes add strategic value.' };
-  if (count <= 3)  return { label: 'MEDIUM',   count, sentence: `${count} comparable tracks within 5 match points. Some substitutes available.` };
-  return                 { label: 'HIGH',      count, sentence: `${count} tracks at similar fit — this track is replaceable.` };
-}
-
-// Effort to Green: how much work does it take to make this track licensable?
-type EffortLevel = 'easy' | 'medium' | 'hard' | 'very_hard';
-type EffortResult = { level: EffortLevel; label: string; description: string };
-
-function computeEffortToGreen(rp: AnalysisResult['rightsProfile']): EffortResult {
-  if (!rp) return { level: 'hard', label: 'Hard', description: 'No rights data — full ownership research needed.' };
-  if (rp.rightsState === 'cleared') return { level: 'easy', label: 'None', description: 'Already cleared for sync.' };
-
-  const blockers = rp.blockers?.length ?? 0;
-  if (rp.rightsState === 'blocked' || blockers >= 2) {
-    return { level: 'very_hard', label: 'Very Hard', description: 'Active conflicts or multiple blockers — legal coordination required.' };
-  }
-  if (blockers === 1) {
-    return { level: 'hard', label: 'Hard', description: 'One clearance blocker to resolve before licensing can proceed.' };
-  }
-  const missing = [!rp.isrc, !rp.publisherName, !rp.writerName, !rp.isOneStop, !rp.workId].filter(Boolean).length;
-  if (missing >= 3) return { level: 'medium', label: 'Medium', description: 'Several ownership fields unconfirmed — research and outreach needed.' };
-  if (missing > 0)  return { level: 'easy',   label: 'Easy',   description: 'Minor data gaps — routine verification should resolve this quickly.' };
-  return                   { level: 'easy',   label: 'None',   description: 'Rights profile is complete — ready to proceed.' };
-}
-
-// Triage state: the unified recommendation
-type TriageState = 'ready' | 'investigate' | 'escalate' | 'abandon';
-type TriageResult = { state: TriageState; headline: string; sentence: string };
-
-function computeTriageState(
-  fitScore: number,
-  clearScore: number,
-  repLabel: ReplaceabilityLabel,
-  effortLevel: EffortLevel,
-): TriageResult {
-  const scarce = repLabel === 'CRITICAL' || repLabel === 'LOW';
-
-  if (fitScore >= 75 && clearScore >= 70) {
-    return {
-      state: 'ready',
-      headline: scarce ? 'Secure Immediately' : 'Pursue',
-      sentence: scarce
-        ? 'Strong fit, clear rights, and no substitutes — act before competing projects do.'
-        : 'Strong fit and rights look workable — lead with this one.',
-    };
-  }
-
-  // Irreplaceable with rights uncertainty — escalation is worth the cost
-  if (scarce && fitScore >= 55) {
-    return {
-      state: 'escalate',
-      headline: 'Escalate Rights Investigation',
-      sentence: clearScore < 45
-        ? 'Strong creative match with unresolved ownership data. No substitutes found — investigation is worth the effort.'
-        : 'Good fit and limited substitutes. Rights need confirmation before committing.',
-    };
-  }
-
-  if (fitScore >= 75 && clearScore >= 45) {
-    return {
-      state: 'investigate',
-      headline: 'Fight for It',
-      sentence: 'Top creative choice but rights are uncertain. Worth the investigation given the fit.',
-    };
-  }
-  if (fitScore >= 55 && clearScore >= 70) {
-    return {
-      state: 'investigate',
-      headline: 'Keep as Backup',
-      sentence: 'Easy to clear but not the strongest creative fit — hold in reserve.',
-    };
-  }
-  if (fitScore >= 75) {
-    return {
-      state: 'investigate',
-      headline: 'Find an Alternative',
-      sentence: 'Rights are blocking this and comparable options exist in this search.',
-    };
-  }
-  return {
-    state: 'abandon',
-    headline: 'Deprioritise',
-    sentence: 'Neither fit nor clearability justify the effort here.',
-  };
-}
-
-function buildClearabilityActions(rp: AnalysisResult['rightsProfile']): string[] {
-  if (!rp) return ['Research track ownership and rights holders'];
-  const steps: string[] = [];
-  if (!rp.isrc)         steps.push('Resolve track fingerprint to get ISRC');
-  if (!rp.publisherName) steps.push('Identify publisher');
-  if (!rp.writerName)    steps.push('Confirm writer ownership');
-  if (!rp.isOneStop)     steps.push('Determine one-stop status');
-  if (!rp.workId)        steps.push('Match to music database (MusicBrainz)');
-  const blockers = rp.blockers ?? [];
-  if (blockers.length > 0) steps.push(`Resolve ${blockers.length} clearance blocker${blockers.length > 1 ? 's' : ''}: ${blockers.slice(0, 2).join(', ')}${blockers.length > 2 ? '…' : ''}`);
-  return steps;
-}
-
-const CLEARABILITY_COLOR: Record<ClearabilityBand, string> = {
-  high:   '#4CAF82',
-  medium: '#F5B544',
-  low:    '#E85A5A',
-};
-
-const REPLACEABILITY_COLOR: Record<ReplaceabilityLabel, string> = {
-  CRITICAL: '#F5B544', // irreplaceable — amber urgency
-  LOW:      '#4CAF82', // scarcity = strategic value
-  MEDIUM:   '#F5B544',
-  HIGH:     '#9B93C4', // easily replaced — neutral
-};
-
-const REPLACEABILITY_SUBLABEL: Record<ReplaceabilityLabel, string> = {
-  CRITICAL: 'No substitutes',
-  LOW:      'Few substitutes',
-  MEDIUM:   'Some substitutes',
-  HIGH:     'Easily replaced',
-};
-
-const EFFORT_COLOR: Record<EffortLevel, string> = {
-  easy:      '#4CAF82',
-  medium:    '#F5B544',
-  hard:      '#F5A623',
-  very_hard: '#E85A5A',
-};
-
-const TRIAGE_COLOR: Record<TriageState, string> = {
-  ready:       '#4CAF82',
-  investigate: '#F5B544',
-  escalate:    '#F5A623',
-  abandon:     '#E85A5A',
-};
-
-const TRIAGE_EMOJI: Record<TriageState, string> = {
-  ready:       '🟢',
-  investigate: '🟡',
-  escalate:    '🟠',
-  abandon:     '🔴',
-};
 
 type Props = {
   result: AnalysisResult;
@@ -263,25 +67,25 @@ type Props = {
   onMoveToConsidered?: (trackId: string) => void;
 };
 
-export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRightsSaved, onMoveToConsidered }: Props) {
+export function DecisionRail({ result, sceneArc, onShare, onRightsSaved, onMoveToConsidered }: Props) {
   const hasArcData = Boolean(
     result.confidenceScore.arcMatch &&
     result.confidenceScore.songArcCurve &&
-    result.confidenceScore.songArcValenceCurve,
+    result.confidenceScore.songArcValenceCurve &&
+    sceneArc,
   );
 
-  const [isPlaying,        setIsPlaying]        = useState(false);
-  const [currentTime,      setCurrentTime]      = useState(0);
-  const [duration,         setDuration]         = useState(0);
-  const [rightsPanel,      setRightsPanel]      = useState(false);
-  const [playbackMsg,      setPlaybackMsg]      = useState(false);
-  const [noteOpen,         setNoteOpen]         = useState(false);
-  const [noteText,         setNoteText]         = useState('');
-  const [localRights,      setLocalRights]      = useState(result.rightsProfile);
-  const [pendingAutoFill,  setPendingAutoFill]  = useState<AutoFill | undefined>(undefined);
-  const [evidenceOpen,     setEvidenceOpen]     = useState(!hasArcData);
-  const [clearabilityOpen, setClearabilityOpen] = useState(false);
-  const [audioError,       setAudioError]       = useState<string | null>(null);
+  const [isPlaying,       setIsPlaying]       = useState(false);
+  const [currentTime,     setCurrentTime]     = useState(0);
+  const [duration,        setDuration]        = useState(0);
+  const [rightsPanel,     setRightsPanel]     = useState(false);
+  const [playbackMsg,     setPlaybackMsg]     = useState(false);
+  const [noteOpen,        setNoteOpen]        = useState(false);
+  const [noteText,        setNoteText]        = useState('');
+  const [localRights,     setLocalRights]     = useState(result.rightsProfile);
+  const [pendingAutoFill, setPendingAutoFill] = useState<AutoFill | undefined>(undefined);
+  const [evidenceOpen,    setEvidenceOpen]    = useState(!hasArcData);
+  const [audioError,      setAudioError]      = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const audioFilePath = resolveAudioUrl(result.track.audioFilePath);
@@ -295,7 +99,6 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
     (vec.scene * WEIGHTS.scene + vec.lyrics * WEIGHTS.lyrics +
      vec.audioSignal * WEIGHTS.audioSignal + vec.rightsClarity * WEIGHTS.rightsClarity) * 100,
   );
-
   const MAX_W = 0.45;
   const AXES = [
     { key: 'scene',         label: 'Scene',  weight: 0.45, value: vec.scene,         fixed: true  },
@@ -312,7 +115,6 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
     setRightsPanel(false);
     setLocalRights(result.rightsProfile);
     setEvidenceOpen(!hasArcData);
-    setClearabilityOpen(false);
   }, [result.track.id]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -325,8 +127,7 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
     const onEnded = () => setIsPlaying(false);
     const onError = () => {
       const err = audio.error;
-      const msg = err ? `Audio error ${err.code}: ${err.message || 'file may be missing or unsupported'}` : 'Audio failed to load';
-      setAudioError(msg);
+      setAudioError(err ? `Audio error ${err.code}: ${err.message || 'file may be missing or unsupported'}` : 'Audio failed to load');
       setIsPlaying(false);
     };
     audio.addEventListener('timeupdate', onTime);
@@ -359,25 +160,16 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
     void audio.play().catch(() => setIsPlaying(false));
   };
 
+  const handleSeek = (fraction: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = fraction * (audioRef.current.duration || 0);
+    }
+  };
+
   const arcMatch = result.confidenceScore.arcMatch;
   const matchColor = arcMatch
     ? arcMatch.combinedScore >= 75 ? C.good : arcMatch.combinedScore >= 50 ? C.amber : C.lavender
     : C.lavender;
-
-  // Compute all decision dimensions up front
-  const fitScore      = arcMatch?.combinedScore ?? Math.round((vec.scene * 0.45 + vec.lyrics * 0.25 + vec.audioSignal * 0.20) * 100 / 0.90);
-  const clearability  = computeClearabilityConfidence(localRights);
-  const replaceability = computeReplaceability(result, allResults);
-  const effort        = computeEffortToGreen(localRights);
-  const triage        = computeTriageState(fitScore, clearability.score, replaceability.label, effort.level);
-  const triageColor   = TRIAGE_COLOR[triage.state];
-  const clearabilityActions = buildClearabilityActions(localRights);
-
-  const dimStyle = (color: string): React.CSSProperties => ({
-    flex: 1, padding: '12px 14px', borderRadius: 12,
-    background: `color-mix(in srgb, ${color} 8%, transparent)`,
-    border: `1px solid color-mix(in srgb, ${color} 28%, transparent)`,
-  });
 
   return (
     <article style={{
@@ -387,243 +179,116 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
       border: `1px solid ${C.hairline}`,
     }}>
 
-      {/* ── TRIAGE HERO — recommendation dominates ── */}
-      <div style={{
-        marginBottom: 20,
-        padding: '16px 18px',
-        borderRadius: 14,
-        background: `color-mix(in srgb, ${triageColor} 10%, rgba(0,0,0,0.40))`,
-        border: `1.5px solid color-mix(in srgb, ${triageColor} 38%, transparent)`,
-      }}>
-        <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 10 }}>
-          Recommended Action
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <span style={{ fontSize: 18, lineHeight: 1 }}>{TRIAGE_EMOJI[triage.state]}</span>
-          <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: triageColor, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
-            {triage.headline}
-          </span>
-        </div>
-        <p style={{ margin: '0 0 12px', fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, lineHeight: 1.5, color: C.silver }}>
-          {triage.sentence}
-        </p>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', paddingTop: 10, borderTop: '1px solid rgba(123,112,178,0.14)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(155,147,196,0.6)' }}>Effort to clear</span>
-            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: EFFORT_COLOR[effort.level] }}>{effort.label}</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(155,147,196,0.6)' }}>Replaceability</span>
-            <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: REPLACEABILITY_COLOR[replaceability.label] }}>
-              {replaceability.label === 'CRITICAL' ? 'Critical' : replaceability.label === 'LOW' ? 'Low' : replaceability.label === 'MEDIUM' ? 'Medium' : 'High'}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── track head ── */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.magenta }}>#{result.rank}</span>
-        </div>
-        <div style={{ fontFamily: SERIF, fontSize: 'clamp(18px,2.2vw,24px)', lineHeight: 1.1, letterSpacing: '-0.015em', color: C.silver }}>{title}</div>
-        <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 14, color: C.lavender, marginTop: 3 }}>
-          {result.track.artistName ? `by ${result.track.artistName}` : 'Unknown artist'}
-          {duration > 0 && ` · ${formatTime(duration)}`}
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-          {result.track.tempo != null && (
-            <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 999, background: C.bpmBg, border: `1px solid ${C.bpmBorder}`, color: C.silver, fontFamily: MONO, letterSpacing: '0.04em' }}>
-              {result.track.tempo} BPM
-            </span>
-          )}
-          {result.track.tonalCharacter && (
-            <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 999, background: 'rgba(245,166,35,0.06)', border: '1px solid rgba(245,166,35,0.30)', color: C.amber }}>
-              {result.track.tonalCharacter}
-            </span>
-          )}
-          {result.track.energyCharacter && (
-            <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 999, background: 'rgba(245,166,35,0.06)', border: '1px solid rgba(245,166,35,0.30)', color: C.amber }}>
-              {result.track.energyCharacter}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* ── player ── */}
-      <div className="no-print" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderRadius: hasArcData && sceneArc ? '12px 12px 0 0' : 12, background: 'rgba(0,0,0,0.32)', border: `1px solid ${C.hairline}`, borderBottom: hasArcData && sceneArc ? 'none' : `1px solid ${C.hairline}` }}>
-        <button type="button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause' : 'Play'} style={{ width: 36, height: 36, borderRadius: '50%', background: `linear-gradient(135deg,${C.purple},${C.magenta})`, border: 0, color: 'white', display: 'grid', placeItems: 'center', cursor: 'pointer', boxShadow: `0 8px 18px -8px rgba(245,166,35,0.55)${isPlaying ? ', 0 0 0 3px rgba(245,166,35,0.22)' : ''}`, flexShrink: 0, transition: 'box-shadow 0.2s' }}>
-          {isPlaying
-            ? <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect x="1.5" y="1" width="2.5" height="8"/><rect x="6" y="1" width="2.5" height="8"/></svg>
-            : <svg width="12" height="12" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1 L8 5 L2 9 Z"/></svg>
-          }
-        </button>
-        <div
-          style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, height: 32, cursor: 'pointer' }}
-          onPointerDown={e => {
-            const el = e.currentTarget;
-            const seek = (ev: PointerEvent) => {
-              const r = el.getBoundingClientRect();
-              const ratio = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
-              if (audioRef.current) audioRef.current.currentTime = ratio * (audioRef.current.duration || 0);
-            };
-            seek(e.nativeEvent);
-            const move = (ev: PointerEvent) => seek(ev);
-            const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-            window.addEventListener('pointermove', move);
-            window.addEventListener('pointerup', up);
-          }}
-        >
-          {WAVE.map((h, i) => {
-            const played = duration > 0 && (i / WAVE.length) < (currentTime / duration);
-            return <span key={i} style={{ display: 'block', flex: 1, minWidth: 2, height: `${h}%`, borderRadius: 2, background: played ? `linear-gradient(180deg,${C.magenta},${C.purple})` : 'rgba(167,139,250,0.28)', transition: 'background 0.1s' }} />;
-          })}
-        </div>
-        <span style={{ fontFamily: MONO, fontSize: 10, color: C.lavender, letterSpacing: '0.04em', flexShrink: 0 }}>{timeLabel}</span>
-      </div>
-      {playbackMsg && !hasAudio && <p style={{ fontSize: 11, color: C.lavender, marginTop: 5, fontStyle: 'italic' }}>Audio playback coming soon.</p>}
-      {audioError && <p style={{ fontSize: 11, color: '#E85A5A', marginTop: 5, fontFamily: MONO }}>{audioError}</p>}
-
-      {/* ── arc match hero + Story Match graph (directly below player) ── */}
-      {hasArcData && sceneArc ? (
-        <div style={{ border: `1px solid ${C.hairline}`, borderRadius: '0 0 14px 14px', overflow: 'hidden', marginBottom: 4 }}>
-          {arcMatch && (
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, padding: '10px 16px 0', background: 'rgba(7,4,26,0.45)' }}>
-              <div style={{ fontFamily: SERIF, fontSize: 'clamp(36px,5vw,52px)', lineHeight: 0.85, letterSpacing: '-0.04em', color: matchColor }}>
-                {arcMatch.combinedScore}
-                <span style={{ fontSize: '0.28em', color: 'rgba(167,139,250,0.5)', letterSpacing: '-0.01em', marginLeft: 4, verticalAlign: '0.6em' }}>/100</span>
-              </div>
-              <div>
-                <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender }}>Arc Match {isPlaying && <span style={{ color: C.good, marginLeft: 4 }}>● live</span>}</div>
-                <div style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(155,147,196,0.6)', marginTop: 3 }}>
-                  shape {arcMatch.magnitudeScore} · val {arcMatch.valenceScore}
-                </div>
-              </div>
-            </div>
-          )}
-          <ArcMatchGraph
-            sceneArc={sceneArc}
-            songArcCurve={result.confidenceScore.songArcCurve!}
-            songArcValenceCurve={result.confidenceScore.songArcValenceCurve!}
-            arcMatch={arcMatch!}
-            playheadFraction={duration > 0 ? currentTime / duration : undefined}
-          />
-        </div>
-      ) : (
-        <>
-          {arcMatch && (
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 4, marginTop: 12 }}>
-              <div style={{ fontFamily: SERIF, fontSize: 'clamp(52px,7vw,72px)', lineHeight: 0.85, letterSpacing: '-0.04em', color: matchColor }}>
-                {arcMatch.combinedScore}
-                <span style={{ fontSize: '0.28em', color: 'rgba(167,139,250,0.5)', letterSpacing: '-0.01em', marginLeft: 4, verticalAlign: '0.6em' }}>/100</span>
-              </div>
-              <div>
-                <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender }}>Arc Match</div>
-                <div style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(155,147,196,0.6)', marginTop: 3 }}>
-                  shape {arcMatch.magnitudeScore} · val {arcMatch.valenceScore}
-                </div>
-              </div>
-            </div>
-          )}
-          <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: 'rgba(155,147,196,0.4)', margin: '12px 0' }}>
-            {sceneArc ? 'No timeline data for this track.' : 'Extract a scene arc to see the Story Match overlay.'}
-          </p>
-        </>
-      )}
-
-      {/* ── decision dimensions ── */}
-      <div style={{ marginTop: 16 }}>
-        <div style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.lavender, marginBottom: 10 }}>Why this recommendation</div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-
-          {/* Creative Fit */}
-          <div style={dimStyle(C.magenta)}>
-            <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Creative Fit</div>
-            <div style={{ fontFamily: MONO, fontSize: 24, fontWeight: 700, color: C.silver, lineHeight: 1 }}>{fitScore}</div>
-            <div style={{ fontSize: 10, color: C.lavender, marginTop: 4 }}>/100 arc match</div>
-          </div>
-
-          {/* Rights Confidence */}
-          <div style={dimStyle(CLEARABILITY_COLOR[clearability.band])}>
-            <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Rights Conf.</div>
-            <div style={{ fontFamily: MONO, fontSize: 24, fontWeight: 700, color: CLEARABILITY_COLOR[clearability.band], lineHeight: 1 }}>{clearability.score}</div>
-            <div style={{ fontSize: 10, color: CLEARABILITY_COLOR[clearability.band], marginTop: 4, fontWeight: 600 }}>{clearability.band.toUpperCase()}</div>
-          </div>
-
-          {/* Replaceability */}
-          <div style={dimStyle(REPLACEABILITY_COLOR[replaceability.label])}>
-            <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 6 }}>Replaceability</div>
-            <div style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: REPLACEABILITY_COLOR[replaceability.label], lineHeight: 1.1, marginTop: 4 }}>
-              {replaceability.label === 'CRITICAL' ? 'Critical' : replaceability.label === 'LOW' ? 'Low' : replaceability.label === 'MEDIUM' ? 'Medium' : 'High'}
-            </div>
-            <div style={{ fontSize: 9, color: REPLACEABILITY_COLOR[replaceability.label], marginTop: 5, fontWeight: 600, letterSpacing: '0.06em' }}>
-              {REPLACEABILITY_SUBLABEL[replaceability.label]}
-            </div>
-          </div>
-
-        </div>
-
-        {/* Replaceability context sentence */}
-        <div style={{ marginBottom: 12, fontFamily: SERIF, fontStyle: 'italic', fontSize: 11, color: 'rgba(155,147,196,0.65)', lineHeight: 1.55 }}>
-          {replaceability.sentence}
-        </div>
-
-        {/* "What would change this recommendation?" — collapsible checklist */}
-        {clearabilityActions.length > 0 && (
-          <div style={{ borderRadius: 10, border: `1px solid ${C.hairline}`, overflow: 'hidden' }}>
-            <button
-              type="button"
-              onClick={() => setClearabilityOpen(v => !v)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(7,4,26,0.45)', border: 'none', cursor: 'pointer', color: C.lavender }}
-            >
-              <span style={{ fontSize: 11, fontStyle: 'italic', fontFamily: SERIF, color: 'rgba(155,147,196,0.85)' }}>
-                What would change this recommendation?
+      {/* ── track header — compact ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: C.magenta }}>#{result.rank}</span>
+            {arcMatch && (
+              <span style={{ fontFamily: MONO, fontSize: 11, color: matchColor }}>
+                {arcMatch.combinedScore} arc match
               </span>
-              <span style={{ fontSize: 13, transition: 'transform 0.2s', display: 'inline-block', transform: clearabilityOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
-            </button>
-            {clearabilityOpen && (
-              <div style={{ padding: '12px 14px 14px', background: 'rgba(7,4,26,0.35)' }}>
-                <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.lavender, marginBottom: 10 }}>
-                  Effort to green: <span style={{ color: EFFORT_COLOR[effort.level] }}>{effort.label}</span>
-                  <span style={{ fontSize: 9, fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'rgba(155,147,196,0.5)', marginLeft: 6 }}>— {effort.description}</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                  {clearabilityActions.map((step, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
-                      <div style={{ width: 18, height: 18, borderRadius: 5, border: '1.5px solid rgba(123,112,178,0.35)', flexShrink: 0, marginTop: 1 }} />
-                      <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 12, color: C.silver, lineHeight: 1.4 }}>{step}</span>
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setRightsPanel(true)}
-                  style={{ marginTop: 12, width: '100%', padding: '9px', borderRadius: 8, background: 'rgba(123,112,178,0.10)', border: `1px solid ${C.hairlineStrong}`, color: C.lavender, fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.08em' }}
-                >
-                  Update rights data →
-                </button>
-              </div>
             )}
           </div>
+          <div style={{ fontFamily: SERIF, fontSize: 'clamp(17px,2vw,22px)', lineHeight: 1.1, letterSpacing: '-0.015em', color: C.silver, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {title}
+          </div>
+          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: C.lavender, marginTop: 2 }}>
+            {result.track.artistName ? `by ${result.track.artistName}` : 'Unknown artist'}
+            {duration > 0 && <span style={{ color: 'rgba(155,147,196,0.5)' }}> · {formatTime(duration)}</span>}
+          </div>
+        </div>
+
+        {/* Play / Pause button */}
+        <button
+          type="button"
+          onClick={togglePlayback}
+          aria-label={isPlaying ? 'Pause' : 'Play'}
+          style={{
+            width: 44, height: 44, borderRadius: '50%', flexShrink: 0, marginLeft: 12,
+            background: `linear-gradient(135deg,${C.purple},${C.magenta})`,
+            border: 0, color: 'white', display: 'grid', placeItems: 'center', cursor: 'pointer',
+            boxShadow: `0 8px 20px -8px rgba(245,166,35,0.55)${isPlaying ? ', 0 0 0 3px rgba(245,166,35,0.22)' : ''}`,
+            transition: 'box-shadow 0.2s',
+          }}
+        >
+          {isPlaying
+            ? <svg width="11" height="11" viewBox="0 0 10 10" fill="currentColor"><rect x="1.5" y="1" width="2.5" height="8"/><rect x="6" y="1" width="2.5" height="8"/></svg>
+            : <svg width="13" height="13" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1 L8 5 L2 9 Z"/></svg>
+          }
+        </button>
+      </div>
+
+      {/* time display */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <span style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(155,147,196,0.55)', letterSpacing: '0.08em' }}>{timeLabel}</span>
+        {result.track.tempo != null && (
+          <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: C.bpmBg, border: `1px solid ${C.bpmBorder}`, color: C.silver, fontFamily: MONO, letterSpacing: '0.04em' }}>
+            {result.track.tempo} BPM
+          </span>
+        )}
+        {result.track.tonalCharacter && (
+          <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'rgba(245,166,35,0.06)', border: '1px solid rgba(245,166,35,0.28)', color: C.amber }}>
+            {result.track.tonalCharacter}
+          </span>
+        )}
+        {result.track.energyCharacter && (
+          <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'rgba(245,166,35,0.06)', border: '1px solid rgba(245,166,35,0.28)', color: C.amber }}>
+            {result.track.energyCharacter}
+          </span>
         )}
       </div>
 
-      {/* ── supporting evidence (collapsible) ── */}
-      <div style={{ marginTop: 16, borderRadius: 12, border: `1px solid ${C.hairline}`, overflow: 'hidden' }}>
+      {/* ── TIMELINE — the product ── */}
+      {hasArcData ? (
+        <div style={{
+          padding: '14px 14px 10px',
+          borderRadius: 14,
+          background: 'rgba(7,4,26,0.50)',
+          border: `1px solid ${C.hairline}`,
+          marginBottom: 16,
+        }}>
+          <ArcTimeline
+            sceneArc={sceneArc!}
+            songArcCurve={result.confidenceScore.songArcCurve!}
+            songArcValenceCurve={result.confidenceScore.songArcValenceCurve!}
+            arcMatch={arcMatch!}
+            playheadFraction={duration > 0 ? currentTime / duration : 0}
+            onSeek={handleSeek}
+            isPlaying={isPlaying}
+          />
+        </div>
+      ) : (
+        <div style={{ padding: '18px 16px', borderRadius: 14, background: 'rgba(7,4,26,0.45)', border: `1px solid ${C.hairline}`, marginBottom: 16, textAlign: 'center' }}>
+          <p style={{ margin: 0, fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: 'rgba(155,147,196,0.4)', lineHeight: 1.5 }}>
+            {sceneArc ? 'No arc data available for this track.' : 'Describe a scene to see the arc overlay.'}
+          </p>
+        </div>
+      )}
+
+      {playbackMsg && !hasAudio && <p style={{ fontSize: 11, color: C.lavender, marginBottom: 12, fontStyle: 'italic' }}>Audio playback coming soon.</p>}
+      {audioError && <p style={{ fontSize: 11, color: '#E85A5A', marginBottom: 12, fontFamily: MONO }}>{audioError}</p>}
+
+      {/* ── narrative ── */}
+      <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(167,139,250,0.04)', borderLeft: `2px solid ${C.magenta}`, fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(12px,1.2vw,14px)', lineHeight: 1.5, color: 'rgba(244,242,250,0.80)', marginBottom: 12 }}>
+        {result.confidenceScore.explanation}
+      </div>
+
+      {/* ── score breakdown (collapsible) ── */}
+      <div style={{ borderRadius: 12, border: `1px solid ${C.hairline}`, overflow: 'hidden', marginBottom: 12 }}>
         <button
           type="button"
           onClick={() => setEvidenceOpen(v => !v)}
           style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(7,4,26,0.45)', border: 'none', cursor: 'pointer', color: C.lavender }}
         >
-          <span style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>Supporting evidence</span>
+          <span style={{ fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>Score breakdown</span>
           <span style={{ fontSize: 13, transition: 'transform 0.2s', display: 'inline-block', transform: evidenceOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
         </button>
 
         {evidenceOpen && (
           <div style={{ padding: '14px 14px 10px', background: 'rgba(7,4,26,0.35)' }}>
-            {/* fit index score */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
-              <div style={{ fontFamily: SERIF, fontSize: 38, lineHeight: 0.9, letterSpacing: '-0.03em', color: C.silver }}>
+              <div style={{ fontFamily: SERIF, fontSize: 36, lineHeight: 0.9, letterSpacing: '-0.03em', color: C.silver }}>
                 {liveScore}
                 <span style={{ fontSize: '0.32em', color: 'rgba(167,139,250,0.4)', marginLeft: 3, verticalAlign: '0.55em' }}>/100</span>
               </div>
@@ -632,7 +297,6 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
               </p>
             </div>
 
-            {/* axis bars */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {AXES.map(axis => {
                 const barW    = (axis.weight / MAX_W) * 100;
@@ -656,7 +320,7 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
                       {unscored ? '—' : fillPct}
                     </div>
                     {!axis.fixed ? (
-                      <button type="button" onClick={() => setRightsPanel(true)} style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.magenta, background: 'rgba(221,122,58,0.10)', border: '1px solid rgba(221,122,58,0.35)', cursor: 'pointer', flexShrink: 0 }} title="Improve this axis">↑</button>
+                      <button type="button" onClick={() => setRightsPanel(true)} style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 11, fontWeight: 700, color: C.magenta, background: 'rgba(221,122,58,0.10)', border: '1px solid rgba(221,122,58,0.35)', cursor: 'pointer', flexShrink: 0 }} title="Update rights data">↑</button>
                     ) : (
                       <div style={{ width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', color: 'rgba(167,139,250,0.3)', border: `1px dashed rgba(167,139,250,0.2)`, fontFamily: MONO, fontSize: 11, flexShrink: 0 }}>—</div>
                     )}
@@ -668,12 +332,7 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
         )}
       </div>
 
-      {/* ── narrative ── */}
-      <div style={{ marginTop: 16, padding: '13px 15px', borderRadius: 12, background: 'rgba(167,139,250,0.05)', borderLeft: `2px solid ${C.magenta}`, fontFamily: SERIF, fontStyle: 'italic', fontSize: 'clamp(13px,1.3vw,15px)', lineHeight: 1.45, color: C.silver }}>
-        {result.confidenceScore.explanation}
-      </div>
-
-      {/* ── rights form (only shown when editing) ── */}
+      {/* ── rights edit form ── */}
       {rightsPanel && (
         <RightsPanel
           trackId={result.track.id}
@@ -699,7 +358,7 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
       )}
 
       {/* ── actions ── */}
-      <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button type="button" onClick={onShare} style={{ flex: 1, minWidth: 110, padding: '10px 14px', borderRadius: 10, border: 0, background: `linear-gradient(135deg,${C.purple},${C.magenta})`, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, boxShadow: '0 12px 26px -12px rgba(221,122,58,0.5)' }}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M4 12 L10 18 L20 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           Pitch to director
