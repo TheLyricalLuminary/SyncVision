@@ -29,9 +29,10 @@ type Props = {
   selected?: boolean;
   onSelect: () => void;
   topScore: number;
+  dimmed?: boolean;
 };
 
-export function ArcCandidateRow({ result, sceneArc, selected, onSelect, topScore }: Props) {
+export function ArcCandidateRow({ result, sceneArc, selected, onSelect, topScore, dimmed }: Props) {
   const arc          = result.confidenceScore.arcMatch;
   const primaryScore = arc?.combinedScore ?? result.confidenceScore.score;
   const delta        = !arc ? (topScore - result.confidenceScore.score) : null;
@@ -51,6 +52,8 @@ export function ArcCandidateRow({ result, sceneArc, selected, onSelect, topScore
       style={{
         display: 'grid',
         gridTemplateColumns: '52px 1fr 52px',
+        opacity: dimmed ? 0.25 : 1,
+        transition: 'opacity 0.18s ease',
         alignItems: 'center',
         gap: 12,
         padding: '11px 14px',
