@@ -4,7 +4,7 @@ import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
 import { SceneArcInspector } from '../components/SceneArcInspector';
 import { ArcCandidateRow }    from '../components/ArcCandidateRow';
 import { DecisionRail }       from '../components/DecisionRail';
-import { GapReport }          from '../components/GapReport';
+import { SearchAssessment }   from '../components/SearchAssessment';
 
 // ── design tokens ────────────────────────────────────────────
 const C = {
@@ -1025,9 +1025,9 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
           </div>
         </div>
 
-        {/* ── gap report ── */}
-        {sceneArc && results.length > 0 && (
-          <GapReport results={results} sceneArc={sceneArc} />
+        {/* ── search assessment ── */}
+        {results.length > 0 && (
+          <SearchAssessment results={results} sceneArc={sceneArc ?? null} />
         )}
 
         {/* ── results ── */}
