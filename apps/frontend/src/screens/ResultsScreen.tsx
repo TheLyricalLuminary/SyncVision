@@ -4,7 +4,7 @@ import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
 import { SceneArcInspector } from '../components/SceneArcInspector';
 import { ArcCandidateRow }    from '../components/ArcCandidateRow';
 import { DecisionRail }       from '../components/DecisionRail';
-import { CatalogShapeAnalysis } from '../components/CatalogShapeAnalysis';
+import { ConstraintDiagnosticEngine } from '../components/ConstraintDiagnosticEngine';
 
 // ── design tokens ────────────────────────────────────────────
 const C = {
@@ -1026,9 +1026,9 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
           </div>
         </div>
 
-        {/* ── catalog shape analysis ── */}
+        {/* ── constraint diagnostic engine ── */}
         {results.length > 0 && (
-          <CatalogShapeAnalysis
+          <ConstraintDiagnosticEngine
             results={results}
             sceneArc={sceneArc ?? null}
             onHighlight={setHighlightedIds}
