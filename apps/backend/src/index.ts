@@ -19,6 +19,7 @@ import songArcRouter from "./routes/songArc";
 import composerReportRouter from "./routes/composerReport";
 import shareRouter from "./routes/share";
 import debugRouter from "./routes/debug";
+import mirrorRouter from "./routes/mirror";
 import { startConsumer } from "./queue/consumer";
 import { startWebhookWorker } from "./queue/webhookWorker";
 import { startReconciliationWorker } from "./queue/reconciliationWorker";
@@ -101,6 +102,7 @@ app.use("/api", analysisRouter);
 app.use("/api", arcRouter);
 app.use("/api", songArcRouter);
 app.use("/api", debugRouter);
+app.use("/api", mirrorRouter);
 
 app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok" });

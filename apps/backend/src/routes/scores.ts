@@ -106,6 +106,100 @@ const BRIEFS: Record<string, BriefDef> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Forensic Math — Sigmoid Expansion · Divergence Guard · Zero-Pocket Penalty
+//
+// These are pure functions with no side effects.  They operate on already-
+// computed component scores and can be unit-tested in isolation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Normalized sigmoid: maps x ∈ [0,1] → [0,1] with a steepened S-curve.
+ *
+ * An uncorrected σ(x) on a [0,1] input only spans [0.500, 0.731] — a 23-point
+ * output range that compresses contrast between middle-scoring tracks and makes
+ * the weighted dot-product in computeSyncVisionScoreV2 unstable (small feature
+ * differences produce identical matchScores, causing triple-ties at e.g. 70).
+ *
+ * This corrected form sets gain k=10 and midpoint x0=0.5 so the inflection sits
+ * at the center of the input range, then applies min-max scaling to force exact
+ * [0,1] output:
+ *
+ *   g(X) = 1 / (1 + exp(-k · (X - x0)))
+ *   normalizeSigmoid(X) = (g(X) - g(0)) / (g(1) - g(0))
+ *
+ * Verified boundary values: normalizeSigmoid(0)=0, normalizeSigmoid(0.5)=0.5,
+ * normalizeSigmoid(1)=1.  Monotonic — rank ordering is preserved.
+ * Rounded to 4 decimal places to cap floating-point drift in the UI.
+ *
+ * NOTE: This is a sharpening function, not a boosting function.  Scores above
+ * 0.5 are pushed higher; scores below 0.5 are pushed lower.  Whether that
+ * improves ranking quality on a real catalog must be validated empirically.
+ */
+export function normalizeSigmoid(x: number, k = 10.0, x0 = 0.50): number {
+  const clamp = Math.max(0, Math.min(1, x));
+  const g = (v: number) => 1 / (1 + Math.exp(-k * (v - x0)));
+  const g0 = g(0);
+  const g1 = g(1);
+  const raw = (g(clamp) - g0) / (g1 - g0);
+  return Math.round(Math.max(0, Math.min(1, raw)) * 1e4) / 1e4;
+}
+
+/**
+ * 10-90 Rule divergence.
+ *
+ *   divergence = 90 − (matchScore / 100 × 80)
+ *
+ * At matchScore = 100 ("Mickey-Mousing"): divergence = 10.
+ *   The music exactly mirrors the on-screen action — considered unsophisticated.
+ *
+ * At matchScore = 70:  divergence ≈ 34.
+ *   "Sophisticated counterpoint" — music reinforces emotional subtext rather
+ *   than duplicating the action.  Supervisors use this number to defend
+ *   non-obvious track choices in studio reviews.
+ *
+ * At matchScore = 0:   divergence = 90.
+ *   No structural relationship between music and picture.
+ *
+ * Rounded to 4 decimal places.
+ */
+export function computeDivergence(matchScore: number): number {
+  return Math.round((90 - (matchScore / 100) * 80) * 1e4) / 1e4;
+}
+
+/**
+ * Zero-Pocket Dialogue Penalty.
+ *
+ * The "Zero-Pocket Zone" is 300–3 000 Hz — the primary human-voice frequency
+ * band.  A track with high energy in this zone played under dense dialogue will
+ * mask the actors' voices, creating an audio clearance problem and forcing an
+ * expensive re-edit with the instrumental stem.
+ *
+ * @param matchScore      Current match score (0–100).
+ * @param zeroPocketMean  Mean energy of the 300–3 000 Hz band timeline (0–1),
+ *                        from analyze_v2.py's forensicTimeline.zeroPocketZone.
+ *                        In the ranking route where forensicTimeline is not yet
+ *                        stored, pass track.rmsEnergy as a coarse proxy.
+ * @param dialogueDensity Fraction of scene frames with foreground voice (0–1).
+ *                        Comes from the POST body's sceneParams, a video
+ *                        analysis pipeline, or the ?dialogueDensity query param.
+ *
+ * Max penalty: 30 points.  A full-vocal track (zeroPocketMean=1) under
+ * wall-to-wall dialogue (dialogueDensity=1) drops 30 points.
+ * A 100→70 drop moves a track from "strong" to "possible fit".
+ *
+ * Rounded to 4 decimal places.
+ */
+export function applyZeroPocketPenalty(
+  matchScore:      number,
+  zeroPocketMean:  number,
+  dialogueDensity: number,
+): number {
+  if (dialogueDensity <= 0 || zeroPocketMean <= 0) return matchScore;
+  const penalty = Math.round(zeroPocketMean * dialogueDensity * 30 * 1e4) / 1e4;
+  return Math.round(Math.max(0, matchScore - penalty) * 1e4) / 1e4;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Scene Fit — Euclidean PAD distance, range-aware, normalised, inverted
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -416,9 +510,9 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
       }
 
       // SyncVision Score v2 — explicit weighted dot product
-      const sceneFit = calculateSceneFit(track.timeline, brief.pad);     // 0–100
-      const rightsClarity = computeRightsClarity(rpNorm);                // 0–100
-      const metaComplete = computeMetadataCompleteness({
+      const rawSceneFit = calculateSceneFit(track.timeline, brief.pad);  // 0–100
+      const rawRightsClarity = computeRightsClarity(rpNorm);             // 0–100
+      const rawMetaComplete  = computeMetadataCompleteness({
         isrc: track.isrc,
         title: track.title,
         artistName: track.artistName ?? null,
@@ -428,6 +522,16 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
         audioFilePath: track.audioFilePath ?? null,
       });                                                                  // 0–100
 
+      // ── Sigmoid Expansion ────────────────────────────────────────────────
+      // Prevents the "Sigmoid Compression Trap": when component scores cluster
+      // in the 50–70 range, the weighted dot product produces identical
+      // matchScores for tracks with meaningfully different features.
+      // normalizeSigmoid maps [0,1]→[0,1] with a k=10 steepened S-curve, then
+      // we rescale back to [0,100].  Monotonic — rank ordering is preserved.
+      const sceneFit      = Math.round(normalizeSigmoid(rawSceneFit     / 100) * 100);
+      const rightsClarity = Math.round(normalizeSigmoid(rawRightsClarity / 100) * 100);
+      const metaComplete  = Math.round(normalizeSigmoid(rawMetaComplete  / 100) * 100);
+
       const briefWeights = BRIEF_WEIGHTS[sceneId];
       const v2 = computeSyncVisionScoreV2(
         sceneId,
@@ -436,6 +540,32 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
         rightsState,
         track.modelVersion ?? null,
       );
+
+      // ── Zero-Pocket Dialogue Penalty ─────────────────────────────────────
+      // When a scene has foreground dialogue, the track's energy in the
+      // 300–3 000 Hz voice band is penalised.  dialogueDensity ∈ [0,1] comes
+      // from the ?dialogueDensity query param (set by the frontend scene UI).
+      //
+      // Ideal input: forensicTimeline.zeroPocketZone mean from analyze_v2.py.
+      // Current proxy: track.rmsEnergy (overall RMS), which correlates loosely
+      // with vocal-band density.  Replace with zeroPocketMean once
+      // forensicTimeline scalars are stored in the Track table (Phase 2B).
+      const dialogueDensity = Math.max(0, Math.min(1,
+        parseFloat((req.query.dialogueDensity as string | undefined) ?? "0") || 0,
+      ));
+      const zeroPocketProxy = typeof track.rmsEnergy === "number" ? track.rmsEnergy : 0;
+      const baseMatchScore  = v2.matchScore;
+      const matchScore      = dialogueDensity > 0
+        ? applyZeroPocketPenalty(baseMatchScore, zeroPocketProxy, dialogueDensity)
+        : baseMatchScore;
+      const dialoguePenalty = Math.round((baseMatchScore - matchScore) * 1e4) / 1e4;
+
+      // ── Divergence Guard ─────────────────────────────────────────────────
+      // 10-90 Rule: divergence = 90 − (matchScore / 100 × 80).
+      // Supervisors present this as a "counterpoint rating" to production
+      // executives: a 70% match with 34% divergence is an artistic choice,
+      // not a missed brief.
+      const divergence = computeDivergence(matchScore);
 
       const isOneStop = rp?.isOneStop ?? false;
       const ascapWorkId = rp?.ascapWorkId ?? "";
@@ -459,7 +589,11 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
         isrc: track.isrc,
         ascapWorkId,
         confidenceScore: conf.score,
-        matchScore: v2.matchScore,
+        // matchScore is the final adjudicated score after sigmoid expansion and
+        // any zero-pocket dialogue penalty.  Round to 4 decimal places.
+        matchScore: Math.round(matchScore * 1e4) / 1e4,
+        // divergence: 10-90 Rule counterpoint rating for the defensible pitch.
+        divergence,
         sceneFit,
         rightsClarity,
         metadataCompleteness: metaComplete,
@@ -477,8 +611,29 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
           rights: conf.breakdown.rightsAndProvenance,
           metadata: conf.breakdown.metadataCompleteness,
           audio: conf.breakdown.audioQuality,
-          // Scene Fit reflects the dynamic per-brief value, scaled to /5.
+          // Scene Fit reflects the sigmoid-expanded per-brief value, scaled to /5.
           sceneFit: Math.round((sceneFit / 100) * 5),
+        },
+        // forensicAudit: the full adjudication math, surfaced for the
+        // supervisor's defensible pitch and the UI's audit panel.
+        forensicAudit: {
+          rawComponents: {
+            sceneFit:      rawSceneFit,
+            rightsClarity: rawRightsClarity,
+            metaComplete:  rawMetaComplete,
+          },
+          expandedComponents: {
+            sceneFit,
+            rightsClarity,
+            metaComplete,
+          },
+          baseMatchScore: Math.round(baseMatchScore * 1e4) / 1e4,
+          dialogue: {
+            dialogueDensity: Math.round(dialogueDensity * 1e4) / 1e4,
+            zeroPocketProxy: Math.round(zeroPocketProxy * 1e4) / 1e4,
+            penaltyApplied:  dialoguePenalty,
+          },
+          divergence,
         },
         tempo: track.tempo ?? null,
         tonalCharacter: track.tonalCharacter ?? null,
@@ -540,11 +695,15 @@ router.get("/scores/scene/:sceneId", allowSceneView, async (req: Request, res: R
 
     const rankedMatches = matches.map((m, i) => ({ rank: i + 1, ...m }));
 
-    // Calibration check: flag if >30% of tracks score ≥90 for this brief.
+    // Calibration check: flag if >50% of tracks score ≥90 for this brief.
+    // Threshold raised from 30% to 50% because sigmoid expansion naturally
+    // pushes upper-middle scores (70–80 raw) toward the 85–95 expanded range.
+    // If >50% still score ≥90 after expansion, the brief weights or rights data
+    // are likely miscalibrated — not a sigmoid artefact.
     const highScoreCount = matches.filter((m) => (m.matchScore as number) >= 90).length;
     const highScorePct = matches.length > 0 ? highScoreCount / matches.length : 0;
     let calibrationWarning: string | null = null;
-    if (highScorePct > 0.30) {
+    if (highScorePct > 0.50) {
       calibrationWarning =
         `CALIBRATION: ${highScoreCount}/${matches.length} tracks (${Math.round(highScorePct * 100)}%) ` +
         `score ≥90 for "${brief.label}" — brief weights or catalog rights data may need review.`;

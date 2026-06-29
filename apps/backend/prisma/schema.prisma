@@ -76,10 +76,30 @@ model Track {
   isArchived       Boolean   @default(false)
   confidenceScore  ConfidenceScore?
   rightsProfile    RightsProfile?
+  mirrorFingerprint MirrorFingerprint?
   catalog          Catalog?         @relation(fields: [catalogId], references: [id])
 
   @@unique([catalogId, isrc], map: "catalog_isrc_unique")
   @@map("ScoringTrack")
+  @@schema("scoring")
+}
+
+model MirrorFingerprint {
+  id              String   @id @default(cuid())
+  trackId         String   @unique
+  track           Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  coarseEnvelope  Json
+  bandStats       Json
+  fullTimeline    Json
+  durationSeconds Float
+  frameCount      Int
+  fps             Int
+  inputHash       String
+  modelVersion    String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("mirror_fingerprints")
   @@schema("scoring")
 }
 
