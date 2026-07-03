@@ -270,10 +270,9 @@ input, select, textarea { font-family: inherit; outline: none; color: inherit; b
 .hero-row .hero-meta { font-family: var(--font-display); font-style: italic; font-size: clamp(14px, 1.4vw, 18px); color: rgba(167,139,250,0.7); max-width: 320px; text-align: right; }
 @media (max-width: 720px) { .hero-row { gap: 8px; margin-bottom: 18px; } .hero-row .hero-meta { display: none; } }
 
-.grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px; }
-@media (max-width: 880px) { .grid { grid-template-columns: 1fr; gap: 18px; } }
-.col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
-@media (max-width: 880px) { .col { gap: 18px; } }
+/* Legacy .grid/.col layout classes removed — no component referenced them
+   (screens use sv-grid / sv-ing-grid / rights-grid), and the bare class names
+   shadowed Tailwind's grid / grid-cols-* / gap-* utilities in the cascade. */
 
 /* ============================================================================
    CARD / PANEL / SECTION-LABEL

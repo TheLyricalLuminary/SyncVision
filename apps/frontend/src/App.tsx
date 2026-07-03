@@ -16,6 +16,8 @@ import { RightsScreen }     from './screens/RightsScreen';
 import { LibraryScreen }    from './screens/LibraryScreen';
 import ShareView from './pages/ShareView';
 import DesignSystemShowcase from './screens/DesignSystemShowcase';
+import { PresentationView } from './components/PresentationView';
+import { DEMO_PRESENTATION } from './fixtures/presentationDemo';
 import { useAnalysisJob } from './hooks/useAnalysisJob';
 import { useCredits } from './hooks/useCredits';
 import type { BriefId } from './engine/classifyBrief';
@@ -217,21 +219,11 @@ function App() {
     if (navView === 'rights')     return <RightsScreen />;
     if (navView === 'library')    return <LibraryScreen />;
 
-    // director
+    // director — the Forensic Adjudication pitch deck.
+    // Renders the deterministic demo fixture (tagged DEMO FIXTURE in the UI)
+    // until the mirror-search → adjudication wiring supplies live payloads.
     if (navView === 'director') {
-      // DirectorView needs results — fall back gracefully if none
-      if (job.results) {
-        // TODO: wire DirectorView when workspace has a selected track
-      }
-      return (
-        <div className="stub-screen">
-          <div className="sv-eyebrow amber" style={{ marginBottom: 10 }}>Director Review</div>
-          <h2 className="sv-display">Director <em>review.</em></h2>
-          <p className="sv-narrative" style={{ marginTop: 12 }}>
-            Run a Story Match first, then send a track to Director Review from the workspace.
-          </p>
-        </div>
-      );
+      return <PresentationView payload={DEMO_PRESENTATION} />;
     }
 
     // default — go to brief
