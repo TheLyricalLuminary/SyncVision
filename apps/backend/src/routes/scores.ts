@@ -10,7 +10,17 @@ import { computeRightsState, logRightsDisagreement } from "../scoring/rightsStat
 import { BRIEF_WEIGHTS, validateWeights } from "../scoring/briefWeights";
 import { computeSyncVisionScoreV2 } from "../scoring/scoringV2";
 import { NARRATIVE_DICTIONARY, type Verdict } from "../scoring/narratives";
+import {
+  normalizeSigmoid,
+  computeDivergence,
+  applyZeroPocketPenalty,
+} from "../scoring/dnaAdjudication";
 import { requirePlan } from "../middleware/auth";
+
+// Re-exported for API stability — these lived here before moving to the pure
+// scoring layer (scoring/dnaAdjudication.ts) where they are unit-testable
+// without dragging in the Express/Prisma route dependencies.
+export { normalizeSigmoid, computeDivergence, applyZeroPocketPenalty };
 
 const SCENE_MAX_SCENES = 5;
 
@@ -104,100 +114,6 @@ const BRIEFS: Record<string, BriefDef> = {
   "corporate-aspirational":   { label: "Corporate / Aspirational",   pad: { arousal: [0.50, 0.65], valence: [0.70, 0.85], dominance: [0.60, 0.75] } },
   "nature-pastoral":          { label: "Nature / Pastoral",          pad: { arousal: [0.15, 0.40], valence: [0.55, 0.75], dominance: [0.20, 0.40] } },
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Forensic Math — Sigmoid Expansion · Divergence Guard · Zero-Pocket Penalty
-//
-// These are pure functions with no side effects.  They operate on already-
-// computed component scores and can be unit-tested in isolation.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Normalized sigmoid: maps x ∈ [0,1] → [0,1] with a steepened S-curve.
- *
- * An uncorrected σ(x) on a [0,1] input only spans [0.500, 0.731] — a 23-point
- * output range that compresses contrast between middle-scoring tracks and makes
- * the weighted dot-product in computeSyncVisionScoreV2 unstable (small feature
- * differences produce identical matchScores, causing triple-ties at e.g. 70).
- *
- * This corrected form sets gain k=10 and midpoint x0=0.5 so the inflection sits
- * at the center of the input range, then applies min-max scaling to force exact
- * [0,1] output:
- *
- *   g(X) = 1 / (1 + exp(-k · (X - x0)))
- *   normalizeSigmoid(X) = (g(X) - g(0)) / (g(1) - g(0))
- *
- * Verified boundary values: normalizeSigmoid(0)=0, normalizeSigmoid(0.5)=0.5,
- * normalizeSigmoid(1)=1.  Monotonic — rank ordering is preserved.
- * Rounded to 4 decimal places to cap floating-point drift in the UI.
- *
- * NOTE: This is a sharpening function, not a boosting function.  Scores above
- * 0.5 are pushed higher; scores below 0.5 are pushed lower.  Whether that
- * improves ranking quality on a real catalog must be validated empirically.
- */
-export function normalizeSigmoid(x: number, k = 10.0, x0 = 0.50): number {
-  const clamp = Math.max(0, Math.min(1, x));
-  const g = (v: number) => 1 / (1 + Math.exp(-k * (v - x0)));
-  const g0 = g(0);
-  const g1 = g(1);
-  const raw = (g(clamp) - g0) / (g1 - g0);
-  return Math.round(Math.max(0, Math.min(1, raw)) * 1e4) / 1e4;
-}
-
-/**
- * 10-90 Rule divergence.
- *
- *   divergence = 90 − (matchScore / 100 × 80)
- *
- * At matchScore = 100 ("Mickey-Mousing"): divergence = 10.
- *   The music exactly mirrors the on-screen action — considered unsophisticated.
- *
- * At matchScore = 70:  divergence ≈ 34.
- *   "Sophisticated counterpoint" — music reinforces emotional subtext rather
- *   than duplicating the action.  Supervisors use this number to defend
- *   non-obvious track choices in studio reviews.
- *
- * At matchScore = 0:   divergence = 90.
- *   No structural relationship between music and picture.
- *
- * Rounded to 4 decimal places.
- */
-export function computeDivergence(matchScore: number): number {
-  return Math.round((90 - (matchScore / 100) * 80) * 1e4) / 1e4;
-}
-
-/**
- * Zero-Pocket Dialogue Penalty.
- *
- * The "Zero-Pocket Zone" is 300–3 000 Hz — the primary human-voice frequency
- * band.  A track with high energy in this zone played under dense dialogue will
- * mask the actors' voices, creating an audio clearance problem and forcing an
- * expensive re-edit with the instrumental stem.
- *
- * @param matchScore      Current match score (0–100).
- * @param zeroPocketMean  Mean energy of the 300–3 000 Hz band timeline (0–1),
- *                        from analyze_v2.py's forensicTimeline.zeroPocketZone.
- *                        In the ranking route where forensicTimeline is not yet
- *                        stored, pass track.rmsEnergy as a coarse proxy.
- * @param dialogueDensity Fraction of scene frames with foreground voice (0–1).
- *                        Comes from the POST body's sceneParams, a video
- *                        analysis pipeline, or the ?dialogueDensity query param.
- *
- * Max penalty: 30 points.  A full-vocal track (zeroPocketMean=1) under
- * wall-to-wall dialogue (dialogueDensity=1) drops 30 points.
- * A 100→70 drop moves a track from "strong" to "possible fit".
- *
- * Rounded to 4 decimal places.
- */
-export function applyZeroPocketPenalty(
-  matchScore:      number,
-  zeroPocketMean:  number,
-  dialogueDensity: number,
-): number {
-  if (dialogueDensity <= 0 || zeroPocketMean <= 0) return matchScore;
-  const penalty = Math.round(zeroPocketMean * dialogueDensity * 30 * 1e4) / 1e4;
-  return Math.round(Math.max(0, matchScore - penalty) * 1e4) / 1e4;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scene Fit — Euclidean PAD distance, range-aware, normalised, inverted
