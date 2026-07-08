@@ -11,6 +11,7 @@ import {
   ResultsScreen,
   decodeSharePayload,
 } from './screens/ResultsScreen';
+import { NarrativeFitStudio } from './screens/NarrativeFitStudio';
 import { ShortlistsScreen } from './screens/ShortlistsScreen';
 import { RightsScreen }     from './screens/RightsScreen';
 import { LibraryScreen }    from './screens/LibraryScreen';
@@ -63,6 +64,8 @@ function App() {
   const [sceneParams, setSceneParams] = useState<SceneParams>(DEFAULT_SCENE_PARAMS);
   const [sceneArc,    setSceneArc]    = useState<SceneArc | null>(null);
   const [trackFilenames, setTrackFilenames] = useState<string[]>([]);
+  // NarrativeFitStudio is the default results view; toggle to classic ResultsScreen
+  const [resultsView, setResultsView] = useState<'narrative' | 'classic'>('narrative');
 
   const job     = useAnalysisJob();
   const credits = useCredits();
@@ -200,17 +203,67 @@ function App() {
       }
     }
 
-    // workspace / results
+    // workspace / results — NarrativeFitStudio is the default flagship view
     if (navView === 'workspace' && flowStep === 'results' && job.results) {
+      const handleBack = () => { job.reset(); setFlowStep('brief'); setNavView('brief'); setResultsView('narrative'); };
+      if (resultsView === 'narrative') {
+        return (
+          <>
+            <NarrativeFitStudio
+              briefText={briefText}
+              briefId={briefId}
+              sceneParams={sceneParams}
+              sceneArc={sceneArc}
+              results={job.results}
+              onBack={handleBack}
+            />
+            <div style={{
+              position: 'fixed', bottom: 20, right: 20, zIndex: 100,
+            }}>
+              <button
+                onClick={() => setResultsView('classic')}
+                style={{
+                  background: 'rgba(13,11,30,0.92)', border: '1px solid rgba(123,112,178,0.30)',
+                  borderRadius: 999, padding: '8px 16px', cursor: 'pointer',
+                  color: 'rgba(155,147,196,0.80)', fontSize: 11, fontFamily: '"Manrope",system-ui,sans-serif',
+                  letterSpacing: '0.10em', textTransform: 'uppercase',
+                  backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                  transition: 'border-color 0.15s',
+                }}
+              >
+                Detailed view →
+              </button>
+            </div>
+          </>
+        );
+      }
       return (
-        <ResultsScreen
-          briefText={briefText}
-          briefId={briefId}
-          sceneParams={sceneParams}
-          sceneArc={sceneArc}
-          results={job.results}
-          onBack={() => { job.reset(); setFlowStep('brief'); setNavView('brief'); }}
-        />
+        <>
+          <ResultsScreen
+            briefText={briefText}
+            briefId={briefId}
+            sceneParams={sceneParams}
+            sceneArc={sceneArc}
+            results={job.results}
+            onBack={handleBack}
+          />
+          <div style={{
+            position: 'fixed', bottom: 20, right: 20, zIndex: 100,
+          }}>
+            <button
+              onClick={() => setResultsView('narrative')}
+              style={{
+                background: 'rgba(219,39,119,0.15)', border: '1px solid rgba(219,39,119,0.40)',
+                borderRadius: 999, padding: '8px 16px', cursor: 'pointer',
+                color: '#DB2777', fontSize: 11, fontFamily: '"Manrope",system-ui,sans-serif',
+                letterSpacing: '0.10em', textTransform: 'uppercase',
+                backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+              }}
+            >
+              ← Narrative view
+            </button>
+          </div>
+        </>
       );
     }
 
