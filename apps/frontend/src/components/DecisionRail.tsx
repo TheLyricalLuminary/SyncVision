@@ -387,6 +387,11 @@ export function DecisionRail({ result, allResults = [], sceneArc, briefText, bri
                 <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 10, color: 'rgba(155,147,196,0.6)', marginTop: 3 }}>
                   shape {arcMatch.magnitudeScore} · val {arcMatch.valenceScore}
                 </div>
+                {result.confidenceScore.arcSource && (
+                  <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 9, marginTop: 3, color: result.confidenceScore.arcSource === 'measured' ? C.good : 'rgba(155,147,196,0.45)' }}>
+                    {result.confidenceScore.arcSource === 'measured' ? '⦿ measured from audio signal' : '◌ modeled estimate'}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -411,6 +416,11 @@ export function DecisionRail({ result, allResults = [], sceneArc, briefText, bri
                 <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 10, color: 'rgba(155,147,196,0.6)', marginTop: 3 }}>
                   shape {arcMatch.magnitudeScore} · val {arcMatch.valenceScore}
                 </div>
+                {result.confidenceScore.arcSource && (
+                  <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 9, marginTop: 3, color: result.confidenceScore.arcSource === 'measured' ? C.good : 'rgba(155,147,196,0.45)' }}>
+                    {result.confidenceScore.arcSource === 'measured' ? '⦿ measured from audio signal' : '◌ modeled estimate'}
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -1222,7 +1222,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
                     <div className="pr-arc">
                       <div className="pr-arc-head">
                         <span className="pr-arc-title">Story Match&trade; &mdash; emotional arc</span>
-                        <span className="pr-arc-score">{cs.arcMatch.combinedScore}/100 &middot; shape {cs.arcMatch.magnitudeScore} &middot; valence {cs.arcMatch.valenceScore}</span>
+                        <span className="pr-arc-score">{cs.arcMatch.combinedScore}/100 &middot; shape {cs.arcMatch.magnitudeScore} &middot; valence {cs.arcMatch.valenceScore}{cs.arcSource ? ` · ${cs.arcSource === 'measured' ? 'measured from signal' : 'modeled'}` : ''}</span>
                       </div>
                       <svg className="pr-arc-svg" viewBox="0 0 248 64" preserveAspectRatio="none">
                         <line x1="16" y1="58" x2="232" y2="58" stroke="#e5e0ee" strokeWidth="1" />
