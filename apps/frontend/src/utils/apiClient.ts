@@ -29,6 +29,10 @@ export type AnalysisResult = {
     arcMatch?: ArcMatchResult;
     songArcCurve?: number[];
     songArcValenceCurve?: number[];
+    /** 'measured' = extracted from the actual audio signal; 'modeled' = synthetic fallback. */
+    arcSource?: 'measured' | 'modeled';
+    /** 32-point normalized curves from real audio analysis — the fine-grained DNA. */
+    songArcFineCurves?: { energy: number[]; brightness: number[] };
   };
   rightsProfile: {
     isrc?: string | null;

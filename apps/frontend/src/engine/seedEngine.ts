@@ -7,6 +7,7 @@ import type {
   SubmitResponse,
 } from '../utils/apiClient';
 import { audioStore } from '../utils/audioStore';
+import { extractAudioArc, type RealAudioArc } from './audioArc';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 const FALLBACK_ISRC = 'QZRP52418558';
@@ -174,6 +175,39 @@ function syntheticArcData(
   return { songArcCurve, songArcValenceCurve, arcMatch: { magnitudeScore, valenceScore, combinedScore } };
 }
 
+// Shared arc-match scoring — same math for measured and modeled arcs, so the
+// number means the same thing regardless of provenance.
+function scoreArcMatch(
+  sceneVals: number[],
+  sceneValence: number[],
+  songArcCurve: number[],
+  songArcValenceCurve: number[],
+): ArcMatchResult {
+  const meanMagGap = songArcCurve.reduce((sum, v, i) =>
+    sum + Math.abs(sceneVals[i] - v), 0) / songArcCurve.length;
+  const magnitudeScore = Math.max(0, Math.min(100, Math.round(100 - 2 * meanMagGap)));
+
+  const meanValGap = songArcValenceCurve.reduce((sum, v, i) =>
+    sum + Math.abs(v - (sceneValence[i] ?? 0)), 0) / songArcValenceCurve.length;
+  const valenceScore = Math.max(0, Math.min(100, Math.round(100 - meanValGap)));
+
+  const combinedScore = Math.round(magnitudeScore * 0.65 + valenceScore * 0.35);
+  return { magnitudeScore, valenceScore, combinedScore };
+}
+
+// Arc data measured from the actual uploaded audio (Web Audio API DSP).
+function measuredArcData(real: RealAudioArc, sceneArc: SceneArc | null) {
+  const phases = ['opening', 'heldBreath', 'turn', 'release'] as const;
+  const sceneVals = sceneArc ? phases.map(p => sceneArc[p]) : [40, 55, 72, 60];
+  const sceneValence = sceneArc?.valenceCurve ?? [0, 0, 0, 0];
+  return {
+    songArcCurve: real.phases,
+    songArcValenceCurve: real.valence,
+    arcMatch: scoreArcMatch(sceneVals, sceneValence, real.phases, real.valence),
+    songArcFineCurves: { energy: real.fineEnergy, brightness: real.fineBrightness },
+  };
+}
+
 const PHASE_LABELS = ['opening', 'held breath', 'turn', 'release'] as const;
 
 // Per-track narrative built from the actual arc deltas, so every candidate
@@ -231,6 +265,14 @@ export const seedEngine = {
 
     const sceneArc = args.sceneArc ?? null;
 
+    // Real DSP on the uploaded audio, in parallel with the clearance lookup.
+    // extractAudioArc never throws — undecodable files resolve to null and
+    // fall back to the modeled arc.
+    const arcPromise = Promise.all(
+      args.trackFilenames.map(async fn =>
+        [fn, await extractAudioArc(audioStore.get(fn))] as const),
+    );
+
     try {
       const res = await fetch(`${API_BASE}/api/demo/check`, {
         method: 'POST',
@@ -248,17 +290,24 @@ export const seedEngine = {
         } else {
           const phases = ['opening', 'heldBreath', 'turn', 'release'] as const;
           const sceneVals = sceneArc ? phases.map(p => sceneArc[p]) : [40, 55, 72, 60];
+          const realArcs = new Map(await arcPromise);
 
-          // One result per uploaded file, scored independently using filename hash
+          // One result per uploaded file — measured from the audio signal when
+          // the browser can decode it, modeled deterministically otherwise.
           const perFile = args.trackFilenames.map((filename, i) => {
             const trackId = `${base.track.id}-f${i}`;
             const title = filename.replace(/\.[^/.]+$/, '');
             const h = hashCode(filename);
             const variation = (h % 31) - 15; // ±15 pts
             const score = Math.max(5, Math.min(95, base.confidenceScore.score + variation));
-            const arcData = syntheticArcData(trackId, sceneArc, score);
+            const real = realArcs.get(filename) ?? null;
+            const arcData = real
+              ? { ...measuredArcData(real, sceneArc), arcSource: 'measured' as const }
+              : { ...syntheticArcData(trackId, sceneArc, score), arcSource: 'modeled' as const };
             const lyricsPct = 35 + (h % 46);        // 35–80, differs per file
-            const signalPct = 30 + ((h >> 4) % 51); // 30–80, differs per file
+            const signalPct = real
+              ? Math.max(5, Math.min(95, Math.round(real.meanEnergy * 100))) // real mean RMS
+              : 30 + ((h >> 4) % 51);
             return {
               ...base,
               track: {

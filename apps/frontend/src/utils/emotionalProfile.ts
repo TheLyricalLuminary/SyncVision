@@ -34,6 +34,10 @@ export type EmotionalProfile = {
     arc: {
       magnitudeCurve: number[]; // 0–100 per phase: opening, heldBreath, turn, release
       valenceCurve: number[];   // -100..100 per phase
+      /** 'measured' = extracted from the audio signal; 'modeled' = deterministic estimate. */
+      source: 'measured' | 'modeled';
+      /** 32-point normalized DSP curves — present only when source is 'measured'. */
+      fineCurves: { energy: number[]; brightness: number[] } | null;
     } | null;
   };
   match: {
@@ -100,7 +104,12 @@ export function buildEmotionalProfile(
       tonalCharacter: result.track.tonalCharacter,
       energyCharacter: result.track.energyCharacter,
       arc: songCurve
-        ? { magnitudeCurve: songCurve, valenceCurve: cs.songArcValenceCurve ?? [] }
+        ? {
+            magnitudeCurve: songCurve,
+            valenceCurve: cs.songArcValenceCurve ?? [],
+            source: cs.arcSource ?? 'modeled',
+            fineCurves: cs.songArcFineCurves ?? null,
+          }
         : null,
     },
     match: {
