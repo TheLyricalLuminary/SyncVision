@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE } from '../utils/apiClient';
+import { audioStore } from '../utils/audioStore';
 
 export type IngestedTrack = {
   id: string;
@@ -114,6 +115,7 @@ const uploadFile = (trackId: string, file: File) => {
           file: f,
           track: { id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, filename: f.name, source: 'file' as const, status: 'uploading' as const, progress: 0 },
         }));
+      newTracks.forEach(n => audioStore.register(n.track.filename, n.file));
       newTracks.forEach(n => uploadFile(n.track.id, n.file));
       return [...prev, ...newTracks.map(n => n.track)];
     });

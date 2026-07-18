@@ -14,6 +14,7 @@ import {
 import { ShortlistsScreen } from './screens/ShortlistsScreen';
 import { RightsScreen }     from './screens/RightsScreen';
 import { LibraryScreen }    from './screens/LibraryScreen';
+import { DirectorView }     from './screens/DirectorView';
 import ShareView from './pages/ShareView';
 import DesignSystemShowcase from './screens/DesignSystemShowcase';
 import { PresentationView } from './components/PresentationView';
@@ -210,6 +211,7 @@ function App() {
           sceneArc={sceneArc}
           results={job.results}
           onBack={() => { job.reset(); setFlowStep('brief'); setNavView('brief'); }}
+          onPitchToDirector={() => setNavView('director')}
         />
       );
     }
@@ -219,10 +221,20 @@ function App() {
     if (navView === 'rights')     return <RightsScreen />;
     if (navView === 'library')    return <LibraryScreen />;
 
-    // director — the Forensic Adjudication pitch deck.
-    // Renders the deterministic demo fixture (tagged DEMO FIXTURE in the UI)
-    // until the mirror-search → adjudication wiring supplies live payloads.
+    // director — live review of the current shortlist when a Story Match has
+    // run; otherwise the Forensic Adjudication pitch deck demo fixture.
     if (navView === 'director') {
+      if (job.results && job.results.length > 0) {
+        return (
+          <DirectorView
+            briefText={briefText}
+            briefId={briefId}
+            sceneParams={sceneParams}
+            results={job.results}
+            onBack={() => setNavView('workspace')}
+          />
+        );
+      }
       return <PresentationView payload={DEMO_PRESENTATION} />;
     }
 

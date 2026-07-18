@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { API_BASE, type AnalysisResult, type SceneArc } from '../utils/apiClient';
+import { API_BASE, type AnalysisResult, type SceneArc, type SceneParams } from '../utils/apiClient';
 import { ArcMatchGraph } from './ArcMatchGraph';
 import { RightsTable, RightsPanel, type LocalRightsOverride, type AutoFill, type RightsSaveResult } from './RightsBlock';
+import { buildEmotionalProfile, downloadEmotionalProfile } from '../utils/emotionalProfile';
 
 const C = {
   purple:         '#F5A623',
@@ -178,12 +179,16 @@ type Props = {
   result: AnalysisResult;
   allResults?: AnalysisResult[];
   sceneArc?: SceneArc | null;
+  briefText?: string;
+  briefId?: string;
+  sceneParams?: SceneParams;
   onShare?: () => void;
+  onPitchToDirector?: (trackId: string) => void;
   onRightsSaved?: (trackId: string, override: LocalRightsOverride) => void;
   onMoveToConsidered?: (trackId: string) => void;
 };
 
-export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRightsSaved, onMoveToConsidered }: Props) {
+export function DecisionRail({ result, allResults = [], sceneArc, briefText, briefId, sceneParams, onShare, onPitchToDirector, onRightsSaved, onMoveToConsidered }: Props) {
   const hasArcData = Boolean(
     result.confidenceScore.arcMatch &&
     result.confidenceScore.songArcCurve &&
@@ -594,7 +599,7 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
 
       {/* ── actions ── */}
       <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" onClick={onShare} style={{ flex: 1, minWidth: 110, padding: '10px 14px', borderRadius: 10, border: 0, background: `linear-gradient(135deg,${C.purple},${C.magenta})`, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, boxShadow: '0 12px 26px -12px rgba(221,122,58,0.5)' }}>
+        <button type="button" onClick={() => { if (onPitchToDirector) onPitchToDirector(result.track.id); else onShare?.(); }} style={{ flex: 1, minWidth: 110, padding: '10px 14px', borderRadius: 10, border: 0, background: `linear-gradient(135deg,${C.purple},${C.magenta})`, color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, boxShadow: '0 12px 26px -12px rgba(221,122,58,0.5)' }}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M4 12 L10 18 L20 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           Pitch to director
         </button>
@@ -603,6 +608,17 @@ export function DecisionRail({ result, allResults = [], sceneArc, onShare, onRig
         </button>
         <button type="button" onClick={() => setNoteOpen(v => !v)} style={{ flex: 1, minWidth: 80, padding: '10px 14px', borderRadius: 10, border: `1px solid ${noteOpen ? 'rgba(219,39,119,0.3)' : C.hairlineStrong}`, background: noteOpen ? 'rgba(219,39,119,0.08)' : 'rgba(167,139,250,0.06)', color: C.silver, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
           Notes
+        </button>
+        <button
+          type="button"
+          title="Download this track's emotional profile — the arc DNA — to search for clearable soundalikes."
+          onClick={() => downloadEmotionalProfile(buildEmotionalProfile(
+            result, sceneArc, briefText ?? '', briefId ?? '', sceneParams ?? { pacing: null, emotionalRegister: null, sceneLengthSec: null },
+          ))}
+          style={{ flexBasis: '100%', padding: '10px 14px', borderRadius: 10, border: `1px dashed ${C.bpmBorder}`, background: 'rgba(245,166,35,0.06)', color: C.amber, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '0.04em' }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          Download Emotional Profile · DNA
         </button>
       </div>
 

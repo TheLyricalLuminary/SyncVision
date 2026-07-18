@@ -750,9 +750,10 @@ type ResultsScreenProps = {
   results: AnalysisResult[];
   readOnly?: boolean;
   onBack?: () => void;
+  onPitchToDirector?: (trackId: string) => void;
 };
 
-export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, results, readOnly, onBack }: ResultsScreenProps) {
+export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, results, readOnly, onBack, onPitchToDirector }: ResultsScreenProps) {
   const [toast,                setToast]        = useState<string | null>(null);
   const [compareOpen,          setCompareOpen]  = useState(false);
   const [activeTab,            setActiveTab]    = useState<'shortlist' | 'considered' | 'archive'>('shortlist');
@@ -830,7 +831,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
     : briefLabel;
 
   return (
-    <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: BG }}>
+    <div className="sv-results-root" style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: BG }}>
       <style>{`
         @keyframes sv-pulse-dot { 0%,100%{opacity:.7;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)} }
 
@@ -892,9 +893,25 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
         @media print {
           @page { size: A4; margin: 14mm 15mm; }
           html, body { background: #fff !important; color: #16121f !important; }
+          body::before, body::after { display: none !important; }
+          .sv-results-root { background: #fff !important; min-height: 0 !important; }
           .sv-rs-topbar, main.sv-rs-shell, .sv-rs-shell { display: none !important; }
+          .m-top, .m-nav, .sv-rail { display: none !important; }
           .sv-print-report { display: block !important; color: #16121f; font-family: "Manrope",system-ui,sans-serif; }
           .sv-print-report * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+          .pr-scenearc { font-family: "JetBrains Mono",monospace; font-size: 10px; color: #5a5470; margin-top: 8px; }
+          .pr-arc { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e5e0ee; page-break-inside: avoid; break-inside: avoid; }
+          .pr-arc-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+          .pr-arc-title { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: #16121f; }
+          .pr-arc-score { font-family: "JetBrains Mono",monospace; font-size: 11px; color: #2a2536; }
+          .pr-arc-svg { width: 100%; height: 64px; margin-top: 8px; }
+          .pr-arc-grid { display: grid; grid-template-columns: 70px repeat(4, 1fr); gap: 3px 8px; margin-top: 8px; }
+          .pr-arc-grid span { font-family: "JetBrains Mono",monospace; font-size: 10px; color: #2a2536; }
+          .pr-arc-grid .h { font-family: "Manrope",sans-serif; font-size: 8.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #8a83a8; font-weight: 700; }
+          .pr-arc-grid .rl { font-family: "Manrope",sans-serif; font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: #5a5470; font-weight: 700; }
+          .pr-arc-grid .off { color: #a33b3b; font-weight: 700; }
+          .pr-arc-cap { font-size: 8.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #9a93ac; margin-top: 6px; }
 
           .pr-head { display: flex; align-items: center; justify-content: space-between; }
           .pr-mark { height: 22px; }
@@ -1099,7 +1116,11 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
                   result={selectedResult}
                   allResults={results}
                   sceneArc={sceneArc}
+                  briefText={briefText}
+                  briefId={briefId}
+                  sceneParams={sceneParams}
                   onShare={() => void onCopyShareLink()}
+                  onPitchToDirector={onPitchToDirector}
                   onRightsSaved={(id, ov) => setLocalRightsOverrides(m => ({ ...m, [id]: ov }))}
                   onMoveToConsidered={() => setActiveTab('considered')}
                 />
@@ -1109,8 +1130,12 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
           </section>
         )}
 
-        {/* ── print report (hidden on screen, shown on print) ── */}
-        <div className="sv-print-report" aria-hidden="true">
+      </main>
+
+      {/* ── print report (hidden on screen, shown on print) ──
+           NOTE: must live OUTSIDE main.sv-rs-shell — print CSS hides that
+           whole subtree, and display:block on a child cannot resurrect it. */}
+      <div className="sv-print-report">
           <div className="pr-head">
             <span className="pr-mark"><img src="/logo.png" alt="SyncVision" /></span>
             <span className="pr-stamp">SYNC REPORT &middot; {briefLabel.toUpperCase()}</span>
@@ -1119,7 +1144,12 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
           <div className="pr-brief">
             <div className="pr-scene-type">{briefLabel.toUpperCase()}</div>
             <div className="pr-scene-desc">{briefText}</div>
-            <div className="pr-count">Shortlist &mdash; {results.length} track{results.length !== 1 ? 's' : ''} ranked</div>
+            {sceneArc && (
+              <div className="pr-scenearc">
+                Scene arc &mdash; opening {sceneArc.opening} &middot; held breath {sceneArc.heldBreath} &middot; turn {sceneArc.turn} &middot; release {sceneArc.release} &middot; certainty {Math.round(sceneArc.narrativeCertainty * 100)}%
+              </div>
+            )}
+            <div className="pr-count">Shortlist &mdash; {results.length} track{results.length !== 1 ? 's' : ''} ranked by Story Match</div>
           </div>
           <div className="pr-rule" />
           {results.map((r, idx) => {
@@ -1175,6 +1205,47 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
                   <div className="pr-al">Sync Assessment <em>deterministic · audit-stable</em></div>
                   <p>{r.confidenceScore.explanation}</p>
                 </div>
+                {(() => {
+                  const cs = r.confidenceScore;
+                  if (!cs.arcMatch || !cs.songArcCurve || !sceneArc) return null;
+                  const phases = [
+                    { label: 'Opening',     scene: sceneArc.opening,    track: cs.songArcCurve[0] },
+                    { label: 'Held breath', scene: sceneArc.heldBreath, track: cs.songArcCurve[1] },
+                    { label: 'Turn',        scene: sceneArc.turn,       track: cs.songArcCurve[2] },
+                    { label: 'Release',     scene: sceneArc.release,    track: cs.songArcCurve[3] },
+                  ];
+                  const px = [16, 88, 160, 232];
+                  const y = (v: number) => 58 - (v / 100) * 50;
+                  const scenePts = phases.map((p, i) => `${px[i]},${y(p.scene).toFixed(1)}`).join(' ');
+                  const trackPts = phases.map((p, i) => `${px[i]},${y(p.track).toFixed(1)}`).join(' ');
+                  return (
+                    <div className="pr-arc">
+                      <div className="pr-arc-head">
+                        <span className="pr-arc-title">Story Match&trade; &mdash; emotional arc</span>
+                        <span className="pr-arc-score">{cs.arcMatch.combinedScore}/100 &middot; shape {cs.arcMatch.magnitudeScore} &middot; valence {cs.arcMatch.valenceScore}</span>
+                      </div>
+                      <svg className="pr-arc-svg" viewBox="0 0 248 64" preserveAspectRatio="none">
+                        <line x1="16" y1="58" x2="232" y2="58" stroke="#e5e0ee" strokeWidth="1" />
+                        <polyline points={scenePts} fill="none" stroke="#b59410" strokeWidth="1.6" strokeDasharray="4 3" />
+                        <polyline points={trackPts} fill="none" stroke="#16121f" strokeWidth="1.8" />
+                      </svg>
+                      <div className="pr-arc-grid">
+                        <span className="h"> </span>
+                        {phases.map(p => <span key={`h-${p.label}`} className="h">{p.label}</span>)}
+                        <span className="rl">Scene</span>
+                        {phases.map(p => <span key={`s-${p.label}`}>{p.scene}</span>)}
+                        <span className="rl">Track</span>
+                        {phases.map(p => <span key={`t-${p.label}`}>{p.track}</span>)}
+                        <span className="rl">&Delta;</span>
+                        {phases.map(p => {
+                          const d = p.track - p.scene;
+                          return <span key={`d-${p.label}`} className={Math.abs(d) > 12 ? 'off' : undefined}>{d > 0 ? `+${d}` : d}</span>;
+                        })}
+                      </div>
+                      <div className="pr-arc-cap">Dashed = scene target &middot; solid = track &middot; &Delta; within &plusmn;12 reads as aligned on picture</div>
+                    </div>
+                  );
+                })()}
                 <div className="pr-score">
                   <div>
                     <div className="pr-axes">
@@ -1237,8 +1308,6 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
             <div className="t">Surfaces what you need to decide, faster — does not decide for you.</div>
           </div>
         </div>
-
-      </main>
 
       {toast && (
         <div role="status" style={{ position: 'fixed', bottom: 24, right: 24, background: '#170B33', border: `1px solid ${C.hairline}`, borderRadius: 10, padding: '8px 16px', color: C.silver, fontSize: 12 }}>
