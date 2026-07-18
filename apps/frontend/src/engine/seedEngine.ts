@@ -6,6 +6,7 @@ import type {
   SceneParams,
   SubmitResponse,
 } from '../utils/apiClient';
+import { audioStore } from '../utils/audioStore';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 const FALLBACK_ISRC = 'QZRP52418558';
@@ -173,6 +174,33 @@ function syntheticArcData(
   return { songArcCurve, songArcValenceCurve, arcMatch: { magnitudeScore, valenceScore, combinedScore } };
 }
 
+const PHASE_LABELS = ['opening', 'held breath', 'turn', 'release'] as const;
+
+// Per-track narrative built from the actual arc deltas, so every candidate
+// reads differently and the language traces back to the numbers on screen.
+function arcNarrative(
+  sceneVals: number[],
+  songArcCurve: number[],
+  arcMatch: ArcMatchResult,
+): string {
+  const deltas = songArcCurve.map((v, i) => v - sceneVals[i]);
+  const absDeltas = deltas.map(Math.abs);
+  const bestIdx  = absDeltas.indexOf(Math.min(...absDeltas));
+  const worstIdx = absDeltas.indexOf(Math.max(...absDeltas));
+  const best  = PHASE_LABELS[bestIdx];
+  const worst = PHASE_LABELS[worstIdx];
+  const worstDir = deltas[worstIdx] > 0 ? 'over' : 'under';
+  const c = arcMatch.combinedScore;
+
+  if (c >= 75) {
+    return `Locks onto the scene's emotional shape — tightest at the ${best} (Δ${absDeltas[bestIdx]}) with no phase drifting past Δ${absDeltas[worstIdx]}. Valence direction holds at ${arcMatch.valenceScore}%, so the cue lands the turn where the picture does.`;
+  }
+  if (c >= 50) {
+    return `Tracks the scene through the ${best} but runs ${worstDir} the target at the ${worst} (Δ${absDeltas[worstIdx]}). Shape alignment sits at ${arcMatch.magnitudeScore}% — workable with an edit pass against picture.`;
+  }
+  return `Arc diverges from the brief — the ${worst} lands Δ${absDeltas[worstIdx]} ${worstDir} target and shape alignment is only ${arcMatch.magnitudeScore}%. Consider for contrast placement, not a direct emotional match.`;
+}
+
 type SeedJob = {
   startedAt: number;
   results: AnalysisResult[] | null;
@@ -218,6 +246,9 @@ export const seedEngine = {
         if (!base) {
           job.results = [];
         } else {
+          const phases = ['opening', 'heldBreath', 'turn', 'release'] as const;
+          const sceneVals = sceneArc ? phases.map(p => sceneArc[p]) : [40, 55, 72, 60];
+
           // One result per uploaded file, scored independently using filename hash
           const perFile = args.trackFilenames.map((filename, i) => {
             const trackId = `${base.track.id}-f${i}`;
@@ -225,18 +256,39 @@ export const seedEngine = {
             const h = hashCode(filename);
             const variation = (h % 31) - 15; // ±15 pts
             const score = Math.max(5, Math.min(95, base.confidenceScore.score + variation));
+            const arcData = syntheticArcData(trackId, sceneArc, score);
+            const lyricsPct = 35 + (h % 46);        // 35–80, differs per file
+            const signalPct = 30 + ((h >> 4) % 51); // 30–80, differs per file
             return {
               ...base,
-              track: { ...base.track, id: trackId, title, audioFilePath: `/api/tracks/${trackId}/audio` },
+              track: {
+                ...base.track,
+                id: trackId,
+                title,
+                // Play the file the user actually dropped in (object URL);
+                // fall back to the backend route for ISRC-sourced tracks.
+                audioFilePath: audioStore.get(filename) ?? base.track.audioFilePath,
+              },
               confidenceScore: {
                 ...base.confidenceScore,
                 score,
                 confidenceLabel: confidenceLabelFor(score),
-                ...syntheticArcData(trackId, sceneArc, score),
+                explanation: arcNarrative(sceneVals, arcData.songArcCurve, arcData.arcMatch),
+                lyricsBreakdown: lyricsPct,
+                signalBreakdown: signalPct,
+                vector: {
+                  scene: score / 100,
+                  lyrics: lyricsPct / 100,
+                  audioSignal: signalPct / 100,
+                  rightsClarity: 0.5,
+                },
+                ...arcData,
               },
             };
           });
-          perFile.sort((a, b) => b.confidenceScore.score - a.confidenceScore.score);
+          // The Story Match arc score is the product's core metric — rank by it.
+          perFile.sort((a, b) =>
+            (b.confidenceScore.arcMatch?.combinedScore ?? 0) - (a.confidenceScore.arcMatch?.combinedScore ?? 0));
           job.results = perFile.map((r, i) => ({ ...r, rank: i + 1 }));
         }
       }
