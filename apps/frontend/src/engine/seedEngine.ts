@@ -8,6 +8,7 @@ import type {
 } from '../utils/apiClient';
 import { audioStore } from '../utils/audioStore';
 import { extractAudioArc, type RealAudioArc } from './audioArc';
+import { scoreArcMatch } from './arcScore';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 const FALLBACK_ISRC = 'QZRP52418558';
@@ -173,26 +174,6 @@ function syntheticArcData(
   const combinedScore = Math.round(magnitudeScore * 0.65 + valenceScore * 0.35);
 
   return { songArcCurve, songArcValenceCurve, arcMatch: { magnitudeScore, valenceScore, combinedScore } };
-}
-
-// Shared arc-match scoring — same math for measured and modeled arcs, so the
-// number means the same thing regardless of provenance.
-function scoreArcMatch(
-  sceneVals: number[],
-  sceneValence: number[],
-  songArcCurve: number[],
-  songArcValenceCurve: number[],
-): ArcMatchResult {
-  const meanMagGap = songArcCurve.reduce((sum, v, i) =>
-    sum + Math.abs(sceneVals[i] - v), 0) / songArcCurve.length;
-  const magnitudeScore = Math.max(0, Math.min(100, Math.round(100 - 2 * meanMagGap)));
-
-  const meanValGap = songArcValenceCurve.reduce((sum, v, i) =>
-    sum + Math.abs(v - (sceneValence[i] ?? 0)), 0) / songArcValenceCurve.length;
-  const valenceScore = Math.max(0, Math.min(100, Math.round(100 - meanValGap)));
-
-  const combinedScore = Math.round(magnitudeScore * 0.65 + valenceScore * 0.35);
-  return { magnitudeScore, valenceScore, combinedScore };
 }
 
 // Arc data measured from the actual uploaded audio (Web Audio API DSP).
