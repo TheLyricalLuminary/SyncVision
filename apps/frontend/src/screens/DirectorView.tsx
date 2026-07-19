@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { rightsDisplayFor } from '../utils/rightsStatus';
 import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
-import type { AnalysisResult, SceneParams } from '../utils/apiClient';
+import { ArcMatchGraph } from '../components/ArcMatchGraph';
+import type { AnalysisResult, SceneParams, SceneArc } from '../utils/apiClient';
 
 const C = {
   purple:        '#F5A623',
@@ -85,13 +86,14 @@ type DirectorViewProps = {
   briefText: string;
   briefId: BriefId;
   sceneParams: SceneParams;
+  sceneArc?: SceneArc | null;
   results: AnalysisResult[];
   onBack?: () => void;
 };
 
 type Decision = 'approved' | 'passed';
 
-export function DirectorView({ briefText, briefId, sceneParams, results, onBack }: DirectorViewProps) {
+export function DirectorView({ briefText, briefId, sceneParams, sceneArc, results, onBack }: DirectorViewProps) {
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
 
   const decide = (trackId: string, d: Decision) =>
@@ -221,6 +223,16 @@ export function DirectorView({ briefText, briefId, sceneParams, results, onBack 
               <div style={{ marginTop: 10, fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, lineHeight: 1.4, color: C.textNarrative }}>
                 "{r.confidenceScore.explanation}"
               </div>
+
+              {/* emotional arc — the visual proof the director actually reads */}
+              {sceneArc && r.confidenceScore.arcMatch && r.confidenceScore.songArcCurve && r.confidenceScore.songArcValenceCurve && (
+                <ArcMatchGraph
+                  sceneArc={sceneArc}
+                  songArcCurve={r.confidenceScore.songArcCurve}
+                  songArcValenceCurve={r.confidenceScore.songArcValenceCurve}
+                  arcMatch={r.confidenceScore.arcMatch}
+                />
+              )}
 
               {/* score bar */}
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>

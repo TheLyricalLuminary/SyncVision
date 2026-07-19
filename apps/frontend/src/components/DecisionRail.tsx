@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { API_BASE, type AnalysisResult, type SceneArc, type SceneParams } from '../utils/apiClient';
-import { ArcMatchGraph } from './ArcMatchGraph';
+import { LiveArcVisualizer } from './LiveArcVisualizer';
+import { getAnalyser } from '../engine/audioAnalyser';
 import { RightsTable, RightsPanel, type LocalRightsOverride, type AutoFill, type RightsSaveResult } from './RightsBlock';
 import { buildEmotionalProfile, downloadEmotionalProfile } from '../utils/emotionalProfile';
 import { ClearableAlternatives } from './ClearableAlternatives';
@@ -282,6 +283,9 @@ export function DecisionRail({ result, allResults = [], sceneArc, briefText, bri
     if (!audio.paused) { audio.pause(); return; }
     if (currentAudio.el && currentAudio.el !== audio) currentAudio.el.pause();
     currentAudio.el = audio;
+    // Establish the analyser tap inside the user gesture so the AudioContext is
+    // allowed to start and the visualizer reacts from the first frame.
+    getAnalyser(audio);
     void audio.play().catch(() => setIsPlaying(false));
   };
 
@@ -396,12 +400,14 @@ export function DecisionRail({ result, allResults = [], sceneArc, briefText, bri
               </div>
             </div>
           )}
-          <ArcMatchGraph
+          <LiveArcVisualizer
             sceneArc={sceneArc}
             songArcCurve={result.confidenceScore.songArcCurve!}
-            songArcValenceCurve={result.confidenceScore.songArcValenceCurve!}
             arcMatch={arcMatch!}
-            playheadFraction={duration > 0 ? currentTime / duration : undefined}
+            audioEl={audioRef.current}
+            isPlaying={isPlaying}
+            fraction={duration > 0 ? currentTime / duration : 0}
+            measured={result.confidenceScore.arcSource === 'measured'}
           />
         </div>
       ) : (

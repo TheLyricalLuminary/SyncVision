@@ -230,6 +230,7 @@ function App() {
             briefText={briefText}
             briefId={briefId}
             sceneParams={sceneParams}
+            sceneArc={sceneArc}
             results={job.results}
             onBack={() => setNavView('workspace')}
           />
