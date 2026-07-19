@@ -51,6 +51,9 @@ const ZAB_URL = 'https://chriszabriskie.com/';
 const ENGEL = 'Kai Engel';
 const ENGEL_SRC = 'Free Music Archive';
 const ENGEL_URL = 'https://freemusicarchive.org/music/Kai_Engel/';
+const ROSE = 'Lee Rosevere';
+const ROSE_SRC = 'Free Music Archive';
+const ROSE_URL = 'https://freemusicarchive.org/music/Lee_Rosevere/';
 
 const CC = 'CC BY 4.0';
 
@@ -153,5 +156,82 @@ export const CLEARABLE_LIBRARY: ClearableTrack[] = [
     tempo: 76, tonalCharacter: 'warm, tender', energyCharacter: 'lifting',
     arc: [40, 50, 68, 58],
     valence: [18, 8, 30, 44],
+  },
+  {
+    id: 'clr-heartbreaking',
+    title: 'Heartbreaking',
+    artist: KMAC,
+    source: KMAC_SRC, sourceUrl: KMAC_URL, license: CC, attributionRequired: true,
+    clearanceCostUsd: 0,
+    oneStopNote: 'Sole composer controls master + publishing; CC BY terms are public.',
+    tempo: 66, tonalCharacter: 'minor, melancholy', energyCharacter: 'sparse piano',
+    arc: [38, 46, 60, 42],
+    valence: [-28, -54, -58, -44],
+  },
+  {
+    id: 'clr-ghostprocessional',
+    title: 'Ghost Processional',
+    artist: KMAC,
+    source: KMAC_SRC, sourceUrl: KMAC_URL, license: CC, attributionRequired: true,
+    clearanceCostUsd: 0,
+    oneStopNote: 'Sole composer controls master + publishing; CC BY terms are public.',
+    tempo: 80, tonalCharacter: 'eerie, unsettling', energyCharacter: 'creeping dread',
+    arc: [42, 58, 80, 50],
+    valence: [-24, -50, -62, -40],
+  },
+  {
+    id: 'clr-volatilereaction',
+    title: 'Volatile Reaction',
+    artist: KMAC,
+    source: KMAC_SRC, sourceUrl: KMAC_URL, license: CC, attributionRequired: true,
+    clearanceCostUsd: 0,
+    oneStopNote: 'Sole composer controls master + publishing; CC BY terms are public.',
+    tempo: 130, tonalCharacter: 'tense, propulsive', energyCharacter: 'high kinetic',
+    arc: [54, 70, 95, 72],
+    valence: [-16, -32, -22, 0],
+  },
+  {
+    id: 'clr-preludeandaction',
+    title: 'Prelude and Action',
+    artist: KMAC,
+    source: KMAC_SRC, sourceUrl: KMAC_URL, license: CC, attributionRequired: true,
+    clearanceCostUsd: 0,
+    oneStopNote: 'Sole composer controls master + publishing; CC BY terms are public.',
+    tempo: 108, tonalCharacter: 'cinematic, resolving', energyCharacter: 'building triumph',
+    arc: [48, 62, 90, 84],
+    valence: [-4, -14, 20, 48],
+  },
+  {
+    id: 'clr-oxygengarden',
+    title: 'Oxygen Garden',
+    artist: ZAB,
+    source: ZAB_SRC, sourceUrl: ZAB_URL, license: CC, attributionRequired: true,
+    clearanceCostUsd: 0,
+    oneStopNote: 'Artist self-releases; controls master + composition under CC BY.',
+    tempo: 90, tonalCharacter: 'ambient, warm', energyCharacter: 'flowing',
+    arc: [46, 54, 72, 62],
+    valence: [8, 0, 22, 38],
+  },
+  {
+    id: 'clr-idleways',
+    title: 'Idle Ways',
+    artist: ENGEL,
+    source: ENGEL_SRC, sourceUrl: ENGEL_URL, license: CC, attributionRequired: true,
+    clearanceCostUsd: 0,
+    oneStopNote: 'Sole composer; CC BY release on Free Music Archive.',
+    tempo: 78, tonalCharacter: 'reflective, wistful', energyCharacter: 'unfolding',
+    arc: [42, 52, 72, 58],
+    valence: [-6, -24, -10, 8],
+  },
+  {
+    id: 'clr-makingachange',
+    title: 'Making a Change',
+    artist: ROSE,
+    source: ROSE_SRC, sourceUrl: ROSE_URL, license: CC, attributionRequired: true,
+    clearanceCostUsd: 0,
+    oneStopNote: 'Sole composer; CC BY "Music for Podcasts" release.',
+    tempo: 96, tonalCharacter: 'hopeful, gentle', energyCharacter: 'lifting',
+    arc: [40, 52, 74, 66],
+    valence: [10, 4, 28, 46],
   },
 ];
