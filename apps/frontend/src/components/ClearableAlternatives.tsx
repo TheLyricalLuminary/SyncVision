@@ -17,8 +17,8 @@ const SERIF = '"Instrument Serif", Georgia, serif';
 const SANS  = '"Manrope", system-ui, sans-serif';
 const MONO  = '"JetBrains Mono", monospace';
 
-function fmtUsd(n: number): string {
-  return `$${n.toLocaleString('en-US')}`;
+function costLabel(n: number): string {
+  return n === 0 ? 'Free' : `$${n.toLocaleString('en-US')}`;
 }
 
 function matchColor(score: number): string {
@@ -62,7 +62,7 @@ export function ClearableAlternatives({ temp, sceneArc, blocked }: Props) {
             {blocked ? '⚠ Temp won’t clear — one-stop replacements' : 'Clearable one-stop alternatives'}
           </div>
           <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 13, color: 'rgba(226,232,240,0.72)', marginTop: 3 }}>
-            {matches.length} pre-cleared cue{matches.length > 1 ? 's' : ''} matched to this DNA · best lands {top.arcMatch.combinedScore}% at {fmtUsd(top.track.clearanceCostUsd)}
+            {matches.length} one-stop cue{matches.length > 1 ? 's' : ''} matched to this DNA · best lands {top.arcMatch.combinedScore}% · {costLabel(top.track.clearanceCostUsd)} ({top.track.license})
           </div>
         </div>
         <span style={{ fontSize: 13, color: C.lavender, transition: 'transform 0.2s', display: 'inline-block', transform: open ? 'rotate(180deg)' : 'none', flexShrink: 0 }}>▾</span>
@@ -80,7 +80,7 @@ export function ClearableAlternatives({ temp, sceneArc, blocked }: Props) {
             />
           ))}
           <div style={{ marginTop: 4, fontFamily: SERIF, fontStyle: 'italic', fontSize: 10.5, color: 'rgba(155,147,196,0.55)', lineHeight: 1.5 }}>
-            Ranked by the same arc-match math as Story Match. Every cue is one-stop (single rights holder, master + publishing) — one signature to license.
+            Real tracks, ranked by the same arc-match math as Story Match. Each is a genuine one-stop — one creator controls master + composition under a public Creative Commons license. Confirm current terms at the source before placement.
           </div>
         </div>
       )}
@@ -109,7 +109,7 @@ function MatchCard({ match, rank, expanded, onToggle }: { match: ClearableMatch;
         </span>
         <span style={{ textAlign: 'right' }}>
           <span style={{ display: 'block', fontFamily: MONO, fontSize: 18, fontWeight: 700, color: mc, lineHeight: 1 }}>{arcMatch.combinedScore}<span style={{ fontSize: 10, color: 'rgba(155,147,196,0.55)' }}>%</span></span>
-          <span style={{ display: 'block', fontFamily: MONO, fontSize: 11, color: C.silver, marginTop: 3 }}>{fmtUsd(track.clearanceCostUsd)}</span>
+          <span style={{ display: 'block', fontFamily: MONO, fontSize: 11, color: track.clearanceCostUsd === 0 ? C.good : C.silver, marginTop: 3 }}>{costLabel(track.clearanceCostUsd)}</span>
         </span>
       </button>
 
@@ -138,10 +138,23 @@ function MatchCard({ match, rank, expanded, onToggle }: { match: ClearableMatch;
           <div style={{ marginTop: 11, display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 10.5, color: C.lavender }}>
             <Meta label={`${track.tempo} BPM`} />
             <Meta label={track.tonalCharacter} />
-            <Meta label={`${track.publisher}`} />
-            <Meta label={`${track.proAffiliation}`} />
-            <Meta label={`Clears ${track.licenseTurnaround}`} />
+            <Meta label={track.license} accent />
+            {track.attributionRequired && <Meta label="Credit required" />}
           </div>
+
+          <div style={{ marginTop: 9, fontFamily: SERIF, fontStyle: 'italic', fontSize: 11, color: 'rgba(155,147,196,0.7)', lineHeight: 1.5 }}>
+            {track.oneStopNote}
+          </div>
+
+          <a
+            href={track.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginTop: 9, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: C.amber, textDecoration: 'none', letterSpacing: '0.02em' }}
+          >
+            Get it &amp; verify at {track.source}
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M17 7H9M17 7v8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </a>
         </div>
       )}
     </div>
@@ -159,8 +172,8 @@ function MiniBar({ value, color }: { value: number; color: string }) {
   );
 }
 
-function Meta({ label }: { label: string }) {
+function Meta({ label, accent }: { label: string; accent?: boolean }) {
   return (
-    <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 999, background: 'rgba(123,112,178,0.08)', border: '1px solid rgba(123,112,178,0.16)', color: '#9B93C4', whiteSpace: 'nowrap' }}>{label}</span>
+    <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 999, background: accent ? 'rgba(76,175,130,0.12)' : 'rgba(123,112,178,0.08)', border: `1px solid ${accent ? 'rgba(76,175,130,0.32)' : 'rgba(123,112,178,0.16)'}`, color: accent ? '#4CAF82' : '#9B93C4', whiteSpace: 'nowrap' }}>{label}</span>
   );
 }

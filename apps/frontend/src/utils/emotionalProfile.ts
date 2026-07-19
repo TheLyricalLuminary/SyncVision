@@ -53,10 +53,12 @@ export type EmotionalProfile = {
   clearableAlternatives: {
     title: string;
     artist: string;
-    publisher: string;
     oneStop: true;
+    license: string;
+    attributionRequired: boolean;
+    source: string;
+    sourceUrl: string;
     clearanceCostUsd: number;
-    licenseTurnaround: string;
     arcMatchPct: number;
     phaseDeltas: { phase: string; temp: number; candidate: number; delta: number }[];
   }[];
@@ -135,10 +137,12 @@ export function buildEmotionalProfile(
     clearableAlternatives: matchClearableAlternatives(result, sceneArc, { topN: 3 }).map(m => ({
       title: m.track.title,
       artist: m.track.artist,
-      publisher: m.track.publisher,
       oneStop: true,
+      license: m.track.license,
+      attributionRequired: m.track.attributionRequired,
+      source: m.track.source,
+      sourceUrl: m.track.sourceUrl,
       clearanceCostUsd: m.track.clearanceCostUsd,
-      licenseTurnaround: m.track.licenseTurnaround,
       arcMatchPct: m.arcMatch.combinedScore,
       phaseDeltas: m.phaseDeltas,
     })),
