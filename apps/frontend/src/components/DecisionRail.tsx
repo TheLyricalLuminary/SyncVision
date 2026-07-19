@@ -3,6 +3,7 @@ import { API_BASE, type AnalysisResult, type SceneArc, type SceneParams } from '
 import { ArcMatchGraph } from './ArcMatchGraph';
 import { RightsTable, RightsPanel, type LocalRightsOverride, type AutoFill, type RightsSaveResult } from './RightsBlock';
 import { buildEmotionalProfile, downloadEmotionalProfile } from '../utils/emotionalProfile';
+import { ClearableAlternatives } from './ClearableAlternatives';
 
 const C = {
   purple:         '#F5A623',
@@ -582,6 +583,13 @@ export function DecisionRail({ result, allResults = [], sceneArc, briefText, bri
         );
       })()}
 
+      {/* ── clearable one-stop alternatives (DNA-matched replacements) ── */}
+      <ClearableAlternatives
+        temp={result}
+        sceneArc={sceneArc}
+        blocked={(localRights?.blockers?.length ?? 0) > 0 || localRights?.rightsState === 'blocked'}
+      />
+
       {/* ── rights form (only shown when editing) ── */}
       {rightsPanel && (
         <RightsPanel
@@ -622,7 +630,7 @@ export function DecisionRail({ result, allResults = [], sceneArc, briefText, bri
         <button
           type="button"
           title="Download this track's emotional profile — the arc DNA — to search for clearable soundalikes."
-          onClick={() => downloadEmotionalProfile(buildEmotionalProfile(
+          onClick={() => void downloadEmotionalProfile(buildEmotionalProfile(
             result, sceneArc, briefText ?? '', briefId ?? '', sceneParams ?? { pacing: null, emotionalRegister: null, sceneLengthSec: null },
           ))}
           style={{ flexBasis: '100%', padding: '10px 14px', borderRadius: 10, border: `1px dashed ${C.bpmBorder}`, background: 'rgba(245,166,35,0.06)', color: C.amber, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '0.04em' }}

@@ -1,9 +1,11 @@
 import type { AnalysisResult, SceneArc, SceneParams } from './apiClient';
+import { cleanTrackTitle } from './trackTitle';
+import { matchClearableAlternatives } from '../engine/matchClearable';
 
 // The downloadable "emotional profile" — the DNA of a scene/track match.
 // Purpose: when a temp track is too expensive to clear, this file captures its
-// structural-emotional fingerprint so a supervisor can search for a clearable
-// track with the same shape.
+// structural-emotional fingerprint AND the ranked clearable one-stop cues that
+// match it — so the file is an actionable replacement brief, not a dead-end.
 
 export type EmotionalProfile = {
   format: 'syncvision-emotional-profile';
@@ -47,6 +49,17 @@ export type EmotionalProfile = {
     explanation: string;
     phaseDeltas: { phase: string; scene: number; track: number; delta: number }[] | null;
   };
+  /** Ranked clearable one-stop cues whose DNA matches this track's arc. */
+  clearableAlternatives: {
+    title: string;
+    artist: string;
+    publisher: string;
+    oneStop: true;
+    clearanceCostUsd: number;
+    licenseTurnaround: string;
+    arcMatchPct: number;
+    phaseDeltas: { phase: string; temp: number; candidate: number; delta: number }[];
+  }[];
 };
 
 const PHASE_KEYS = ['opening', 'heldBreath', 'turn', 'release'] as const;
@@ -97,7 +110,7 @@ export function buildEmotionalProfile(
         : null,
     },
     track: {
-      title: result.track.title,
+      title: cleanTrackTitle(result.track.title),
       artistName: result.track.artistName,
       isrc: result.track.isrc,
       tempo: result.track.tempo,
@@ -119,18 +132,46 @@ export function buildEmotionalProfile(
       explanation: cs.explanation,
       phaseDeltas,
     },
+    clearableAlternatives: matchClearableAlternatives(result, sceneArc, { topN: 3 }).map(m => ({
+      title: m.track.title,
+      artist: m.track.artist,
+      publisher: m.track.publisher,
+      oneStop: true,
+      clearanceCostUsd: m.track.clearanceCostUsd,
+      licenseTurnaround: m.track.licenseTurnaround,
+      arcMatchPct: m.arcMatch.combinedScore,
+      phaseDeltas: m.phaseDeltas,
+    })),
   };
 }
 
-export function downloadEmotionalProfile(profile: EmotionalProfile): void {
+export async function downloadEmotionalProfile(profile: EmotionalProfile): Promise<void> {
   const safe = profile.track.title.replace(/[^a-z0-9\-_ ]/gi, '').trim().replace(/\s+/g, '-').toLowerCase() || 'track';
-  const blob = new Blob([JSON.stringify(profile, null, 2)], { type: 'application/json' });
+  const filename = `emotional-profile-${safe}.json`;
+  const json = JSON.stringify(profile, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+
+  // Mobile browsers frequently ignore the anchor `download` attribute for blob
+  // URLs and just navigate to the raw JSON. When the Web Share API can share
+  // files, use it — that opens the native "Save to Files / share" sheet.
+  try {
+    const file = new File([blob], filename, { type: 'application/json' });
+    const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+    if (typeof navigator.share === 'function' && nav.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: filename, text: 'SyncVision emotional profile (DNA)' });
+      return;
+    }
+  } catch {
+    // user cancelled the share sheet, or share failed — fall through to download
+  }
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `emotional-profile-${safe}.json`;
+  a.download = filename;
+  a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
