@@ -76,6 +76,10 @@ const uploadFile = (trackId: string, file: File) => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           const parsed = JSON.parse(xhr.responseText) as { filename: string };
+          // Analysis identifies tracks by serverFilename, so the playable
+          // object URL must be reachable under that key too — otherwise
+          // playback falls back to a backend route that 404s in demo mode.
+          audioStore.register(parsed.filename, file);
           setTracks(prev => prev.map(t => t.id === trackId ? { ...t, status: 'ready', progress: 100, serverFilename: parsed.filename } : t));
         } catch {
           setTracks(prev => prev.map(t => t.id === trackId ? { ...t, status: 'error', errorMessage: 'Upload succeeded but the server response was unexpected.' } : t));
