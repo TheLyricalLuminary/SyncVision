@@ -61,7 +61,8 @@ export function matchClearableAlternatives(
       const loosest = byAbs[byAbs.length - 1];
       const proof =
         `Lands within Δ${Math.abs(tightest.delta)} of your temp at the ${tightest.phase}` +
-        `, no phase off by more than Δ${Math.abs(loosest.delta)}. One-stop — clears in ${track.licenseTurnaround}.`;
+        `, no phase off by more than Δ${Math.abs(loosest.delta)}. One-stop — ${track.artist}, ${track.license}` +
+        `${track.clearanceCostUsd === 0 ? ' (free with credit)' : ''}.`;
       return {
         track,
         arcMatch,
