@@ -594,6 +594,8 @@ export function DecisionRail({ result, allResults = [], sceneArc, briefText, bri
         temp={result}
         sceneArc={sceneArc}
         blocked={(localRights?.blockers?.length ?? 0) > 0 || localRights?.rightsState === 'blocked'}
+        briefId={briefId}
+        emotionalRegister={sceneParams?.emotionalRegister}
       />
 
       {/* ── rights form (only shown when editing) ── */}

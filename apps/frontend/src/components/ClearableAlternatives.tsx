@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AnalysisResult, SceneArc } from '../utils/apiClient';
 import { matchClearableAlternatives, type ClearableMatch } from '../engine/matchClearable';
+import { fetchLiveClearable, moodTagFor, type LiveClearableTrack } from '../engine/jamendoCatalog';
 
 const C = {
   purple:  '#F5A623',
@@ -30,6 +31,8 @@ type Props = {
   sceneArc?: SceneArc | null;
   /** Whether the temp is blocked/unclearable — drives the framing + default-open. */
   blocked: boolean;
+  briefId?: string;
+  emotionalRegister?: string | null;
 };
 
 /**
@@ -38,13 +41,22 @@ type Props = {
  * same arc-match math as the Story Match score, with per-phase delta proof and
  * a real clearance cost.
  */
-export function ClearableAlternatives({ temp, sceneArc, blocked }: Props) {
+export function ClearableAlternatives({ temp, sceneArc, blocked, briefId, emotionalRegister }: Props) {
   const matches = useMemo(
     () => matchClearableAlternatives(temp, sceneArc, { topN: 3 }),
     [temp, sceneArc],
   );
   const [open, setOpen] = useState(blocked);
   const [expandedId, setExpandedId] = useState<string | null>(matches[0]?.track.id ?? null);
+
+  // Live one-stop inventory from Jamendo (backend proxy). Absent/failed → hidden.
+  const [live, setLive] = useState<LiveClearableTrack[]>([]);
+  useEffect(() => {
+    let alive = true;
+    const mood = moodTagFor(briefId ?? '', emotionalRegister);
+    void fetchLiveClearable(mood, 6).then(rows => { if (alive) setLive(rows); });
+    return () => { alive = false; };
+  }, [briefId, emotionalRegister]);
 
   if (matches.length === 0) return null;
 
@@ -82,7 +94,79 @@ export function ClearableAlternatives({ temp, sceneArc, blocked }: Props) {
           <div style={{ marginTop: 4, fontFamily: SERIF, fontStyle: 'italic', fontSize: 10.5, color: 'rgba(155,147,196,0.55)', lineHeight: 1.5 }}>
             Real tracks, ranked by the same arc-match math as Story Match. Each is a genuine one-stop — one creator controls master + composition under a public Creative Commons license. Confirm current terms at the source before placement.
           </div>
+
+          {live.length > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${C.hairline}` }}>
+              <div style={{ fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.lavender, fontWeight: 700, marginBottom: 3 }}>
+                Live one-stop inventory · Jamendo
+              </div>
+              <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 11.5, color: 'rgba(226,232,240,0.6)', marginBottom: 10 }}>
+                {live.length} more matched to your scene mood — preview and license one-stop. Run any through Story Match to score its arc.
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {live.map(t => <LiveRow key={t.id} track={t} />)}
+              </div>
+            </div>
+          )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function LiveRow({ track }: { track: LiveClearableTrack }) {
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const toggle = () => {
+    const a = audioRef.current;
+    if (!a || !track.audioUrl) return;
+    if (a.paused) { void a.play().catch(() => setPlaying(false)); } else { a.pause(); }
+  };
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 10, padding: '9px 11px', borderRadius: 10, background: 'rgba(0,0,0,0.28)', border: `1px solid ${C.hairline}` }}>
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={!track.audioUrl}
+        aria-label={playing ? 'Pause' : 'Play'}
+        style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', background: track.audioUrl ? `linear-gradient(135deg,${C.purple},${C.magenta})` : 'rgba(123,112,178,0.15)', color: track.audioUrl ? '#fff' : C.lavender, border: 'none', cursor: track.audioUrl ? 'pointer' : 'not-allowed' }}
+      >
+        {playing
+          ? <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><rect x="1.5" y="1" width="2.5" height="8"/><rect x="6" y="1" width="2.5" height="8"/></svg>
+          : <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1 L8 5 L2 9 Z"/></svg>}
+      </button>
+
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: C.silver, fontFamily: SANS, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{track.title}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 11, color: C.lavender }}>{track.artist}</span>
+          <span style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', color: track.commercialFree ? C.good : C.amber, background: track.commercialFree ? 'rgba(76,175,130,0.12)' : 'rgba(245,181,68,0.12)', border: `1px solid ${track.commercialFree ? 'rgba(76,175,130,0.32)' : 'rgba(245,181,68,0.3)'}`, borderRadius: 999, padding: '2px 6px' }}>
+            {track.commercialFree ? `${track.license} · free w/ credit` : track.license}
+          </span>
+        </span>
+      </span>
+
+      <a
+        href={track.licenseUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ fontSize: 10.5, fontWeight: 700, color: C.amber, textDecoration: 'none', letterSpacing: '0.02em', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+      >
+        License
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M17 7H9M17 7v8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </a>
+
+      {track.audioUrl && (
+        <audio
+          ref={audioRef}
+          src={track.audioUrl}
+          preload="none"
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onEnded={() => setPlaying(false)}
+        />
       )}
     </div>
   );
