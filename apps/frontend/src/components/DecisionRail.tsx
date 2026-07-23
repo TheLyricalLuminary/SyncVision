@@ -5,6 +5,7 @@ import { getAnalyser } from '../engine/audioAnalyser';
 import { RightsTable, RightsPanel, type LocalRightsOverride, type AutoFill, type RightsSaveResult } from './RightsBlock';
 import { buildEmotionalProfile, downloadEmotionalProfile } from '../utils/emotionalProfile';
 import { ClearableAlternatives } from './ClearableAlternatives';
+import { PictureLock } from './PictureLock';
 
 const C = {
   purple:         '#F5A623',
@@ -436,6 +437,18 @@ export function DecisionRail({ result, allResults = [], sceneArc, briefText, bri
           </p>
         </>
       )}
+
+      {/* ── Picture Lock A/B — temp vs clearable against the actual cut ── */}
+      <div className="no-print">
+        <PictureLock
+          tempUrl={audioFilePath}
+          tempTitle={title}
+          tempBlocked={(localRights?.blockers?.length ?? 0) > 0 || localRights?.rightsState === 'blocked'}
+          sceneArc={sceneArc}
+          briefId={briefId}
+          emotionalRegister={sceneParams?.emotionalRegister}
+        />
+      </div>
 
       {/* ── supporting evidence (collapsible) ── */}
       <div style={{ marginTop: 16, borderRadius: 12, border: `1px solid ${C.hairline}`, overflow: 'hidden' }}>
