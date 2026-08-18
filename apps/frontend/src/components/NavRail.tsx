@@ -1,4 +1,4 @@
-type NavView = 'workspace' | 'brief' | 'shortlists' | 'rights' | 'library' | 'director';
+type NavView = 'workspace' | 'brief' | 'triage' | 'shortlists' | 'rights' | 'library' | 'director';
 
 type NavRailProps = {
   active: NavView;
@@ -21,6 +21,17 @@ const ITEMS: { id: NavView; label: string; icon: React.ReactNode; bottom?: boole
     icon: (
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
         <path d="M4 5h16M4 10h16M4 15h10M4 20h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'triage',
+    label: 'Project Triage',
+    icon: (
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+        <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="1.6"/>
+        <path d="M8 9h8M8 13h8M8 17h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+        <circle cx="18.5" cy="8.5" r="3" fill="#DB2777" stroke="none"/>
       </svg>
     ),
   },

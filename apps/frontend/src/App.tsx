@@ -12,6 +12,7 @@ import {
   decodeSharePayload,
 } from './screens/ResultsScreen';
 import { ShortlistsScreen } from './screens/ShortlistsScreen';
+import { TriageScreen } from './screens/TriageScreen';
 import { RightsScreen }     from './screens/RightsScreen';
 import { LibraryScreen }    from './screens/LibraryScreen';
 import { DirectorView }     from './screens/DirectorView';
@@ -29,7 +30,7 @@ import type { DecisionPacket } from './pages/ShareView';
 // The flow sub-view (brief → ingest → analyzing → results) lives under the
 // "brief" rail item while in-flight, then moves to "workspace" on completion.
 type FlowStep = 'brief' | 'ingest' | 'analyzing' | 'results';
-type NavView  = 'workspace' | 'brief' | 'shortlists' | 'rights' | 'library' | 'director';
+type NavView  = 'workspace' | 'brief' | 'triage' | 'shortlists' | 'rights' | 'library' | 'director';
 
 function isPacketId(s: string): boolean {
   return s.length < 60 && /^[a-z][a-z0-9]+$/.test(s);
@@ -217,6 +218,7 @@ function App() {
     }
 
     // management screens
+    if (navView === 'triage')     return <TriageScreen />;
     if (navView === 'shortlists') return <ShortlistsScreen />;
     if (navView === 'rights')     return <RightsScreen />;
     if (navView === 'library')    return <LibraryScreen />;
