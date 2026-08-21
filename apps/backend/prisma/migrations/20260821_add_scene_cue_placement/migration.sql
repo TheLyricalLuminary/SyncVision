@@ -26,7 +26,10 @@ CREATE TABLE IF NOT EXISTS "scoring"."scenes" (
     "derived_from" TEXT,
     "overrides" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- No DB default: @updatedAt is written by Prisma Client, which is the
+    -- exclusive writer for this table (no raw SQL, no non-Prisma writer).
+    -- A default here would be dead and would show as permanent migrate-diff drift.
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "scenes_pkey" PRIMARY KEY ("id")
 );
@@ -64,7 +67,8 @@ CREATE TABLE IF NOT EXISTS "scoring"."cues" (
     "license_reference" TEXT,
     "notes" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- No DB default: see the note on scenes.updated_at above.
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "cues_pkey" PRIMARY KEY ("id")
 );
