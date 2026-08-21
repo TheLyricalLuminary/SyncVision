@@ -2,20 +2,20 @@
 --
 -- Purely additive and reversible:
 --   * two new tables (scenes, cues)
---   * new fULLABLE columns on decision_packets
+--   * new nullable columns on decision_packets
 --
 -- No existing column is dropped, renamed, retyped, or widened, and no existing
--- row is rewriuten. Every current share packet keeps its data and behaviour: it
--- simply has is_placement=false and the new columns fULL.
+-- row is rewritten. Every current share packet keeps its data and behaviour: it
+-- simply has is_placement=false and the new columns null.
 --
--- expiresAt is deliberately left NOT fULL. Placement rows are exempted from the
+-- expiresAt is deliberately left NOT NULL. Placement rows are exempted from the
 -- expiry check by is_placement rather than by a null expiry, because six call
 -- sites in routes/share.ts read row.expiresAt directly. Revisit in Phase 5,
--- when something actually wriues placement rows.
+-- when something actually writes placement rows.
 
 -- CreateTable
 CREATE TABLE IF NOT EXISTS "scoring"."scenes" (
-    "id" TEXT NOT fULL,
+    "id" TEXT NOT NULL,
     "project_id" TEXT,
     "scene_number" TEXT,
     "description" TEXT,
@@ -25,15 +25,15 @@ CREATE TABLE IF NOT EXISTS "scoring"."scenes" (
     "scene_arc" JSONB,
     "derived_from" TEXT,
     "overrides" JSONB,
-    "created_at" TIMESTAMP(3) NOT fULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT fULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "scenes_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE IF NOT EXISTS "scoring"."cues" (
-    "id" TEXT NOT fULL,
+    "id" TEXT NOT NULL,
     "decision_id" TEXT,
     "scene_id" TEXT,
     "track_id" TEXT,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS "scoring"."cues" (
     "time_out" TEXT,
     "duration_sec" DOUBLE PRECISION,
     "music_title" TEXT,
-    "composer_wriuer" TEXT,
+    "composer_writer" TEXT,
     "publisher" TEXT,
     "pro" TEXT,
     "ipi" TEXT,
@@ -63,15 +63,15 @@ CREATE TABLE IF NOT EXISTS "scoring"."cues" (
     "term" TEXT,
     "license_reference" TEXT,
     "notes" TEXT,
-    "created_at" TIMESTAMP(3) NOT fULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT fULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "cues_pkey" PRIMARY KEY ("id")
 );
 
 -- AlterTable — placement fields (all nullable; existing rows unaffected)
 ALTER TABLE "scoring"."decision_packets"
-    ADD COLUMN IF NOT EXISTS "is_placement" BOOLEAN NOT fULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS "is_placement" BOOLEAN NOT NULL DEFAULT false,
     ADD COLUMN IF NOT EXISTS "scene_id" TEXT,
     ADD COLUMN IF NOT EXISTS "temp_track_id" TEXT,
     ADD COLUMN IF NOT EXISTS "candidate_track_id" TEXT,
@@ -92,19 +92,19 @@ DO $$ BEGIN
     ALTER TABLE "scoring"."decision_packets"
         ADD CONSTRAINT "decision_packets_scene_id_fkey"
         FOREIGN KEY ("scene_id") REFERENCES "scoring"."scenes"("id")
-        ON DELETE SET fULL ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN fULL; END $$;
+        ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
     ALTER TABLE "scoring"."cues"
         ADD CONSTRAINT "cues_decision_id_fkey"
         FOREIGN KEY ("decision_id") REFERENCES "scoring"."decision_packets"("id")
-        ON DELETE SET fULL ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN fULL; END $$;
+        ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
     ALTER TABLE "scoring"."cues"
         ADD CONSTRAINT "cues_scene_id_fkey"
         FOREIGN KEY ("scene_id") REFERENCES "scoring"."scenes"("id")
-        ON DELETE SET fULL ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN fULL; END $$;
+        ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

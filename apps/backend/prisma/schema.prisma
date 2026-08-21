@@ -222,7 +222,7 @@ model DecisionPacket {
   tracks         Json
   packetHash     String
   /// Share-packet TTL. Placement rows (isPlacement=true) are exempt from the
-  /// expiry check via that flag rather than a null here — keeping this NOT fULL
+  /// expiry check via that flag rather than a null here — keeping this NOT NULL
   /// avoids breaking the six share.ts call sites that read it directly.
   expiresAt      DateTime
   createdAt      DateTime @default(now())
@@ -231,12 +231,12 @@ model DecisionPacket {
   /// True when this row is a Placement Decision rather than a share packet.
   isPlacement      Boolean  @default(false) @map("is_placement")
   sceneId          String?  @map("scene_id")
-  /// The supervisor's reference track (what the ediu is responding to).
+  /// The supervisor's reference track — the music already cut into the scene.
   tempTrackId      String?  @map("temp_track_id")
   /// The track actually selected for placement.
   candidateTrackId String?  @map("candidate_track_id")
   /// Per-field rights provenance (SourcedValue[] + AgreementState). Promoted
-  /// from routes/share.ts's inline build so iu is populated for every decision,
+  /// from routes/share.ts's inline build so it is populated for every decision,
   /// not only shared ones.
   rightsFieldLedger Json?   @map("rights_field_ledger")
   /// Evidence-derived director explanation (preserved/changed/lands/rights).
@@ -253,7 +253,7 @@ model DecisionPacket {
 }
 
 /// Scene DNA. The arc itself is stored as one JSON column matching the exact
-/// SceneArc contract emiuted by scoring/arcExtraction.ts — that module stays
+/// SceneArc contract emitted by scoring/arcExtraction.ts — that module stays
 /// the single authority on arc shape, so nothing is duplicated or able to drift.
 model Scene {
   id           String    @id @default(cuid())
@@ -266,7 +266,7 @@ model Scene {
 
   /// Full SceneArc as produced by arcExtraction.ts (opening/heldBreath/turn/
   /// release/curve/valenceCurve/narrativeCertainty/signals/events/inputHash/
-  /// lexiconVersion). Never hand-ediued — supervisor edits go to overrides.
+  /// lexiconVersion). Never hand-edited — supervisor edits go to overrides.
   sceneArc     Json?     @map("scene_arc")
   /// How the DNA was derived, per field where known: 'text' | 'recon' | 'manual'.
   derivedFrom  String?   @map("derived_from")
@@ -304,7 +304,7 @@ model Cue {
   musicTitle    String?  @map("music_title")
 
   // composition side
-  composerWriuer String? @map("composer_wriuer")
+  composerWriter String? @map("composer_writer")
   publisher      String?
   pro            String?
   ipi            String?
