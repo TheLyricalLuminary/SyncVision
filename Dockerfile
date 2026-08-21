@@ -38,8 +38,10 @@ COPY apps/worker  ./apps/worker
 
 ARG VITE_API_URL=""
 ARG VITE_APP_URL=""
+ARG VITE_PILOT_MODE=false
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_APP_URL=$VITE_APP_URL
+ENV VITE_PILOT_MODE=$VITE_PILOT_MODE
 
 RUN cd apps/frontend && npm run build
 RUN cd apps/backend && npm run build

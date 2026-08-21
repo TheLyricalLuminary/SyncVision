@@ -7,6 +7,7 @@ primary_region = "ord"
   [build.args]
     VITE_API_URL = "https://syncvision.fly.dev"
     VITE_APP_URL = "https://syncvision.fly.dev"
+    VITE_PILOT_MODE = "true"
 
 [deploy]
   # Kept identical to fly.toml's release_command so this config cannot be used

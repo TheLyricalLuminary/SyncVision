@@ -8,6 +8,9 @@ primary_region = 'ord'
 
 [build]
 
+  [build.args]
+    VITE_PILOT_MODE = "true"
+
 [deploy]
   # Migrations must run over the direct (unpooled) Neon connection, never the
   # pooled runtime DATABASE_URL — pooled connections can drop/rebalance mid
