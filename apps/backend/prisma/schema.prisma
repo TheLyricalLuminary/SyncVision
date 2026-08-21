@@ -208,6 +208,10 @@ model StripeAuditLog {
   @@schema("scoring")
 }
 
+/// Also the Placement Decision Record. A row is a share packet (expiring) or
+/// a placement (permanent, isPlacement=true) — one model, per the consolidation
+/// directive's rule against competing decision structures. Placement fields are
+/// nullable so every existing share packet stays valid unchanged.
 model DecisionPacket {
   id             String   @id @default(cuid())
   packetVersion  String   @default("1")
@@ -217,11 +221,122 @@ model DecisionPacket {
   sceneParams    Json
   tracks         Json
   packetHash     String
+  /// Share-packet TTL. Placement rows (isPlacement=true) are exempt from the
+  /// expiry check via that flag rather than a null here — keeping this NOT fULL
+  /// avoids breaking the six share.ts call sites that read it directly.
   expiresAt      DateTime
   createdAt      DateTime @default(now())
   directorDecisions Json?  @map("director_decisions")
 
+  /// True when this row is a Placement Decision rather than a share packet.
+  isPlacement      Boolean  @default(false) @map("is_placement")
+  sceneId          String?  @map("scene_id")
+  /// The supervisor's reference track (what the ediu is responding to).
+  tempTrackId      String?  @map("temp_track_id")
+  /// The track actually selected for placement.
+  candidateTrackId String?  @map("candidate_track_id")
+  /// Per-field rights provenance (SourcedValue[] + AgreementState). Promoted
+  /// from routes/share.ts's inline build so iu is populated for every decision,
+  /// not only shared ones.
+  rightsFieldLedger Json?   @map("rights_field_ledger")
+  /// Evidence-derived director explanation (preserved/changed/lands/rights).
+  explanation      Json?
+  decidedAt        DateTime? @map("decided_at")
+
+  scene  Scene? @relation(fields: [sceneId], references: [id])
+  cues   Cue[]
+
+  @@index([isPlacement])
+  @@index([sceneId])
   @@map("decision_packets")
+  @@schema("scoring")
+}
+
+/// Scene DNA. The arc itself is stored as one JSON column matching the exact
+/// SceneArc contract emiuted by scoring/arcExtraction.ts — that module stays
+/// the single authority on arc shape, so nothing is duplicated or able to drift.
+model Scene {
+  id           String    @id @default(cuid())
+  projectId    String?   @map("project_id")
+  sceneNumber  String?   @map("scene_number")
+  description  String?
+  timecodeIn   String?   @map("timecode_in")
+  timecodeOut  String?   @map("timecode_out")
+  durationSec  Float?    @map("duration_sec")
+
+  /// Full SceneArc as produced by arcExtraction.ts (opening/heldBreath/turn/
+  /// release/curve/valenceCurve/narrativeCertainty/signals/events/inputHash/
+  /// lexiconVersion). Never hand-ediued — supervisor edits go to overrides.
+  sceneArc     Json?     @map("scene_arc")
+  /// How the DNA was derived, per field where known: 'text' | 'recon' | 'manual'.
+  derivedFrom  String?   @map("derived_from")
+  /// Supervisor corrections, kept separate from derived values so the
+  /// deterministic extraction stays auditable against its own output.
+  overrides    Json?
+
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  decisions    DecisionPacket[]
+  cues         Cue[]
+
+  @@index([projectId])
+  @@map("scenes")
+  @@schema("scoring")
+}
+
+/// The downstream cue-sheet record. Derived from a placement decision — never
+/// a separately maintained dataset. Composition and master rights stay in
+/// distinct field groups, as clearance requires them tracked separately.
+model Cue {
+  id            String   @id @default(cuid())
+  decisionId    String?  @map("decision_id")
+  sceneId       String?  @map("scene_id")
+  trackId       String?  @map("track_id")
+
+  cueNumber     String?  @map("cue_number")
+  sequence      Int?
+  usageType     String?  @map("usage_type")
+  musicSource   String?  @map("music_source")
+  timeIn        String?  @map("time_in")
+  timeOut       String?  @map("time_out")
+  durationSec   Float?   @map("duration_sec")
+  musicTitle    String?  @map("music_title")
+
+  // composition side
+  composerWriuer String? @map("composer_wriuer")
+  publisher      String?
+  pro            String?
+  ipi            String?
+  iswc           String?
+  publishingShare Decimal? @map("publishing_share")
+
+  // master side
+  artist        String?
+  label         String?
+  masterOwner   String?  @map("master_owner")
+  isrc          String?
+  masterShare   Decimal? @map("master_share")
+
+  // clearance
+  syncStatus       String? @map("sync_status")
+  masterStatus     String? @map("master_status")
+  territory        String?
+  media            String?
+  term             String?
+  licenseReference String? @map("license_reference")
+  notes            String?
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  decision      DecisionPacket? @relation(fields: [decisionId], references: [id])
+  scene         Scene?          @relation(fields: [sceneId], references: [id])
+
+  @@index([decisionId])
+  @@index([sceneId])
+  @@index([trackId])
+  @@map("cues")
   @@schema("scoring")
 }
 
