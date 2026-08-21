@@ -123,6 +123,19 @@ export type CurrentUser = {
 const USE_SEED_ENGINE =
   (import.meta.env.VITE_USE_SEED_ENGINE ?? 'true') === 'true';
 
+/**
+ * Private concierge pilot mode. Founder-operated, single pilot at a time —
+ * there is no per-project/per-user isolation model in this app (DecisionPacket
+ * has no owner field, and the app has no Project concept at all), so this
+ * flag does not attempt multi-tenant separation. It only bounds one pilot's
+ * inputs/outputs and hides billing-flavored UI that doesn't apply to a free
+ * concierge engagement. See PR description for the full limitation.
+ */
+export const PILOT_MODE = import.meta.env.VITE_PILOT_MODE === 'true';
+export const PILOT_MAX_SCENE_SECONDS = 90;
+export const PILOT_MAX_CANDIDATES_INGESTED = 5;
+export const PILOT_MAX_CANDIDATES_SHOWN = 5;
+
 if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
   console.error('[SyncVision] VITE_API_URL is not set — API calls will fail in production. Set this to the Railway backend public URL before building.');
 }

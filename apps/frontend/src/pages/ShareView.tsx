@@ -852,13 +852,13 @@ function LiveShareView({ packet }: { packet: DecisionPacket }) {
     setTimeout(() => setToast(null), 3500);
   }
 
-  const sendDecisions = async () => {
+  const sendDecisions = async (overrideDecisions?: Record<string, DecisionState>) => {
     setSendState('sending');
     try {
       const res = await fetch(`${API_BASE}/api/share/${packet.packetId}/decisions`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decisions, notes }),
+        body: JSON.stringify({ decisions: overrideDecisions ?? decisions, notes }),
       });
       if (res.ok) {
         setSendState('sent');
@@ -952,9 +952,23 @@ function LiveShareView({ packet }: { packet: DecisionPacket }) {
                 className={`cta ${sendState === 'sent' ? 'sent' : ''}`}
                 type="button"
                 disabled={sendState === 'sending' || sendState === 'sent'}
-                onClick={sendDecisions}
+                onClick={() => sendDecisions()}
               >
                 {sendState === 'sending' ? 'Sending…' : sendState === 'sent' ? 'Sent ✓' : 'Send decisions →'}
+              </button>
+              <button
+                className="cta"
+                type="button"
+                disabled={sendState === 'sending' || sendState === 'sent'}
+                style={{ background: 'transparent', border: '1px solid rgba(123,112,178,0.34)', marginLeft: 8 }}
+                title="Explicitly record that none of these candidates work for this scene."
+                onClick={() => {
+                  const none = Object.fromEntries(packet.tracks.map(slot => [slot.trackId, 'passed' as DecisionState]));
+                  setDecisions(none);
+                  void sendDecisions(none);
+                }}
+              >
+                No candidate selected
               </button>
             </div>
           </div>
