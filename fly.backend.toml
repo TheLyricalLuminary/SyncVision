@@ -8,6 +8,11 @@ primary_region = "ord"
     VITE_API_URL = "https://syncvision.fly.dev"
     VITE_APP_URL = "https://syncvision.fly.dev"
 
+[deploy]
+  # Kept identical to fly.toml's release_command so this config cannot be used
+  # to silently skip migrations if it is ever the one actually deployed with.
+  release_command = "sh -c 'test -n \"$DATABASE_URL_UNPOOLED\" || { echo \"FATAL: DATABASE_URL_UNPOOLED is not set — refusing to run migrations over the pooled connection.\" >&2; exit 1; }; cd /app/apps/backend && DATABASE_URL=\"$DATABASE_URL_UNPOOLED\" npx prisma migrate deploy'"
+
 [env]
   NODE_ENV = "production"
   PORT = "8080"

@@ -55,6 +55,6 @@ COPY apps/backend/start.sh /app/apps/backend/start.sh
 RUN chmod +x /app/apps/backend/start.sh
 
 EXPOSE 8080
-# start.sh runs `prisma migrate deploy` then starts the server.
-# Migrations run at container startup so DATABASE_URL is available.
+# start.sh only starts the server. Migrations run separately, via Fly's
+# [deploy] release_command (see fly.toml) — NOT at container startup.
 CMD ["/app/apps/backend/start.sh"]
