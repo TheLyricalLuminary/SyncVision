@@ -172,6 +172,9 @@ export function RightsScreen() {
         <p className="sv-narrative" style={{ marginTop: 10, maxWidth: 640 }}>
           Every track in the system, grouped by its real clearance state — computed by the deterministic rights state machine (engine {data.engine_version}), not entered by hand. Click a card to fill in what's missing; it moves on its own once the state actually changes.
         </p>
+        <p style={{ marginTop: 10, maxWidth: 640, fontSize: 11, color: 'rgba(155,147,196,0.6)' }}>
+          SyncVision organizes decision and rights evidence. It does not provide legal advice or final music clearance.
+        </p>
       </div>
 
       <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>

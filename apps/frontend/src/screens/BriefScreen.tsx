@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { classifyBrief, BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
-import { extractSceneArc, type SceneParams, type SceneArc, type ArcPhases } from '../utils/apiClient';
+import { extractSceneArc, PILOT_MODE, PILOT_MAX_SCENE_SECONDS, type SceneParams, type SceneArc, type ArcPhases } from '../utils/apiClient';
 import { SceneArcInspector } from '../components/SceneArcInspector';
 import { ArcMatch } from '../components/ArcMatch';
 import type { ArcSegments } from '../engine/arcMatch';
@@ -193,7 +193,9 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
   const realWordCount = briefText.trim()
     ? briefText.trim().split(/\s+/).filter(w => w.length >= 2).length
     : 0;
-  const canContinue = briefText.trim().length >= 10 && realWordCount >= 2;
+  const parsedSceneLength = sceneLengthSec.trim() ? Number(sceneLengthSec) : null;
+  const sceneTooLong = PILOT_MODE && parsedSceneLength != null && !Number.isNaN(parsedSceneLength) && parsedSceneLength > PILOT_MAX_SCENE_SECONDS;
+  const canContinue = briefText.trim().length >= 10 && realWordCount >= 2 && !sceneTooLong;
 
   const handleSubmit = () => {
     if (!canContinue) return;
@@ -385,6 +387,11 @@ export function BriefScreen({ initialBriefText, initialSceneParams, onContinue }
                     />
                     <span>sec</span>
                   </span>
+                </div>
+              )}
+              {sceneTooLong && (
+                <div style={{ marginTop: 6, fontSize: 10.5, color: C.amber }}>
+                  This pilot is scoped to scenes up to {PILOT_MAX_SCENE_SECONDS} seconds.
                 </div>
               )}
             </div>

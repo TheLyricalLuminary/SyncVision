@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { API_BASE } from '../utils/apiClient';
+import { API_BASE, PILOT_MODE, PILOT_MAX_CANDIDATES_INGESTED } from '../utils/apiClient';
 import { audioStore } from '../utils/audioStore';
 
 export type IngestedTrack = {
@@ -113,8 +113,15 @@ const uploadFile = (trackId: string, file: File) => {
     } else { setDropError(null); }
     setTracks(prev => {
       const existing = new Set(prev.map(t => t.filename));
-      const newTracks = accepted
-        .filter(f => !existing.has(f.name))
+      let toAdd = accepted.filter(f => !existing.has(f.name));
+      if (PILOT_MODE) {
+        const room = Math.max(0, PILOT_MAX_CANDIDATES_INGESTED - prev.length);
+        if (toAdd.length > room) {
+          setDropError(`This pilot is limited to ${PILOT_MAX_CANDIDATES_INGESTED} candidate tracks. Only the first ${room} of ${toAdd.length} were added.`);
+        }
+        toAdd = toAdd.slice(0, room);
+      }
+      const newTracks = toAdd
         .map(f => ({
           file: f,
           track: { id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, filename: f.name, source: 'file' as const, status: 'uploading' as const, progress: 0 },
@@ -140,8 +147,9 @@ const uploadFile = (trackId: string, file: File) => {
   };
 
   const readyCount = tracks.filter(t => t.status === 'ready').length;
-  const canAnalyze = readyCount > 0 && creditBalance >= readyCount;
-  const insufficientCredits = readyCount > 0 && creditBalance < readyCount;
+  // Pilot mode is free — it never checks or spends credit balance.
+  const canAnalyze = readyCount > 0 && (PILOT_MODE || creditBalance >= readyCount);
+  const insufficientCredits = !PILOT_MODE && readyCount > 0 && creditBalance < readyCount;
 
   return (
     <div style={{ minHeight: '100vh', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', color: C.silver, background: BG }}>
@@ -261,7 +269,7 @@ const uploadFile = (trackId: string, file: File) => {
                 or <span style={{ color: C.silver, textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: C.magenta }}>browse</span> from your device
               </div>
               <div style={{ marginTop: 14, fontSize: 9, letterSpacing: '0.22em', color: 'rgba(123,112,178,0.55)', textTransform: 'uppercase', fontFamily: '"JetBrains Mono", monospace' }}>
-                MP3
+                MP3{PILOT_MODE ? ` · up to ${PILOT_MAX_CANDIDATES_INGESTED}` : ''}
               </div>
               <input ref={fileInputRef} type="file" accept={ACCEPTED_TYPES.join(',')} multiple style={{ display: 'none' }} onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
             </div>
@@ -320,7 +328,10 @@ const uploadFile = (trackId: string, file: File) => {
           <div className="sv-ing-cta" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {tracks.length > 0 && (
               <span style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.lavender, whiteSpace: 'nowrap', fontFamily: SANS }}>
-                Tracks <b style={{ color: C.silver, fontWeight: 700, fontSize: 12, letterSpacing: '-0.01em' }}>{readyCount}</b> &nbsp;·&nbsp; Credits <b style={{ color: C.silver, fontWeight: 700, fontSize: 12, letterSpacing: '-0.01em' }}>{creditBalance}</b>
+                Tracks <b style={{ color: C.silver, fontWeight: 700, fontSize: 12, letterSpacing: '-0.01em' }}>{readyCount}</b>
+                {PILOT_MODE ? ` of ${PILOT_MAX_CANDIDATES_INGESTED}` : (
+                  <> &nbsp;·&nbsp; Credits <b style={{ color: C.silver, fontWeight: 700, fontSize: 12, letterSpacing: '-0.01em' }}>{creditBalance}</b></>
+                )}
               </span>
             )}
             <button

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { API_BASE, type AnalysisResult, type SceneParams, type SceneArc } from '../utils/apiClient';
+import { API_BASE, PILOT_MODE, PILOT_MAX_CANDIDATES_SHOWN, type AnalysisResult, type SceneParams, type SceneArc } from '../utils/apiClient';
 import { BRIEF_LABELS, type BriefId } from '../engine/classifyBrief';
 import { SceneArcInspector } from '../components/SceneArcInspector';
 import { ArcCandidateRow }    from '../components/ArcCandidateRow';
@@ -819,6 +819,10 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
 
   const topScore = results[0]?.confidenceScore.score ?? 100;
 
+  // Pilot mode presents only the strongest N candidates (results is already
+  // rank-sorted). Stats above still reflect everything actually analyzed.
+  const displayResults = PILOT_MODE ? results.slice(0, PILOT_MAX_CANDIDATES_SHOWN) : results;
+
   // toolbar stats
   const rightsBlockerCount = results.filter(r => (r.rightsProfile?.blockers?.length ?? 0) > 0).length;
   const needLyricsCount    = results.filter(r => r.confidenceScore.vector.lyrics === 0).length;
@@ -1068,7 +1072,7 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
 
             {/* col 2 — candidate list */}
             <div className="sv-candidate-list">
-              {results.map(r => (
+              {displayResults.map(r => (
                 <ArcCandidateRow
                   key={r.track.id}
                   result={r}
@@ -1149,10 +1153,10 @@ export function ResultsScreen({ briefText, briefId, sceneParams, sceneArc, resul
                 Scene arc &mdash; opening {sceneArc.opening} &middot; held breath {sceneArc.heldBreath} &middot; turn {sceneArc.turn} &middot; release {sceneArc.release} &middot; certainty {Math.round(sceneArc.narrativeCertainty * 100)}%
               </div>
             )}
-            <div className="pr-count">Shortlist &mdash; {results.length} track{results.length !== 1 ? 's' : ''} ranked by Story Match</div>
+            <div className="pr-count">Shortlist &mdash; {displayResults.length} track{displayResults.length !== 1 ? 's' : ''} ranked by Story Match</div>
           </div>
           <div className="pr-rule" />
-          {results.map((r, idx) => {
+          {displayResults.map((r, idx) => {
             const rp = localRightsOverrides[r.track.id] ?? r.rightsProfile;
             const vec = r.confidenceScore.vector;
             const WEIGHTS = { scene: 0.45, lyrics: 0.25, audioSignal: 0.20, rightsClarity: 0.10 };

@@ -8,11 +8,19 @@ primary_region = 'ord'
 
 [build]
 
+  [build.args]
+    VITE_PILOT_MODE = "true"
+
 [deploy]
-  release_command = "sh -c 'cd /app/apps/backend && npx prisma migrate deploy'"
+  # Migrations must run over the direct (unpooled) Neon connection, never the
+  # pooled runtime DATABASE_URL — pooled connections can drop/rebalance mid
+  # migration. Fails loudly and refuses to migrate if the secret is absent,
+  # rather than silently falling back to the pooled URL.
+  release_command = "sh -c 'test -n \"$DATABASE_URL_UNPOOLED\" || { echo \"FATAL: DATABASE_URL_UNPOOLED is not set — refusing to run migrations over the pooled connection.\" >&2; exit 1; }; cd /app/apps/backend && DATABASE_URL=\"$DATABASE_URL_UNPOOLED\" npx prisma migrate deploy'"
 
 [env]
   PORT = "8080"
+  AUDIO_STORAGE_PATH = "/var/audio"
 
 [http_service]
   internal_port = 8080
@@ -24,7 +32,7 @@ primary_region = 'ord'
 
 [[mounts]]
   source = "audio_data"
-  destination = "/app/audio"
+  destination = "/var/audio"
 
 [[vm]]
   memory = '1gb'
