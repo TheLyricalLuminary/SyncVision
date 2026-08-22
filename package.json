@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "build": "cd apps/frontend && npm ci && npm run build"
+  },
   "dependencies": {
     "stripe": "^22.1.0"
   }

@@ -1,0 +1,5 @@
+name = "syncvision-frontend"
+compatibility_date = "2026-08-01"
+
+[assets]
+directory = "apps/frontend/dist"
