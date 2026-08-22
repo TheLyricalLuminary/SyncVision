@@ -305,6 +305,31 @@ variables that must be set in the Render dashboard before deploying.
 | `VITE_APP_URL` | Public frontend URL — baked into OG/Twitter Card meta tags for LinkedIn link previews |
 | `VITE_API_URL` | Backend public URL — set in production; leave empty for local dev (Vite proxies `/api`) |
 
+### Deploying the frontend to Cloudflare Pages
+
+`apps/frontend` is a static Vite build and can be hosted on Cloudflare Pages
+independently of the backend/worker (which stay on their own host — Pages
+has no persistent process or filesystem for those). To connect this repo:
+
+1. Cloudflare dashboard → **Workers & Pages** → **Create application** →
+   **Pages** → **Import an existing Git repository**, and select this repo.
+2. Build settings:
+   - **Root directory**: `apps/frontend`
+   - **Build command**: `npm run build`
+   - **Build output directory**: `dist`
+3. Add the build-time environment variables from the table above
+   (`VITE_APP_URL` set to the Pages URL, `VITE_API_URL` set to the backend's
+   public URL) under the project's **Settings → Environment variables**.
+4. Deploy. Every push to the connected branch triggers a new build.
+
+`apps/frontend/wrangler.toml` pins the Pages project name, output
+directory, and compatibility date for parity with `wrangler pages deploy`
+if you ever deploy from the CLI instead of the dashboard.
+
+Since the frontend and backend are on different hosts, the backend's
+`FRONTEND_URL`/`EXTRA_ALLOWED_ORIGINS` must include the Pages URL or the
+API will reject its requests via CORS (see `apps/backend/src/index.ts`).
+
 ---
 
 ## Scene types (26)
