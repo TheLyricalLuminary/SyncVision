@@ -1,9 +1,12 @@
 /**
  * /api/share — decision-packet creation, retrieval, and audio proxy.
  *
- * POST /api/share            — create a packet (rate-limited, unauthenticated)
- * GET  /api/share/audio/:token — HMAC-verified audio proxy with range passthrough
- * GET  /api/share/:packetId  — fetch packet JSON (rate-limited, unauthenticated)
+ * POST  /api/share                    — create a packet (rate-limited, unauthenticated)
+ * GET   /api/share/audio/:token       — HMAC-verified audio proxy with range passthrough
+ * PATCH /api/share/:packetId/decisions — director accept/pass + notes (rate-limited, unauthenticated)
+ * POST  /api/share/:packetId/place    — supervisor-only: record the placement and
+ *                                       emit the permanent Cue row (shared-secret gated)
+ * GET   /api/share/:packetId          — fetch packet JSON (rate-limited, unauthenticated)
  */
 
 import { Router, Request, Response } from 'express';
@@ -11,6 +14,7 @@ import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
+import { secretMatches } from '../lib/secretCompare';
 import { createAudioToken, verifyAudioToken } from '../lib/audioToken';
 import { canonicalize, sha256Hex, fixedNum, type JsonValue } from '../lib/packetHash';
 import { WEIGHTS, computeDataConfidence } from '../scoring/trackVector';
@@ -628,6 +632,150 @@ router.patch('/share/:packetId/decisions', async (req: Request, res: Response) =
     res.json({ ok: true });
   } catch (err) {
     console.error('share decisions:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// ── POST /api/share/:packetId/place ───────────────────────────────────────────
+//
+// Supervisor-only. Records which candidate was actually placed and emits the
+// permanent Cue row — the downstream cue-sheet/audit record.
+//
+// Deliberately NOT in the unauthenticated block that POST /share and PATCH
+// /decisions live in: a Cue is a legal/financial record, so the write is gated
+// on a shared secret held by the supervisor, never by a share-link holder.
+//
+// Phase 1 scope: sceneId and tempTrackId stay null on both the packet and the
+// Cue. Nothing in the current packet-creation flow links a Scene row — that is
+// Scene-intake's job. Those columns already exist, so wiring them later needs
+// no change here.
+
+const PlaceSchema = z.object({
+  trackId: z.string().min(1),
+});
+
+router.post('/share/:packetId/place', async (req: Request, res: Response) => {
+  if (!checkLimit('place', ip(req), 30)) {
+    res.status(429).json({ error: 'rate_limited' });
+    return;
+  }
+
+  // Fail closed: with no key configured the route refuses rather than falling
+  // open, so a missing secret can never silently expose Cue creation.
+  const expectedKey = process.env.SUPERVISOR_PLACEMENT_KEY;
+  if (!expectedKey) {
+    console.error('placement: SUPERVISOR_PLACEMENT_KEY is not set — refusing.');
+    res.status(503).json({ error: 'placement_not_configured' });
+    return;
+  }
+  const providedKey = req.headers['x-supervisor-key'];
+  if (typeof providedKey !== 'string' || !secretMatches(providedKey, expectedKey)) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+
+  const parsed = PlaceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_body', detail: parsed.error.issues });
+    return;
+  }
+  const { trackId } = parsed.data;
+  const packetId = req.params.packetId as string;
+
+  try {
+    const row = await prisma.decisionPacket.findUnique({ where: { id: packetId } });
+    if (!row) { res.status(404).json({ error: 'not_found' }); return; }
+    if (new Date(row.expiresAt) < new Date()) {
+      res.status(410).json({ error: 'expired' });
+      return;
+    }
+
+    // The placed track must be one this packet actually presented.
+    const slots = row.tracks as unknown as TrackSlot[];
+    const slot  = Array.isArray(slots) ? slots.find(t => t.trackId === trackId) : undefined;
+    if (!slot) {
+      res.status(400).json({ error: 'track_not_in_packet' });
+      return;
+    }
+
+    // Single placement per packet (Phase 1). Re-placing the same track is
+    // idempotent so a double-submit returns the existing Cue instead of a
+    // duplicate cue-sheet row; a different track is a conflict the supervisor
+    // must resolve explicitly.
+    if (row.isPlacement) {
+      const existing = await prisma.cue.findFirst({
+        where: { decisionId: packetId },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (row.candidateTrackId === trackId) {
+        res.json({ ok: true, cueId: existing?.id ?? null, alreadyPlaced: true });
+        return;
+      }
+      res.status(409).json({
+        error: 'already_placed',
+        placedTrackId: row.candidateTrackId,
+      });
+      return;
+    }
+
+    // Best-effort rights lookup — synthetic/seed-engine tracks have no DB row.
+    // Same tolerant pattern used when building slots in POST /share.
+    let track: { title: string; artistName: string | null; isrc: string | null } | null = null;
+    let rp: Record<string, unknown> | null = null;
+    try {
+      const dbTrack = await prisma.track.findUnique({
+        where: { id: trackId },
+        include: { rightsProfile: true },
+      });
+      if (dbTrack) {
+        track = { title: dbTrack.title, artistName: dbTrack.artistName, isrc: dbTrack.isrc };
+        if (dbTrack.rightsProfile) {
+          rp = dbTrack.rightsProfile as unknown as Record<string, unknown>;
+        }
+      }
+    } catch { /* not in DB — fall back to the packet slot below */ }
+
+    const decidedAt = new Date();
+
+    // Packet update and Cue creation must land together — a placement flag with
+    // no cue row (or vice versa) would corrupt the audit trail.
+    const [, cue] = await prisma.$transaction([
+      prisma.decisionPacket.update({
+        where: { id: packetId },
+        data: {
+          isPlacement:      true,
+          candidateTrackId: trackId,
+          decidedAt,
+        },
+      }),
+      prisma.cue.create({
+        data: {
+          decisionId:      packetId,
+          trackId,
+          sequence:        1,
+          musicTitle:      track?.title      ?? slot.title,
+          artist:          track?.artistName ?? slot.artistName,
+          isrc:            track?.isrc       ?? slot.isrc,
+          // composition side
+          composerWriter:  (rp?.['writerName']     as string | null) ?? null,
+          publisher:       (rp?.['publisherName']  as string | null) ?? null,
+          pro:             (rp?.['proAffiliation'] as string | null) ?? null,
+          ipi:             (rp?.['writerIpi']      as string | null) ?? null,
+          iswc:            (rp?.['iswc']           as string | null) ?? null,
+          publishingShare: (rp?.['splitPct'] as string | number | null) ?? null,
+          // master side
+          masterOwner:     (rp?.['masterOwnedBy']  as string | null) ?? null,
+          masterShare:     (rp?.['masterOwnershipPct'] as string | number | null) ?? null,
+          // clearance — carried from the rights record, not invented here
+          syncStatus:      (rp?.['syncLicenseStatus'] as string | null) ?? null,
+          territory:       (rp?.['territory']         as string | null) ?? null,
+        },
+      }),
+    ]);
+
+    res.status(201).json({ ok: true, cueId: cue.id, decidedAt: decidedAt.toISOString() });
+  } catch (err) {
+    console.error('share place:', err);
     res.status(500).json({ error: 'server_error' });
   }
 });
